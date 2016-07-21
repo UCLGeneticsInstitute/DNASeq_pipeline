@@ -6,36 +6,44 @@ The current working directory is here:
 /SAN/vyplab/UCLex/
 ```
 
-
-Scripts in pipeline:
+The main script:
 ```
-annovar_vcf_combine_VP.py
-case_control.R
-combinegVCF.sh
-crunch_controls.pl
-crunch_data.R
-custom_filtering.pl
-deprecated
-make_matrix_calls.pl
 msample_calling.sh
-process_multiVCF.R
-split_data_by_chromosomes.R
 ```
+You can run the individual steps:
+```
+release=July2016
+```
+## Step 1: combine gVCF files
 
-Files created by pipeline:
-
-Created by GenotypeGVCFs:
+Combine the gVCFs:
+```
+bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --genotype yes --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release}
+```
+This creates:
 ```
  mainset_September2015_chr9.vcf.gz
  mainset_September2015_chr9.vcf.gz.tbi
  ```
- 
- Created by Annovar:
- ```
+
+Recalibrate the VCFs:
+```
+bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --recal yes --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release}
+```
+Annotate the variants.
+The input of which is:
+```
  mainset_September2015_chr9_db
  mainset_September2015_chr9_db.log
- ```
- 
+```
+```
+bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --annovar yes --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release}
+```
+Convert to R datasets:
+```
+bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --convertToR yes --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release}
+```
+
  GATK filter and VSQR:
  ```
  mainset_September2015_chr9_filtered.vcf.idx
@@ -53,9 +61,7 @@ Created by GenotypeGVCFs:
  mainset_September2015_chr9_SNPs.vcf.gz.tbi
 ```
 
-## Step 1: combine gVCF files
 
-combinegVCF.sh
 
 ## Step 2: msample_calling.sh: Massive joint calling GenotypeGVCFs
 
