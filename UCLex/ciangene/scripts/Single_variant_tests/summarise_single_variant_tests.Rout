@@ -1,0 +1,4488 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-unknown-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ## Run after plot_singleVariant_results.R to get more detailed stats about interesting variants. 
+> library(HardyWeinberg)
+Loading required package: mice
+Loading required package: Rcpp
+Loading required package: lattice
+mice 2.22 2014-06-10
+> library(snpStats) 
+Loading required package: survival
+Loading required package: Matrix
+
+Attaching package: 'snpStats'
+
+The following object is masked from 'package:mice':
+
+    pool
+
+> library(biomaRt)
+> library(foreach) 
+> library(doMC)
+Loading required package: iterators
+Loading required package: parallel
+> registerDoMC(4) ## Run across 4 cores cos this script is slow AS
+> 
+> 
+> ## Some data and links to start
+> release<-'July2015'
+> ldak<-'/cluster/project8/vyp/cian/support/ldak/ldak'
+> bDir<-paste0("/scratch2/vyp-scratch2/cian//UCLex_",release,"/") 
+> data<-paste0(bDir,'allChr_snpStats_out') 
+> func <- c("nonsynonymous SNV", "stopgain SNV", "nonframeshift insertion", "nonframeshift deletion", "frameshift deletion", 
++ 		"frameshift substitution", "frameshift insertion",  "nonframeshift substitution", "stoploss SNV", "splicing"
++ 		,"exonic;splicing")
+> lof <-  c("frameshift deletion", "frameshift substitution", "frameshift insertion",  "stoploss SNV", "splicing"
++ 		,"stopgain SNV","exonic;splicing"
++ 		)
+> 
+> 
+> pheno<-read.table(paste0(bDir,'Clean_pheno_subset'))
+> fam<-read.table(paste0(bDir,'allChr_snpStats_out.fam'))
+> cohorts<-read.table(paste0(bDir,'cohort.list'))
+> colnames(pheno)<-c(rep("Samples",2),cohorts[,1])
+> ## Do initial filtering, by pvalue, quality, extCtrl maf and function/LOF status
+> variant.filter<-function(dat,pval=0.0001,pval.col="TechKinPvalue",func.filt=TRUE, lof.filt=FALSE,max.maf=.05) 
++ {
++ 	message("Filtering data")
++ #	clean<-subset(dat, dat$FILTER=="PASS") 
++ #	pval.col.nb<-colnames(clean)%in%pval.col
++ #	sig<-subset(clean,clean[,pval.col.nb]<=pval) 
++ 	sig<-subset(dat,dat$Pvalue<=pval|dat$TechKinPvalue<=pval) 
++ 	funcy<-sig[sig$ExonicFunc %in% func | sig$Func %in% func,]
++ 	funcy$ESP6500si_ALL[is.na(funcy$ESP6500si_ALL)]<-0
++ 	funcy$ExtCtrl_MAF[is.na(funcy$ExtCtrl_MAF)]<-0
++ 	rare<- subset(funcy,funcy$ExtCtrl_MAF < max.maf & funcy$ESP6500si_ALL < max.maf) 
++ #	return(funcy)
++ 	return(rare) 
++ }#
+> 
+> ## Get calls for variants that are left after filtering. 
+> prepData<-function(file,snp.col="SNP", cases="Syrris")
++ {
++ 	snps<-file[,colnames(file)%in%snp.col]
++ 	write.table(snps,paste0(bDir,cases),col.names=F,row.names=F,quote=F,sep="\t") 
++ 	message(paste("Extracting",length(snps)," variants from full file") ) 
++ 	system( paste(ldak, "--make-sp", cases,"--bfile", data, "--extract", paste0(bDir,cases) )) 
++ 	message("Reading variants into R session") 
++ 	calls<-read.table(paste0(cases,"_out.sp"),header=F)
++ 	fam<-read.table(paste0(cases,"_out.fam"),header=F)
++ 	bim<-read.table(paste0(cases,"_out.bim"),header=F) 
++ 	rownames(calls)<-bim[,2]
++ 	colnames(calls)<-fam[,1]
++ 	return(calls)
++ }
+> 
+> 
+> ############# Now do fisher test
+> ## data is the data.frame/matrix of calls, rows are variants. cases is the character vector of phenotype to be treated as cases. 
+> doFisher<-function(data, cases="Syrris")
++ {
++ 	data<-data[,colnames(data)%in%pheno[,1] ]
++ 	cc.col<-colnames(pheno)%in%cases
++ 	remove<-pheno[is.na(pheno[,cc.col]) ,1]
++ 	data<-data[,!colnames(data)%in%remove ]
++ 
++ 	case.cols<-grep(cases, colnames(data)) 
++ 	ctrl.cols<-which(!grepl(cases, colnames(data)) )
++ 
++ 	## make dataframe for results
++ 	colNamesDat <- c("SNP",  "FisherPvalue", "nb.mutations.HCM", "nb.mutations.ARVC", "nb.HCM", "nb.ARVC", 
++ 	"HCM.maf", "ARVC.maf" , "nb.Homs.HCM", "nb.Homs.ARVC", "nb.Hets.HCM", "nb.Hets.ARVC",
++ 	"nb.NAs.HCM", "nb.NAs.ARVC") 
++ 	dat <- data.frame(matrix(nrow = nrow(calls), ncol = length(colNamesDat) ) )
++ 	colnames(dat) <- colNamesDat
++ 	dat[,1] <- rownames(calls) 
++ 
++ 	message("Starting fisher tests")
++ 	## calc fisher pvals
++ 	for(i in 1:nrow(data))
++ 	{
++ 	if(i%%50==0)message(paste(i, 'tests done'))
++ 	case.calls <-  t(as.matrix(calls[i,colnames(calls)%in%colnames(data)[case.cols]]))
++ 	ctrl.calls <- t(as.matrix(calls[i,colnames(calls)%in%colnames(data)[ctrl.cols]]))
++ 
++ 	chr<-gsub(rownames(data[i,]),pattern="_.*",replacement="")
++ 	if(chr=="X"|chr==23) 
++ 	{
++ 		case.gender<-fam[fam[,1]%in%rownames(case.calls),]
++ 		males<-case.gender[case.gender[,5]==1,1]
++ 		case.calls[ rownames(case.calls) %in% males & case.calls[,1] == 2 & is.finite(case.calls[,1]),1]  <- 1
++ 
++ 		ctrl.gender<-fam[fam[,1]%in%rownames(ctrl.calls),]
++ 		males<-ctrl.gender[ctrl.gender[,5]==1,1]
++ 		ctrl.calls[ rownames(ctrl.calls) %in% males & ctrl.calls[,1] == 2 & is.finite(ctrl.calls[,1]),1]  <- 1
++ 	}
++ 
++ 	number_Homs_cases <- length(which(unlist(case.calls) == 2))
++ 	number_Homs_ctrls <- length(which(unlist(ctrl.calls) == 2))
++ 
++ 	case.hom.major <- length(which(unlist(case.calls) == 0))
++ 	case.hets<- length(which(unlist(case.calls) == 1))
++ 	case.freqs <- c(case.hom.major, case.hets, number_Homs_cases)
++ 	case.maf <- maf(case.freqs)
++ 
++ 	ctrl.hom.major <- length(which(unlist(ctrl.calls) == 0))
++ 	ctrl.hets<- length(which(unlist(ctrl.calls) == 1))
++ 	ctrl.freqs <- c(ctrl.hom.major, ctrl.hets, number_Homs_ctrls)
++ 	ctrl.maf <- maf(ctrl.freqs)	
++ 
++ 	flip<-TRUE
++ 	if(flip) 
++ 	{
++ 	if(number_Homs_cases>case.hom.major) ## fix minor allele switch. 
++ 	{
++ 	tmp<-case.hom.major
++ 	case.hom.major<-number_Homs_cases
++ 	number_Homs_cases<-tmp
++ 	case.calls[which(unlist(case.calls) == 2)]<-3
++ 	case.calls[which(unlist(case.calls) == 0)]<-2
++ 	case.calls[which(unlist(case.calls) == 3)]<-0
++ 	}
++ 	if(number_Homs_ctrls>ctrl.hom.major)
++ 	{
++ 	tmp<-ctrl.hom.major
++ 	ctrl.hom.major<-number_Homs_ctrls
++ 	number_Homs_ctrls<-tmp
++ 	ctrl.calls[which(unlist(ctrl.calls) == 2)]<-3
++ 	ctrl.calls[which(unlist(ctrl.calls) == 0)]<-2
++ 	ctrl.calls[which(unlist(ctrl.calls) == 3)]<-0
++ 	}	
++ 	}
++ 
++ 	number_mutations_cases <- sum( case.calls , na.rm=T )
++ 	number_mutations_ctrls <- sum( ctrl.calls , na.rm=T ) 
++ 
++ 	nb.nas.cases <- length(which(is.na(case.calls)))
++ 	nb.nas.ctrls <- length(which(is.na(ctrl.calls)))
++ 
++ 	nb.cases <-  length(which(!is.na( case.calls )) ) 
++ 	nb.ctrls <-  length(which(!is.na( ctrl.calls )) ) 
++ 		
++ 	mean_number_case_chromosomes <- nb.cases * 2
++ 	mean_number_ctrl_chromosomes <- nb.ctrls * 2
++ 
++ 	if (!is.na(number_mutations_cases)  & !is.na(number_mutations_ctrls)  )
++ 	{
++ 	if (nb.cases > 0 & nb.ctrls > 0)
++ 	{
++ 		fishertest <-  fisher.test((matrix(c(number_mutations_cases, mean_number_case_chromosomes
++ 		                         - number_mutations_cases, number_mutations_ctrls, mean_number_ctrl_chromosomes - number_mutations_ctrls),
++ 		                       nrow = 2, ncol = 2)))
++ 
++ 
++ 	dat$FisherPvalue[i] <- fishertest$p.value 
++ 	dat$nb.mutations.HCM[i] <- number_mutations_cases
++ 	dat$nb.mutations.ARVC[i]<- number_mutations_ctrls
++ 	dat$nb.HCM[i]<- nb.cases 
++ 	dat$nb.ARVC[i] <- nb.ctrls 
++ 	dat$nb.NAs.HCM[i] <- nb.nas.cases 
++ 	dat$nb.NAs.ARVC[i] <- nb.nas.ctrls
++ 	dat$nb.Homs.HCM[i]<- number_Homs_cases
++ 	dat$nb.Homs.ARVC[i]<- number_Homs_ctrls	
++ 	dat$HCM.maf[i]<- case.maf
++ 	dat$ARVC.maf[i]	<- ctrl.maf
++ 	dat$nb.Hets.HCM[i] <- case.hets
++ 	dat$nb.Hets.ARVC[i] <- ctrl.hets
++ 
++ 	}
++ 	}
++ } # for(i in 1:nrow(data))
++ 
++ colnames(dat)<-gsub(colnames(dat), pattern="HCM", replacement=cases) 
++ colnames(dat)<-gsub(colnames(dat), pattern="ARVC", replacement="ctrls") 
++ dat<-dat[order(dat$FisherPvalue),]
++ message("Finished Fisher tests")
++ return(dat)
++ } # End of function 
+> 
+> 
+> annotate<-function(data,genes)
++ {
++ 	ensembl = useMart("ensembl",dataset="hsapiens_gene_ensembl")
++ 	filter="ensembl_gene_id"
++ 	attributes =  c("ensembl_gene_id", "external_gene_name",  "phenotype_description")
++ 	gene.data <- getBM(attributes= attributes , filters = filter , values=data$Gene , mart = ensembl)
++ 	gene.data.uniq <- gene.data[!duplicated(gene.data$external_gene_name),]
++ 	anno<-merge(data,gene.data.uniq,by.x='Gene',by.y='ensembl_gene_id',all.x=T)
++ 	return(anno)
++ }
+> 
+> 
+> #########################################
+> ######### Now run
+> #########################################
+> dataDir<-paste0("/scratch2/vyp-scratch2/cian/UCLex_",release,"/FastLMM_Single_Variant_all_phenos/") 
+> files<-list.files(dataDir,pattern='final',full.names=T)
+> names<-gsub(basename(files),pattern="_.*",replacement='')
+> extCtrlDir<-paste0("/scratch2/vyp-scratch2/cian/UCLex_",release,"/External_Control_data/") 
+> extCtrlFiles<-list.files(extCtrlDir,pattern='lmiss',full.names=T)
+> extCtrlnames<-gsub(basename(extCtrlFiles),pattern="_.*",replacement='')
+> 
+> source("LDAK/qqchisq.R")
+> mafs<-c(0,0.00001,0.0001,0.001,0.01,0.1) 
+> process<-TRUE
+> pdf(paste0(dataDir,"Single.variant_ex_ctrl_maf_filter.pdf") ) 
+> par(mfrow=c(2,2)) 
+> 
+> variables<-ls() 
+> #foreach(i=1:length(files), .export=variables, .packages=c("biomaRt",'HardyWeinberg','snpStats')  ) %dopar%
+>  for(i in 1:length(files))
++ {
++ 	print(paste("Reading in",names[i]))
++ 	file<-read.csv(files[i],header=T,sep="\t",quote = "",stringsAsFactors=F) 
++ 	file$TechKinPvalue<-as.numeric(file$TechKinPvalue)
++ 	file$Pvalue<-as.numeric(file$Pvalue)
++ 	for(maf in 1:length(mafs))
++ 	{
++ 	dat<-subset(file,file$ExtCtrl_MAF>=mafs[maf]) 
++ 	qq.chisq(-2*log(dat$Pvalue),df=2,x.max=30,main=paste(names[i],"uncorrected pvalues -",nrow(dat),"SNPS"),pvals=T,cex.main=.8) 
++ 	qq.chisq(-2*log(dat$TechKinPvalue),df=2,x.max=30,main=paste(names[i],"TKRD pvalues - maf",mafs[maf]),pvals=T,cex.main=.8) 
++ 	}
++ 	if(process)   ###########################################################
++ 	{
++ 	filt<-variant.filter(file,pval=.0001) 
++ 	calls<-prepData(filt,cases=names[i]) 
++ 	pvals<-doFisher(calls,cases=names[i]) 
++ 	## want to verify the significant techKin pvalues with fisher
++ 	merged<-merge(filt, pvals,by="SNP",all=T) 
++ #	anno<-annotate(merged,merged$Gene) 
++ 	anno<-merged ## annotated in first script now. 	
++ 
++ 	ex.ctrl<-extCtrlFiles[extCtrlnames %in% names[i] ]
++ 	ex.case<-ex.ctrl[grep('case',ex.ctrl)]
++ 	ex.ctrl<-ex.ctrl[grep('CC',ex.ctrl)]
++ 	if(length(ex.case)>0&length(ex.ctrl)>0) 
++ 	{
++ 		system( paste('tr -s " " <',ex.case , '>', paste0(ex.case,'_clean') ) [1])
++ 		system( paste('tr -s " " <',ex.ctrl, '>', paste0(ex.ctrl,'_clean') ) [1] )
++ 		ex.case<-read.table( paste0(ex.case,'_clean')[1],header=T,sep=" ") 
++ 		ex.ctrl<-read.table( paste0(ex.ctrl,'_clean')[1],header=T,sep=" ") 
++ 		callrates=data.frame(SNP=ex.ctrl$SNP,CaseCallRate=ex.case$F_MISS,CtrlCallRate=ex.ctrl$F_MISS) 
++ 		anno<-merge(anno,callrates,by='SNP',all.x=T) 
++ 	}
++ 	anno<-anno[order(anno$FisherPvalue),]
++ 	anno$Pvalue<-as.numeric(as.character(anno$Pvalue))
++ 	anno$TechKinPvalue<-as.numeric(as.character(anno$TechKinPvalue))
++ 	write.table(anno, paste0(dataDir,names[i],'_single_variant_vs_UCLex.csv'), col.names=T,row.names=F,quote=T,sep=",") 
++ 	} # process
++ }
+[1] "Reading in Hardcastle"
+Filtering data
+Extracting 10522  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp Hardcastle
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/Hardcastle
+
+Reading list of 10522 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/Hardcastle
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 10522
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 3
+Processing Chunk 2 of 3
+Processing Chunk 3 of 3
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+6600 tests done
+6650 tests done
+6700 tests done
+6750 tests done
+6800 tests done
+6850 tests done
+6900 tests done
+6950 tests done
+7000 tests done
+7050 tests done
+7100 tests done
+7150 tests done
+7200 tests done
+7250 tests done
+7300 tests done
+7350 tests done
+7400 tests done
+7450 tests done
+7500 tests done
+7550 tests done
+7600 tests done
+7650 tests done
+7700 tests done
+7750 tests done
+7800 tests done
+7850 tests done
+7900 tests done
+7950 tests done
+8000 tests done
+8050 tests done
+8100 tests done
+8150 tests done
+8200 tests done
+8250 tests done
+8300 tests done
+8350 tests done
+8400 tests done
+8450 tests done
+8500 tests done
+8550 tests done
+8600 tests done
+8650 tests done
+8700 tests done
+8750 tests done
+8800 tests done
+8850 tests done
+8900 tests done
+8950 tests done
+9000 tests done
+9050 tests done
+9100 tests done
+9150 tests done
+9200 tests done
+9250 tests done
+9300 tests done
+9350 tests done
+9400 tests done
+9450 tests done
+9500 tests done
+9550 tests done
+9600 tests done
+9650 tests done
+9700 tests done
+9750 tests done
+9800 tests done
+9850 tests done
+9900 tests done
+9950 tests done
+10000 tests done
+10050 tests done
+10100 tests done
+10150 tests done
+10200 tests done
+10250 tests done
+10300 tests done
+10350 tests done
+10400 tests done
+10450 tests done
+10500 tests done
+Finished Fisher tests
+[1] "Reading in IoN"
+Filtering data
+Extracting 9149  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp IoN
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/IoN
+
+Reading list of 9149 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/IoN
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 9149
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 2
+Processing Chunk 2 of 2
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+6600 tests done
+6650 tests done
+6700 tests done
+6750 tests done
+6800 tests done
+6850 tests done
+6900 tests done
+6950 tests done
+7000 tests done
+7050 tests done
+7100 tests done
+7150 tests done
+7200 tests done
+7250 tests done
+7300 tests done
+7350 tests done
+7400 tests done
+7450 tests done
+7500 tests done
+7550 tests done
+7600 tests done
+7650 tests done
+7700 tests done
+7750 tests done
+7800 tests done
+7850 tests done
+7900 tests done
+7950 tests done
+8000 tests done
+8050 tests done
+8100 tests done
+8150 tests done
+8200 tests done
+8250 tests done
+8300 tests done
+8350 tests done
+8400 tests done
+8450 tests done
+8500 tests done
+8550 tests done
+8600 tests done
+8650 tests done
+8700 tests done
+8750 tests done
+8800 tests done
+8850 tests done
+8900 tests done
+8950 tests done
+9000 tests done
+9050 tests done
+9100 tests done
+Finished Fisher tests
+[1] "Reading in IoO"
+Filtering data
+Extracting 15719  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp IoO
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/IoO
+
+Reading list of 15719 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/IoO
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 15719
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 4
+Processing Chunk 2 of 4
+Processing Chunk 3 of 4
+Processing Chunk 4 of 4
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+6600 tests done
+6650 tests done
+6700 tests done
+6750 tests done
+6800 tests done
+6850 tests done
+6900 tests done
+6950 tests done
+7000 tests done
+7050 tests done
+7100 tests done
+7150 tests done
+7200 tests done
+7250 tests done
+7300 tests done
+7350 tests done
+7400 tests done
+7450 tests done
+7500 tests done
+7550 tests done
+7600 tests done
+7650 tests done
+7700 tests done
+7750 tests done
+7800 tests done
+7850 tests done
+7900 tests done
+7950 tests done
+8000 tests done
+8050 tests done
+8100 tests done
+8150 tests done
+8200 tests done
+8250 tests done
+8300 tests done
+8350 tests done
+8400 tests done
+8450 tests done
+8500 tests done
+8550 tests done
+8600 tests done
+8650 tests done
+8700 tests done
+8750 tests done
+8800 tests done
+8850 tests done
+8900 tests done
+8950 tests done
+9000 tests done
+9050 tests done
+9100 tests done
+9150 tests done
+9200 tests done
+9250 tests done
+9300 tests done
+9350 tests done
+9400 tests done
+9450 tests done
+9500 tests done
+9550 tests done
+9600 tests done
+9650 tests done
+9700 tests done
+9750 tests done
+9800 tests done
+9850 tests done
+9900 tests done
+9950 tests done
+10000 tests done
+10050 tests done
+10100 tests done
+10150 tests done
+10200 tests done
+10250 tests done
+10300 tests done
+10350 tests done
+10400 tests done
+10450 tests done
+10500 tests done
+10550 tests done
+10600 tests done
+10650 tests done
+10700 tests done
+10750 tests done
+10800 tests done
+10850 tests done
+10900 tests done
+10950 tests done
+11000 tests done
+11050 tests done
+11100 tests done
+11150 tests done
+11200 tests done
+11250 tests done
+11300 tests done
+11350 tests done
+11400 tests done
+11450 tests done
+11500 tests done
+11550 tests done
+11600 tests done
+11650 tests done
+11700 tests done
+11750 tests done
+11800 tests done
+11850 tests done
+11900 tests done
+11950 tests done
+12000 tests done
+12050 tests done
+12100 tests done
+12150 tests done
+12200 tests done
+12250 tests done
+12300 tests done
+12350 tests done
+12400 tests done
+12450 tests done
+12500 tests done
+12550 tests done
+12600 tests done
+12650 tests done
+12700 tests done
+12750 tests done
+12800 tests done
+12850 tests done
+12900 tests done
+12950 tests done
+13000 tests done
+13050 tests done
+13100 tests done
+13150 tests done
+13200 tests done
+13250 tests done
+13300 tests done
+13350 tests done
+13400 tests done
+13450 tests done
+13500 tests done
+13550 tests done
+13600 tests done
+13650 tests done
+13700 tests done
+13750 tests done
+13800 tests done
+13850 tests done
+13900 tests done
+13950 tests done
+14000 tests done
+14050 tests done
+14100 tests done
+14150 tests done
+14200 tests done
+14250 tests done
+14300 tests done
+14350 tests done
+14400 tests done
+14450 tests done
+14500 tests done
+14550 tests done
+14600 tests done
+14650 tests done
+14700 tests done
+14750 tests done
+14800 tests done
+14850 tests done
+14900 tests done
+14950 tests done
+15000 tests done
+15050 tests done
+15100 tests done
+15150 tests done
+15200 tests done
+15250 tests done
+15300 tests done
+15350 tests done
+15400 tests done
+15450 tests done
+15500 tests done
+15550 tests done
+15600 tests done
+15650 tests done
+15700 tests done
+Finished Fisher tests
+[1] "Reading in Kelsell"
+Filtering data
+Extracting 8941  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp Kelsell
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/Kelsell
+
+Reading list of 8941 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/Kelsell
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 8941
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 2
+Processing Chunk 2 of 2
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+6600 tests done
+6650 tests done
+6700 tests done
+6750 tests done
+6800 tests done
+6850 tests done
+6900 tests done
+6950 tests done
+7000 tests done
+7050 tests done
+7100 tests done
+7150 tests done
+7200 tests done
+7250 tests done
+7300 tests done
+7350 tests done
+7400 tests done
+7450 tests done
+7500 tests done
+7550 tests done
+7600 tests done
+7650 tests done
+7700 tests done
+7750 tests done
+7800 tests done
+7850 tests done
+7900 tests done
+7950 tests done
+8000 tests done
+8050 tests done
+8100 tests done
+8150 tests done
+8200 tests done
+8250 tests done
+8300 tests done
+8350 tests done
+8400 tests done
+8450 tests done
+8500 tests done
+8550 tests done
+8600 tests done
+8650 tests done
+8700 tests done
+8750 tests done
+8800 tests done
+8850 tests done
+8900 tests done
+Finished Fisher tests
+[1] "Reading in Lambiase"
+Filtering data
+Extracting 12930  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp Lambiase
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/Lambiase
+
+Reading list of 12930 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/Lambiase
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 12930
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 3
+Processing Chunk 2 of 3
+Processing Chunk 3 of 3
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+6600 tests done
+6650 tests done
+6700 tests done
+6750 tests done
+6800 tests done
+6850 tests done
+6900 tests done
+6950 tests done
+7000 tests done
+7050 tests done
+7100 tests done
+7150 tests done
+7200 tests done
+7250 tests done
+7300 tests done
+7350 tests done
+7400 tests done
+7450 tests done
+7500 tests done
+7550 tests done
+7600 tests done
+7650 tests done
+7700 tests done
+7750 tests done
+7800 tests done
+7850 tests done
+7900 tests done
+7950 tests done
+8000 tests done
+8050 tests done
+8100 tests done
+8150 tests done
+8200 tests done
+8250 tests done
+8300 tests done
+8350 tests done
+8400 tests done
+8450 tests done
+8500 tests done
+8550 tests done
+8600 tests done
+8650 tests done
+8700 tests done
+8750 tests done
+8800 tests done
+8850 tests done
+8900 tests done
+8950 tests done
+9000 tests done
+9050 tests done
+9100 tests done
+9150 tests done
+9200 tests done
+9250 tests done
+9300 tests done
+9350 tests done
+9400 tests done
+9450 tests done
+9500 tests done
+9550 tests done
+9600 tests done
+9650 tests done
+9700 tests done
+9750 tests done
+9800 tests done
+9850 tests done
+9900 tests done
+9950 tests done
+10000 tests done
+10050 tests done
+10100 tests done
+10150 tests done
+10200 tests done
+10250 tests done
+10300 tests done
+10350 tests done
+10400 tests done
+10450 tests done
+10500 tests done
+10550 tests done
+10600 tests done
+10650 tests done
+10700 tests done
+10750 tests done
+10800 tests done
+10850 tests done
+10900 tests done
+10950 tests done
+11000 tests done
+11050 tests done
+11100 tests done
+11150 tests done
+11200 tests done
+11250 tests done
+11300 tests done
+11350 tests done
+11400 tests done
+11450 tests done
+11500 tests done
+11550 tests done
+11600 tests done
+11650 tests done
+11700 tests done
+11750 tests done
+11800 tests done
+11850 tests done
+11900 tests done
+11950 tests done
+12000 tests done
+12050 tests done
+12100 tests done
+12150 tests done
+12200 tests done
+12250 tests done
+12300 tests done
+12350 tests done
+12400 tests done
+12450 tests done
+12500 tests done
+12550 tests done
+12600 tests done
+12650 tests done
+12700 tests done
+12750 tests done
+12800 tests done
+12850 tests done
+12900 tests done
+Finished Fisher tests
+[1] "Reading in LambiaseSD"
+Filtering data
+Extracting 9023  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp LambiaseSD
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/LambiaseSD
+
+Reading list of 9023 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/LambiaseSD
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 9023
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 2
+Processing Chunk 2 of 2
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+6600 tests done
+6650 tests done
+6700 tests done
+6750 tests done
+6800 tests done
+6850 tests done
+6900 tests done
+6950 tests done
+7000 tests done
+7050 tests done
+7100 tests done
+7150 tests done
+7200 tests done
+7250 tests done
+7300 tests done
+7350 tests done
+7400 tests done
+7450 tests done
+7500 tests done
+7550 tests done
+7600 tests done
+7650 tests done
+7700 tests done
+7750 tests done
+7800 tests done
+7850 tests done
+7900 tests done
+7950 tests done
+8000 tests done
+8050 tests done
+8100 tests done
+8150 tests done
+8200 tests done
+8250 tests done
+8300 tests done
+8350 tests done
+8400 tests done
+8450 tests done
+8500 tests done
+8550 tests done
+8600 tests done
+8650 tests done
+8700 tests done
+8750 tests done
+8800 tests done
+8850 tests done
+8900 tests done
+8950 tests done
+9000 tests done
+Finished Fisher tests
+[1] "Reading in LayalKC"
+Filtering data
+Extracting 2394  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp LayalKC
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/LayalKC
+
+Reading list of 2394 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/LayalKC
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 2394
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 1
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+Finished Fisher tests
+[1] "Reading in Levine"
+Filtering data
+Extracting 19948  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp Levine
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/Levine
+
+Reading list of 19948 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/Levine
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 19948
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 4
+Processing Chunk 2 of 4
+Processing Chunk 3 of 4
+Processing Chunk 4 of 4
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+6600 tests done
+6650 tests done
+6700 tests done
+6750 tests done
+6800 tests done
+6850 tests done
+6900 tests done
+6950 tests done
+7000 tests done
+7050 tests done
+7100 tests done
+7150 tests done
+7200 tests done
+7250 tests done
+7300 tests done
+7350 tests done
+7400 tests done
+7450 tests done
+7500 tests done
+7550 tests done
+7600 tests done
+7650 tests done
+7700 tests done
+7750 tests done
+7800 tests done
+7850 tests done
+7900 tests done
+7950 tests done
+8000 tests done
+8050 tests done
+8100 tests done
+8150 tests done
+8200 tests done
+8250 tests done
+8300 tests done
+8350 tests done
+8400 tests done
+8450 tests done
+8500 tests done
+8550 tests done
+8600 tests done
+8650 tests done
+8700 tests done
+8750 tests done
+8800 tests done
+8850 tests done
+8900 tests done
+8950 tests done
+9000 tests done
+9050 tests done
+9100 tests done
+9150 tests done
+9200 tests done
+9250 tests done
+9300 tests done
+9350 tests done
+9400 tests done
+9450 tests done
+9500 tests done
+9550 tests done
+9600 tests done
+9650 tests done
+9700 tests done
+9750 tests done
+9800 tests done
+9850 tests done
+9900 tests done
+9950 tests done
+10000 tests done
+10050 tests done
+10100 tests done
+10150 tests done
+10200 tests done
+10250 tests done
+10300 tests done
+10350 tests done
+10400 tests done
+10450 tests done
+10500 tests done
+10550 tests done
+10600 tests done
+10650 tests done
+10700 tests done
+10750 tests done
+10800 tests done
+10850 tests done
+10900 tests done
+10950 tests done
+11000 tests done
+11050 tests done
+11100 tests done
+11150 tests done
+11200 tests done
+11250 tests done
+11300 tests done
+11350 tests done
+11400 tests done
+11450 tests done
+11500 tests done
+11550 tests done
+11600 tests done
+11650 tests done
+11700 tests done
+11750 tests done
+11800 tests done
+11850 tests done
+11900 tests done
+11950 tests done
+12000 tests done
+12050 tests done
+12100 tests done
+12150 tests done
+12200 tests done
+12250 tests done
+12300 tests done
+12350 tests done
+12400 tests done
+12450 tests done
+12500 tests done
+12550 tests done
+12600 tests done
+12650 tests done
+12700 tests done
+12750 tests done
+12800 tests done
+12850 tests done
+12900 tests done
+12950 tests done
+13000 tests done
+13050 tests done
+13100 tests done
+13150 tests done
+13200 tests done
+13250 tests done
+13300 tests done
+13350 tests done
+13400 tests done
+13450 tests done
+13500 tests done
+13550 tests done
+13600 tests done
+13650 tests done
+13700 tests done
+13750 tests done
+13800 tests done
+13850 tests done
+13900 tests done
+13950 tests done
+14000 tests done
+14050 tests done
+14100 tests done
+14150 tests done
+14200 tests done
+14250 tests done
+14300 tests done
+14350 tests done
+14400 tests done
+14450 tests done
+14500 tests done
+14550 tests done
+14600 tests done
+14650 tests done
+14700 tests done
+14750 tests done
+14800 tests done
+14850 tests done
+14900 tests done
+14950 tests done
+15000 tests done
+15050 tests done
+15100 tests done
+15150 tests done
+15200 tests done
+15250 tests done
+15300 tests done
+15350 tests done
+15400 tests done
+15450 tests done
+15500 tests done
+15550 tests done
+15600 tests done
+15650 tests done
+15700 tests done
+15750 tests done
+15800 tests done
+15850 tests done
+15900 tests done
+15950 tests done
+16000 tests done
+16050 tests done
+16100 tests done
+16150 tests done
+16200 tests done
+16250 tests done
+16300 tests done
+16350 tests done
+16400 tests done
+16450 tests done
+16500 tests done
+16550 tests done
+16600 tests done
+16650 tests done
+16700 tests done
+16750 tests done
+16800 tests done
+16850 tests done
+16900 tests done
+16950 tests done
+17000 tests done
+17050 tests done
+17100 tests done
+17150 tests done
+17200 tests done
+17250 tests done
+17300 tests done
+17350 tests done
+17400 tests done
+17450 tests done
+17500 tests done
+17550 tests done
+17600 tests done
+17650 tests done
+17700 tests done
+17750 tests done
+17800 tests done
+17850 tests done
+17900 tests done
+17950 tests done
+18000 tests done
+18050 tests done
+18100 tests done
+18150 tests done
+18200 tests done
+18250 tests done
+18300 tests done
+18350 tests done
+18400 tests done
+18450 tests done
+18500 tests done
+18550 tests done
+18600 tests done
+18650 tests done
+18700 tests done
+18750 tests done
+18800 tests done
+18850 tests done
+18900 tests done
+18950 tests done
+19000 tests done
+19050 tests done
+19100 tests done
+19150 tests done
+19200 tests done
+19250 tests done
+19300 tests done
+19350 tests done
+19400 tests done
+19450 tests done
+19500 tests done
+19550 tests done
+19600 tests done
+19650 tests done
+19700 tests done
+19750 tests done
+19800 tests done
+19850 tests done
+19900 tests done
+Finished Fisher tests
+[1] "Reading in Nejentsev"
+Filtering data
+Extracting 16153  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp Nejentsev
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/Nejentsev
+
+Reading list of 16153 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/Nejentsev
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 16153
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 4
+Processing Chunk 2 of 4
+Processing Chunk 3 of 4
+Processing Chunk 4 of 4
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+6600 tests done
+6650 tests done
+6700 tests done
+6750 tests done
+6800 tests done
+6850 tests done
+6900 tests done
+6950 tests done
+7000 tests done
+7050 tests done
+7100 tests done
+7150 tests done
+7200 tests done
+7250 tests done
+7300 tests done
+7350 tests done
+7400 tests done
+7450 tests done
+7500 tests done
+7550 tests done
+7600 tests done
+7650 tests done
+7700 tests done
+7750 tests done
+7800 tests done
+7850 tests done
+7900 tests done
+7950 tests done
+8000 tests done
+8050 tests done
+8100 tests done
+8150 tests done
+8200 tests done
+8250 tests done
+8300 tests done
+8350 tests done
+8400 tests done
+8450 tests done
+8500 tests done
+8550 tests done
+8600 tests done
+8650 tests done
+8700 tests done
+8750 tests done
+8800 tests done
+8850 tests done
+8900 tests done
+8950 tests done
+9000 tests done
+9050 tests done
+9100 tests done
+9150 tests done
+9200 tests done
+9250 tests done
+9300 tests done
+9350 tests done
+9400 tests done
+9450 tests done
+9500 tests done
+9550 tests done
+9600 tests done
+9650 tests done
+9700 tests done
+9750 tests done
+9800 tests done
+9850 tests done
+9900 tests done
+9950 tests done
+10000 tests done
+10050 tests done
+10100 tests done
+10150 tests done
+10200 tests done
+10250 tests done
+10300 tests done
+10350 tests done
+10400 tests done
+10450 tests done
+10500 tests done
+10550 tests done
+10600 tests done
+10650 tests done
+10700 tests done
+10750 tests done
+10800 tests done
+10850 tests done
+10900 tests done
+10950 tests done
+11000 tests done
+11050 tests done
+11100 tests done
+11150 tests done
+11200 tests done
+11250 tests done
+11300 tests done
+11350 tests done
+11400 tests done
+11450 tests done
+11500 tests done
+11550 tests done
+11600 tests done
+11650 tests done
+11700 tests done
+11750 tests done
+11800 tests done
+11850 tests done
+11900 tests done
+11950 tests done
+12000 tests done
+12050 tests done
+12100 tests done
+12150 tests done
+12200 tests done
+12250 tests done
+12300 tests done
+12350 tests done
+12400 tests done
+12450 tests done
+12500 tests done
+12550 tests done
+12600 tests done
+12650 tests done
+12700 tests done
+12750 tests done
+12800 tests done
+12850 tests done
+12900 tests done
+12950 tests done
+13000 tests done
+13050 tests done
+13100 tests done
+13150 tests done
+13200 tests done
+13250 tests done
+13300 tests done
+13350 tests done
+13400 tests done
+13450 tests done
+13500 tests done
+13550 tests done
+13600 tests done
+13650 tests done
+13700 tests done
+13750 tests done
+13800 tests done
+13850 tests done
+13900 tests done
+13950 tests done
+14000 tests done
+14050 tests done
+14100 tests done
+14150 tests done
+14200 tests done
+14250 tests done
+14300 tests done
+14350 tests done
+14400 tests done
+14450 tests done
+14500 tests done
+14550 tests done
+14600 tests done
+14650 tests done
+14700 tests done
+14750 tests done
+14800 tests done
+14850 tests done
+14900 tests done
+14950 tests done
+15000 tests done
+15050 tests done
+15100 tests done
+15150 tests done
+15200 tests done
+15250 tests done
+15300 tests done
+15350 tests done
+15400 tests done
+15450 tests done
+15500 tests done
+15550 tests done
+15600 tests done
+15650 tests done
+15700 tests done
+15750 tests done
+15800 tests done
+15850 tests done
+15900 tests done
+15950 tests done
+16000 tests done
+16050 tests done
+16100 tests done
+16150 tests done
+Finished Fisher tests
+[1] "Reading in Prionb2"
+Filtering data
+Extracting 2058  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp Prionb2
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/Prionb2
+
+Reading list of 2058 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/Prionb2
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 2058
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 1
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+Finished Fisher tests
+[1] "Reading in PrionUnit"
+Filtering data
+Extracting 13405  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp PrionUnit
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/PrionUnit
+
+Reading list of 13405 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/PrionUnit
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 13405
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 3
+Processing Chunk 2 of 3
+Processing Chunk 3 of 3
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+6600 tests done
+6650 tests done
+6700 tests done
+6750 tests done
+6800 tests done
+6850 tests done
+6900 tests done
+6950 tests done
+7000 tests done
+7050 tests done
+7100 tests done
+7150 tests done
+7200 tests done
+7250 tests done
+7300 tests done
+7350 tests done
+7400 tests done
+7450 tests done
+7500 tests done
+7550 tests done
+7600 tests done
+7650 tests done
+7700 tests done
+7750 tests done
+7800 tests done
+7850 tests done
+7900 tests done
+7950 tests done
+8000 tests done
+8050 tests done
+8100 tests done
+8150 tests done
+8200 tests done
+8250 tests done
+8300 tests done
+8350 tests done
+8400 tests done
+8450 tests done
+8500 tests done
+8550 tests done
+8600 tests done
+8650 tests done
+8700 tests done
+8750 tests done
+8800 tests done
+8850 tests done
+8900 tests done
+8950 tests done
+9000 tests done
+9050 tests done
+9100 tests done
+9150 tests done
+9200 tests done
+9250 tests done
+9300 tests done
+9350 tests done
+9400 tests done
+9450 tests done
+9500 tests done
+9550 tests done
+9600 tests done
+9650 tests done
+9700 tests done
+9750 tests done
+9800 tests done
+9850 tests done
+9900 tests done
+9950 tests done
+10000 tests done
+10050 tests done
+10100 tests done
+10150 tests done
+10200 tests done
+10250 tests done
+10300 tests done
+10350 tests done
+10400 tests done
+10450 tests done
+10500 tests done
+10550 tests done
+10600 tests done
+10650 tests done
+10700 tests done
+10750 tests done
+10800 tests done
+10850 tests done
+10900 tests done
+10950 tests done
+11000 tests done
+11050 tests done
+11100 tests done
+11150 tests done
+11200 tests done
+11250 tests done
+11300 tests done
+11350 tests done
+11400 tests done
+11450 tests done
+11500 tests done
+11550 tests done
+11600 tests done
+11650 tests done
+11700 tests done
+11750 tests done
+11800 tests done
+11850 tests done
+11900 tests done
+11950 tests done
+12000 tests done
+12050 tests done
+12100 tests done
+12150 tests done
+12200 tests done
+12250 tests done
+12300 tests done
+12350 tests done
+12400 tests done
+12450 tests done
+12500 tests done
+12550 tests done
+12600 tests done
+12650 tests done
+12700 tests done
+12750 tests done
+12800 tests done
+12850 tests done
+12900 tests done
+12950 tests done
+13000 tests done
+13050 tests done
+13100 tests done
+13150 tests done
+13200 tests done
+13250 tests done
+13300 tests done
+13350 tests done
+13400 tests done
+Finished Fisher tests
+[1] "Reading in Shamima"
+Filtering data
+Extracting 10761  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp Shamima
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/Shamima
+
+Reading list of 10761 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/Shamima
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 10761
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 3
+Processing Chunk 2 of 3
+Processing Chunk 3 of 3
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+6600 tests done
+6650 tests done
+6700 tests done
+6750 tests done
+6800 tests done
+6850 tests done
+6900 tests done
+6950 tests done
+7000 tests done
+7050 tests done
+7100 tests done
+7150 tests done
+7200 tests done
+7250 tests done
+7300 tests done
+7350 tests done
+7400 tests done
+7450 tests done
+7500 tests done
+7550 tests done
+7600 tests done
+7650 tests done
+7700 tests done
+7750 tests done
+7800 tests done
+7850 tests done
+7900 tests done
+7950 tests done
+8000 tests done
+8050 tests done
+8100 tests done
+8150 tests done
+8200 tests done
+8250 tests done
+8300 tests done
+8350 tests done
+8400 tests done
+8450 tests done
+8500 tests done
+8550 tests done
+8600 tests done
+8650 tests done
+8700 tests done
+8750 tests done
+8800 tests done
+8850 tests done
+8900 tests done
+8950 tests done
+9000 tests done
+9050 tests done
+9100 tests done
+9150 tests done
+9200 tests done
+9250 tests done
+9300 tests done
+9350 tests done
+9400 tests done
+9450 tests done
+9500 tests done
+9550 tests done
+9600 tests done
+9650 tests done
+9700 tests done
+9750 tests done
+9800 tests done
+9850 tests done
+9900 tests done
+9950 tests done
+10000 tests done
+10050 tests done
+10100 tests done
+10150 tests done
+10200 tests done
+10250 tests done
+10300 tests done
+10350 tests done
+10400 tests done
+10450 tests done
+10500 tests done
+10550 tests done
+10600 tests done
+10650 tests done
+10700 tests done
+10750 tests done
+Finished Fisher tests
+[1] "Reading in Sisodiya"
+Filtering data
+Extracting 15830  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp Sisodiya
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/Sisodiya
+
+Reading list of 15830 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/Sisodiya
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 15830
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 4
+Processing Chunk 2 of 4
+Processing Chunk 3 of 4
+Processing Chunk 4 of 4
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+6600 tests done
+6650 tests done
+6700 tests done
+6750 tests done
+6800 tests done
+6850 tests done
+6900 tests done
+6950 tests done
+7000 tests done
+7050 tests done
+7100 tests done
+7150 tests done
+7200 tests done
+7250 tests done
+7300 tests done
+7350 tests done
+7400 tests done
+7450 tests done
+7500 tests done
+7550 tests done
+7600 tests done
+7650 tests done
+7700 tests done
+7750 tests done
+7800 tests done
+7850 tests done
+7900 tests done
+7950 tests done
+8000 tests done
+8050 tests done
+8100 tests done
+8150 tests done
+8200 tests done
+8250 tests done
+8300 tests done
+8350 tests done
+8400 tests done
+8450 tests done
+8500 tests done
+8550 tests done
+8600 tests done
+8650 tests done
+8700 tests done
+8750 tests done
+8800 tests done
+8850 tests done
+8900 tests done
+8950 tests done
+9000 tests done
+9050 tests done
+9100 tests done
+9150 tests done
+9200 tests done
+9250 tests done
+9300 tests done
+9350 tests done
+9400 tests done
+9450 tests done
+9500 tests done
+9550 tests done
+9600 tests done
+9650 tests done
+9700 tests done
+9750 tests done
+9800 tests done
+9850 tests done
+9900 tests done
+9950 tests done
+10000 tests done
+10050 tests done
+10100 tests done
+10150 tests done
+10200 tests done
+10250 tests done
+10300 tests done
+10350 tests done
+10400 tests done
+10450 tests done
+10500 tests done
+10550 tests done
+10600 tests done
+10650 tests done
+10700 tests done
+10750 tests done
+10800 tests done
+10850 tests done
+10900 tests done
+10950 tests done
+11000 tests done
+11050 tests done
+11100 tests done
+11150 tests done
+11200 tests done
+11250 tests done
+11300 tests done
+11350 tests done
+11400 tests done
+11450 tests done
+11500 tests done
+11550 tests done
+11600 tests done
+11650 tests done
+11700 tests done
+11750 tests done
+11800 tests done
+11850 tests done
+11900 tests done
+11950 tests done
+12000 tests done
+12050 tests done
+12100 tests done
+12150 tests done
+12200 tests done
+12250 tests done
+12300 tests done
+12350 tests done
+12400 tests done
+12450 tests done
+12500 tests done
+12550 tests done
+12600 tests done
+12650 tests done
+12700 tests done
+12750 tests done
+12800 tests done
+12850 tests done
+12900 tests done
+12950 tests done
+13000 tests done
+13050 tests done
+13100 tests done
+13150 tests done
+13200 tests done
+13250 tests done
+13300 tests done
+13350 tests done
+13400 tests done
+13450 tests done
+13500 tests done
+13550 tests done
+13600 tests done
+13650 tests done
+13700 tests done
+13750 tests done
+13800 tests done
+13850 tests done
+13900 tests done
+13950 tests done
+14000 tests done
+14050 tests done
+14100 tests done
+14150 tests done
+14200 tests done
+14250 tests done
+14300 tests done
+14350 tests done
+14400 tests done
+14450 tests done
+14500 tests done
+14550 tests done
+14600 tests done
+14650 tests done
+14700 tests done
+14750 tests done
+14800 tests done
+14850 tests done
+14900 tests done
+14950 tests done
+15000 tests done
+15050 tests done
+15100 tests done
+15150 tests done
+15200 tests done
+15250 tests done
+15300 tests done
+15350 tests done
+15400 tests done
+15450 tests done
+15500 tests done
+15550 tests done
+15600 tests done
+15650 tests done
+15700 tests done
+15750 tests done
+15800 tests done
+Finished Fisher tests
+[1] "Reading in Syrris"
+Filtering data
+Extracting 6574  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp Syrris
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/Syrris
+
+Reading list of 6574 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/Syrris
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 6574
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 2
+Processing Chunk 2 of 2
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+Finished Fisher tests
+[1] "Reading in Vulliamy"
+Filtering data
+Extracting 23588  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp Vulliamy
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/Vulliamy
+
+Reading list of 23588 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/Vulliamy
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 23588
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 5
+Processing Chunk 2 of 5
+Processing Chunk 3 of 5
+Processing Chunk 4 of 5
+Processing Chunk 5 of 5
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+6600 tests done
+6650 tests done
+6700 tests done
+6750 tests done
+6800 tests done
+6850 tests done
+6900 tests done
+6950 tests done
+7000 tests done
+7050 tests done
+7100 tests done
+7150 tests done
+7200 tests done
+7250 tests done
+7300 tests done
+7350 tests done
+7400 tests done
+7450 tests done
+7500 tests done
+7550 tests done
+7600 tests done
+7650 tests done
+7700 tests done
+7750 tests done
+7800 tests done
+7850 tests done
+7900 tests done
+7950 tests done
+8000 tests done
+8050 tests done
+8100 tests done
+8150 tests done
+8200 tests done
+8250 tests done
+8300 tests done
+8350 tests done
+8400 tests done
+8450 tests done
+8500 tests done
+8550 tests done
+8600 tests done
+8650 tests done
+8700 tests done
+8750 tests done
+8800 tests done
+8850 tests done
+8900 tests done
+8950 tests done
+9000 tests done
+9050 tests done
+9100 tests done
+9150 tests done
+9200 tests done
+9250 tests done
+9300 tests done
+9350 tests done
+9400 tests done
+9450 tests done
+9500 tests done
+9550 tests done
+9600 tests done
+9650 tests done
+9700 tests done
+9750 tests done
+9800 tests done
+9850 tests done
+9900 tests done
+9950 tests done
+10000 tests done
+10050 tests done
+10100 tests done
+10150 tests done
+10200 tests done
+10250 tests done
+10300 tests done
+10350 tests done
+10400 tests done
+10450 tests done
+10500 tests done
+10550 tests done
+10600 tests done
+10650 tests done
+10700 tests done
+10750 tests done
+10800 tests done
+10850 tests done
+10900 tests done
+10950 tests done
+11000 tests done
+11050 tests done
+11100 tests done
+11150 tests done
+11200 tests done
+11250 tests done
+11300 tests done
+11350 tests done
+11400 tests done
+11450 tests done
+11500 tests done
+11550 tests done
+11600 tests done
+11650 tests done
+11700 tests done
+11750 tests done
+11800 tests done
+11850 tests done
+11900 tests done
+11950 tests done
+12000 tests done
+12050 tests done
+12100 tests done
+12150 tests done
+12200 tests done
+12250 tests done
+12300 tests done
+12350 tests done
+12400 tests done
+12450 tests done
+12500 tests done
+12550 tests done
+12600 tests done
+12650 tests done
+12700 tests done
+12750 tests done
+12800 tests done
+12850 tests done
+12900 tests done
+12950 tests done
+13000 tests done
+13050 tests done
+13100 tests done
+13150 tests done
+13200 tests done
+13250 tests done
+13300 tests done
+13350 tests done
+13400 tests done
+13450 tests done
+13500 tests done
+13550 tests done
+13600 tests done
+13650 tests done
+13700 tests done
+13750 tests done
+13800 tests done
+13850 tests done
+13900 tests done
+13950 tests done
+14000 tests done
+14050 tests done
+14100 tests done
+14150 tests done
+14200 tests done
+14250 tests done
+14300 tests done
+14350 tests done
+14400 tests done
+14450 tests done
+14500 tests done
+14550 tests done
+14600 tests done
+14650 tests done
+14700 tests done
+14750 tests done
+14800 tests done
+14850 tests done
+14900 tests done
+14950 tests done
+15000 tests done
+15050 tests done
+15100 tests done
+15150 tests done
+15200 tests done
+15250 tests done
+15300 tests done
+15350 tests done
+15400 tests done
+15450 tests done
+15500 tests done
+15550 tests done
+15600 tests done
+15650 tests done
+15700 tests done
+15750 tests done
+15800 tests done
+15850 tests done
+15900 tests done
+15950 tests done
+16000 tests done
+16050 tests done
+16100 tests done
+16150 tests done
+16200 tests done
+16250 tests done
+16300 tests done
+16350 tests done
+16400 tests done
+16450 tests done
+16500 tests done
+16550 tests done
+16600 tests done
+16650 tests done
+16700 tests done
+16750 tests done
+16800 tests done
+16850 tests done
+16900 tests done
+16950 tests done
+17000 tests done
+17050 tests done
+17100 tests done
+17150 tests done
+17200 tests done
+17250 tests done
+17300 tests done
+17350 tests done
+17400 tests done
+17450 tests done
+17500 tests done
+17550 tests done
+17600 tests done
+17650 tests done
+17700 tests done
+17750 tests done
+17800 tests done
+17850 tests done
+17900 tests done
+17950 tests done
+18000 tests done
+18050 tests done
+18100 tests done
+18150 tests done
+18200 tests done
+18250 tests done
+18300 tests done
+18350 tests done
+18400 tests done
+18450 tests done
+18500 tests done
+18550 tests done
+18600 tests done
+18650 tests done
+18700 tests done
+18750 tests done
+18800 tests done
+18850 tests done
+18900 tests done
+18950 tests done
+19000 tests done
+19050 tests done
+19100 tests done
+19150 tests done
+19200 tests done
+19250 tests done
+19300 tests done
+19350 tests done
+19400 tests done
+19450 tests done
+19500 tests done
+19550 tests done
+19600 tests done
+19650 tests done
+19700 tests done
+19750 tests done
+19800 tests done
+19850 tests done
+19900 tests done
+19950 tests done
+20000 tests done
+20050 tests done
+20100 tests done
+20150 tests done
+20200 tests done
+20250 tests done
+20300 tests done
+20350 tests done
+20400 tests done
+20450 tests done
+20500 tests done
+20550 tests done
+20600 tests done
+20650 tests done
+20700 tests done
+20750 tests done
+20800 tests done
+20850 tests done
+20900 tests done
+20950 tests done
+21000 tests done
+21050 tests done
+21100 tests done
+21150 tests done
+21200 tests done
+21250 tests done
+21300 tests done
+21350 tests done
+21400 tests done
+21450 tests done
+21500 tests done
+21550 tests done
+21600 tests done
+21650 tests done
+21700 tests done
+21750 tests done
+21800 tests done
+21850 tests done
+21900 tests done
+21950 tests done
+22000 tests done
+22050 tests done
+22100 tests done
+22150 tests done
+22200 tests done
+22250 tests done
+22300 tests done
+22350 tests done
+22400 tests done
+22450 tests done
+22500 tests done
+22550 tests done
+22600 tests done
+22650 tests done
+22700 tests done
+22750 tests done
+22800 tests done
+22850 tests done
+22900 tests done
+22950 tests done
+23000 tests done
+23050 tests done
+23100 tests done
+23150 tests done
+23200 tests done
+23250 tests done
+23300 tests done
+23350 tests done
+23400 tests done
+23450 tests done
+23500 tests done
+23550 tests done
+Finished Fisher tests
+[1] "Reading in WebsterURMD"
+Filtering data
+Extracting 6956  variants from full file
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-sp WebsterURMD
+--bfile /scratch2/vyp-scratch2/cian//UCLex_July2015/allChr_snpStats_out
+--extract /scratch2/vyp-scratch2/cian//UCLex_July2015/WebsterURMD
+
+Reading list of 6956 predictors to extract from /scratch2/vyp-scratch2/cian//UCLex_July2015/WebsterURMD
+Original number of samples: 4334 --- Number being used: 4334
+Original number of predictors: 884887 --- Number being used: 6956
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to SP format
+
+Will not be filtering predictors based on MAF
+Will not be filtering predictors based on observed variance
+Will not be filtering predictors based on missingness
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power")
+
+In total 16570 pairs of consecutive predictors had the same basepair
+Processing Chunk 1 of 2
+Processing Chunk 2 of 2
+
+Mission completed. All your base are belong to us ;)
+Reading variants into R session
+Starting fisher tests
+50 tests done
+100 tests done
+150 tests done
+200 tests done
+250 tests done
+300 tests done
+350 tests done
+400 tests done
+450 tests done
+500 tests done
+550 tests done
+600 tests done
+650 tests done
+700 tests done
+750 tests done
+800 tests done
+850 tests done
+900 tests done
+950 tests done
+1000 tests done
+1050 tests done
+1100 tests done
+1150 tests done
+1200 tests done
+1250 tests done
+1300 tests done
+1350 tests done
+1400 tests done
+1450 tests done
+1500 tests done
+1550 tests done
+1600 tests done
+1650 tests done
+1700 tests done
+1750 tests done
+1800 tests done
+1850 tests done
+1900 tests done
+1950 tests done
+2000 tests done
+2050 tests done
+2100 tests done
+2150 tests done
+2200 tests done
+2250 tests done
+2300 tests done
+2350 tests done
+2400 tests done
+2450 tests done
+2500 tests done
+2550 tests done
+2600 tests done
+2650 tests done
+2700 tests done
+2750 tests done
+2800 tests done
+2850 tests done
+2900 tests done
+2950 tests done
+3000 tests done
+3050 tests done
+3100 tests done
+3150 tests done
+3200 tests done
+3250 tests done
+3300 tests done
+3350 tests done
+3400 tests done
+3450 tests done
+3500 tests done
+3550 tests done
+3600 tests done
+3650 tests done
+3700 tests done
+3750 tests done
+3800 tests done
+3850 tests done
+3900 tests done
+3950 tests done
+4000 tests done
+4050 tests done
+4100 tests done
+4150 tests done
+4200 tests done
+4250 tests done
+4300 tests done
+4350 tests done
+4400 tests done
+4450 tests done
+4500 tests done
+4550 tests done
+4600 tests done
+4650 tests done
+4700 tests done
+4750 tests done
+4800 tests done
+4850 tests done
+4900 tests done
+4950 tests done
+5000 tests done
+5050 tests done
+5100 tests done
+5150 tests done
+5200 tests done
+5250 tests done
+5300 tests done
+5350 tests done
+5400 tests done
+5450 tests done
+5500 tests done
+5550 tests done
+5600 tests done
+5650 tests done
+5700 tests done
+5750 tests done
+5800 tests done
+5850 tests done
+5900 tests done
+5950 tests done
+6000 tests done
+6050 tests done
+6100 tests done
+6150 tests done
+6200 tests done
+6250 tests done
+6300 tests done
+6350 tests done
+6400 tests done
+6450 tests done
+6500 tests done
+6550 tests done
+6600 tests done
+6650 tests done
+6700 tests done
+6750 tests done
+6800 tests done
+6850 tests done
+6900 tests done
+6950 tests done
+Finished Fisher tests
+> dev.off() 
+null device 
+          1 
+> () 
+Error: unexpected ')' in "()"
+Execution halted

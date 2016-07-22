@@ -1,0 +1,10 @@
+pheno<-read.table("/scratch2/vyp-scratch2/cian/UCLex_February2015/Phenotypes",header=F) 
+groups<-read.table("/scratch2/vyp-scratch2/cian/UCLex_February2015/GroupNames",header=F)[,1]
+cohort.list<-c('Levine','Hardcastle','IoO$','IoN','Kelsell','LambiaseSD','Lambiase','LayalKC','Nejentsev','PrionUnit','Prionb2','Shamima','Sisodiya','Syrris','Vulliamy','WebsterURMD')
+
+keep.phenos<-groups%in%cohort.list
+
+kept.phenos<-data.frame(pheno[,1:2],pheno[,which(keep.phenos)+2]) 
+
+write.table(cohort.list,"/scratch2/vyp-scratch2/cian/UCLex_February2015/Phenotype_subset_groups",col.names=F,row.names=F,quote=F,sep="\t") 
+write.table(kept.phenos,"/scratch2/vyp-scratch2/cian/UCLex_February2015/Phenotype_subset",col.names=F,row.names=F,quote=F,sep="\t") 

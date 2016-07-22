@@ -1,0 +1,192 @@
+
+R version 3.1.0 (2014-04-10) -- "Spring Dance"
+Copyright (C) 2014 The R Foundation for Statistical Computing
+Platform: x86_64-unknown-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> onekgpositions <- read.table('/cluster/project8/vyp/exome_sequencing_multisamples/mainset/data/filteredPurcell_final.012.pos', header = FALSE, col.names = c('CHROM', 'POS'))
+> onekg <- read.table('/cluster/project8/vyp/exome_sequencing_multisamples/mainset/data/filteredPurcell_final.012', header = FALSE, sep = '\t')[,-1]
+> ids<- read.table("OneKG_sample_ids.tab",header=T,sep="\t") 
+> rownames(onekg)<-ids[,1]
+> colnames(onekg)<-paste(onekgpositions[,1],onekgpositions[,2],sep="_") 
+> save.image(file="prep_info.RData") 
+> 
+> bim<-read.table("/scratch2/vyp-scratch2/cian/UCLex_June2015/allChr_snpStats_out.bim",header=F,sep="\t") 
+> bim.snps<-bim[,2]
+> bim$SNP<-paste(bim[,1],bim[,4],sep="_") 
+> 
+> matching.snps.shortname<-bim$SNP[bim$SNP %in% colnames(onekg)]
+> matching.snps.fullname<-bim$V2[bim$SNP %in% colnames(onekg)]
+> 
+> onekg.filt<-onekg[,matching.snps.shortname] 
+> 
+> one.bim<-bim[bim$SNP %in% matching.snps.shortname,]
+> one.fam<-data.frame(ids,ids,0,0,1,1)
+> 
+> write.table(matching.snps.fullname,"SNPs_for_pca",col.names=F,row.names=F,quote=F,sep="\t") 
+> write.table(t(onekg.filt),"onekg_calls_for_uclex_snps.sp",col.names=F,row.names=F,quote=F,sep="\t") 
+> write.table(one.bim,"onekg_calls_for_uclex_snps.bim",col.names=F,row.names=F,quote=F,sep="\t") 
+> write.table(one.fam,"onekg_calls_for_uclex_snps.fam",col.names=F,row.names=F,quote=F,sep="\t") 
+> 
+> system("sh getPCAsnps_UCLex.sh")
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-bed UCLexJune2015_pca
+--bfile /scratch2/vyp-scratch2/cian/UCLex_June20155/allChr_snpStats_out
+--extract /cluster/project8/vyp/cian/data/UCLex/ciangene/scripts/PCA/SNPs_for_pca
+
+Error, /scratch2/vyp-scratch2/cian/UCLex_June20155/allChr_snpStats_out.bim does not exist - correct this first
+
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--make-bed OneKG
+--sp onekg_calls_for_uclex_snps
+
+Original number of samples: 1092 --- Number being used: 1092
+Original number of predictors: 3017 --- Number being used: 3017
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Will be converting data to bed format
+<=0.050 -> 0; 0.975-1.025 -> 1; >=1.950 -> 2
+
+Warning reading onekg_calls_for_uclex_snps.bim; basepair provided (7889941) on Row 22 is the same as that for previous row
+Warning reading onekg_calls_for_uclex_snps.bim; basepair provided (22159008) on Row 101 is the same as that for previous row
+Warning reading onekg_calls_for_uclex_snps.bim; basepair provided (55273580) on Row 210 is the same as that for previous row
+Warning reading onekg_calls_for_uclex_snps.bim; basepair provided (86591837) on Row 263 is the same as that for previous row
+Warning reading onekg_calls_for_uclex_snps.bim; basepair provided (154744807) on Row 372 is the same as that for previous row
+In total 59 pairs of consecutive predictors had the same basepair
+
+Processing Chunk 1 of 1
+
+Mission completed. All your base are belong to us ;)
+
+@----------------------------------------------------------@
+|        PLINK!       |     v1.07      |   10/Aug/2009     |
+|----------------------------------------------------------|
+|  (C) 2009 Shaun Purcell, GNU General Public License, v2  |
+|----------------------------------------------------------|
+|  For documentation, citation & bug-report instructions:  |
+|        http://pngu.mgh.harvard.edu/purcell/plink/        |
+@----------------------------------------------------------@
+
+Skipping web check... [ --noweb ] 
+Writing this text to log file [ UCLex_OneKG_merged.log ]
+Analysis started: Fri Jun 26 14:50:10 2015
+
+Options in effect:
+	--noweb
+	--bfile UCLexJune2015_pca_out
+	--bmerge OneKG_out.bed OneKG_out.bim OneKG_out.fam
+	--make-bed
+	--out UCLex_OneKG_merged
+
+
+ERROR: No file [ UCLexJune2015_pca_out.fam ] exists.
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--calc-kins-direct UCLex_OneKG_merged_kin
+--bfile UCLex_OneKG_merged
+--ignore-weights YES
+
+Original number of samples: 5134 --- Number being used: 5134
+Original number of predictors: 3012 --- Number being used: 3012
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Calculating kinships directly
+Minmaf = 0.010000 - will filter out predictors with mean/2 < 0.010000 (option "--minmaf")
+Maxmaf = 0.500000 - will filter out predictors with mean/2 > 0.500000 (option "--maxmaf")
+Minvar = 0.010000 - will filter out predictors with variance < 0.010000 (option "--minvar")
+Minobs = 0.95 - will filter out predictors with values for fewer than 4878 samples (option "--minobs")
+Power = -1.00 - effect size prior variance propto var(predictor)^(-1.00/2) (option "--power"
+
+Warning reading UCLex_OneKG_merged.bim; basepair provided (7889941) on Row 22 is the same as that for previous row
+Warning reading UCLex_OneKG_merged.bim; basepair provided (22159008) on Row 101 is the same as that for previous row
+Warning reading UCLex_OneKG_merged.bim; basepair provided (55273580) on Row 210 is the same as that for previous row
+Warning reading UCLex_OneKG_merged.bim; basepair provided (154744807) on Row 371 is the same as that for previous row
+Warning reading UCLex_OneKG_merged.bim; basepair provided (169529826) on Row 441 is the same as that for previous row
+In total 54 pairs of consecutive predictors had the same basepair
+
+Processing Chunk 1 of 1
+Warning, Predictor 1_1178245_C_T has too many missing (90.90% observed) - will be ignored
+Warning, Predictor 1_1231656_G_A has too many missing (82.92% observed) - will be ignored
+Warning, Predictor 1_2938266_G_A shows insufficient variation (MAF 0.000302, Variance 0.000603) - will be ignored
+Warning, Predictor 1_3428608_G_A has too many missing (90.14% observed) - will be ignored
+Warning, Predictor 1_6278414_A_G has too many missing (92.15% observed) - will be ignored
+Warning, Predictor 1_6614230_G_A has too many missing (52.65% observed) - will be ignored
+Warning, Predictor 1_7723534_G_A has too many missing (92.81% observed) - will be ignored
+Warning, Predictor 1_8425900_T_C has too many missing (92.81% observed) - will be ignored
+Warning, Predictor 1_10708142_A_G has too many missing (81.92% observed) - will be ignored
+Warning, Predictor 1_11008695_T_C has too many missing (88.61% observed) - will be ignored
+Warning, Predictor 1_11190646_G_A has too many missing (87.13% observed) - will be ignored
+Warning, Predictor 1_18808070_C_A shows insufficient variation (MAF 0.000200, Variance 0.000400) - will be ignored
+Warning, Predictor 1_47279176_G_A shows insufficient variation (MAF 0.000989, Variance 0.001974) - will be ignored
+Warning, Predictor 1_67861521_G_A shows insufficient variation (MAF 0.000200, Variance 0.000399) - will be ignored
+Warning, Predictor 1_89847445_T_G shows insufficient variation (MAF 0.002328, Variance 0.004634) - will be ignored
+Warning, Predictor 1_168698174_G_A shows insufficient variation (MAF 0.000200, Variance 0.000400) - will be ignored
+Warning, Predictor 1_236645671_G_A shows insufficient variation (MAF 0.000197, Variance 0.000394) - will be ignored
+Warning, Predictor 2_29449820_G_A shows insufficient variation (MAF 0.001096, Variance 0.002187) - will be ignored
+Warning, Predictor 2_170129529_A_G shows insufficient variation (MAF 0.002270, Variance 0.004519) - will be ignored
+Warning, Predictor 2_182780864_C_T shows insufficient variation (MAF 0.005890, Variance 0.012453) - will be ignored
+In total 1070 predictors were excluded for having values recorded for fewer than 4878 samples
+In total 27 predictors were excluded for invalid MAF or Variance
+
+Kinship matrix saved to UCLex_OneKG_merged_kin.grm.id, UCLex_OneKG_merged_kin.grm.bin and UCLex_OneKG_merged_kin.grm.N.bin
+With details saved to UCLex_OneKG_merged_kin.grm.details and UCLex_OneKG_merged_kin.grm.adjust
+
+Mission completed. All your base are belong to us ;)
+
+LDAK - Software for obtaining Linkage Disequilibrium Adjusted Kinship estimates and Loads More
+Help pages at http://dougspeed.com/ldak
+
+Arguments:
+--pca UCLexJune2015_OneKG_merged_pca
+--bfile UCLex_OneKG_merged
+--grm UCLex_OneKG_merged_kin
+
+Will set IDs based on UCLex_OneKG_merged_kin.grm.id
+Original number of samples: 5134 --- Number being used: 5134
+Original number of predictors: 3012 --- Number being used: 3012
+ ___  ___  ___  ___  ___  ___  ___  ___  ___  ___  ___
+
+Computing the top 20 principal component axes for a kinship matrix
+
+Warning reading UCLex_OneKG_merged.bim; basepair provided (7889941) on Row 22 is the same as that for previous row
+Warning reading UCLex_OneKG_merged.bim; basepair provided (22159008) on Row 101 is the same as that for previous row
+Warning reading UCLex_OneKG_merged.bim; basepair provided (55273580) on Row 210 is the same as that for previous row
+Warning reading UCLex_OneKG_merged.bim; basepair provided (154744807) on Row 371 is the same as that for previous row
+Warning reading UCLex_OneKG_merged.bim; basepair provided (169529826) on Row 441 is the same as that for previous row
+In total 54 pairs of consecutive predictors had the same basepair
+
+Reading kinships with stem UCLex_OneKG_merged_kin
+
+Performing principal component analysis
+First 20 eigenvectors saved in UCLexJune2015_OneKG_merged_pca.vect, with eigenvalues saved in UCLexJune2015_OneKG_merged_pca.values
+
+Mission completed. All your base are belong to us ;)
+> system("R CMD BATCH plot_pca.R")
+> 
+> proc.time()
+   user  system elapsed 
+103.017   1.290 108.551 
