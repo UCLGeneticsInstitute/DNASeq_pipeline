@@ -1,29 +1,28 @@
 Rbin=/share/apps/R/bin/R
 
 ## First step - genotype matrix and initial filtering
-firstStep=${repo}/scripts/first.step.R  ##step 1.1
-clean=${repo}/scripts/variant_filtering/qc.sh   ##step 1.2
-filter=${repo}/scripts/variant_filtering/filter_snps.R   ##step 1.3
-pca=${repo}/scripts/PCA/ancestry_pca.R  ## step 1.4
-pca_extract=${repo}/scripts/PCA/getPCAsnps_UCLex.sh
-plot_pca=${repo}/scripts/PCA/plot_pca.R
+clean=${repo}/variant_filtering/qc.sh   ##step 1.2
+filter=${repo}/variant_filtering/filter_snps.R   ##step 1.3
+pca=${repo}/PCA/ancestry_pca.R  ## step 1.4
+pca_extract=${repo}/PCA/getPCAsnps_UCLex.sh
+plot_pca=${repo}/PCA/plot_pca.R
 
 
 ## second step
-pheno=${repo}/scripts/MakePhenotypes/prepare_all_phenos.R ## step 2.1
-MissingNess=${repo}/scripts/CaseControlMissingness.R ##step 2.2
+pheno=${repo}/MakePhenotypes/prepare_all_phenos.R ## step 2.1
+MissingNess=${repo}/CaseControlMissingness.R ##step 2.2
 
 ## Third step - creating and validating the technical Kinship
-VariantLists=${repo}/scripts/LDAK/make_list_of_variants_for_gene_tests.R # step 3.1
-secondStep=${repo}/scripts/convert_genotype_to_missingNonMissing.sh  ## step3.2
-makeKin=${repo}/scripts/Make_Kinships/make_kinships_new.sh # step 3.3
-checkKin=${repo}/scripts/check_tk_residuals.sh # step 3.4
-convertKin=${repo}/scripts/prepare_kinship_matrix_for_fastLMM.R # step 3.5
+VariantLists=${repo}/LDAK/make_list_of_variants_for_gene_tests.R # step 3.1
+secondStep=${repo}/convert_genotype_to_missingNonMissing.sh  ## step3.2
+makeKin=${repo}/Make_Kinships/make_kinships_new.sh # step 3.3
+checkKin=${repo}/check_tk_residuals.sh # step 3.4
+convertKin=${repo}/prepare_kinship_matrix_for_fastLMM.R # step 3.5
 
 ## Fourth step - case control tests
-thirdStep=${repo}/scripts/LDAK/run_ldak_on_all_phenos.sh
-singleVariant=${repo}/scripts/plink_single_variant_tests.sh
-fastlmm=${repo}/scripts/run_fastLMM_on_all_phenotypes.sh
+thirdStep=${repo}/LDAK/run_ldak_on_all_phenos.sh
+singleVariant=${repo}/plink_single_variant_tests.sh
+fastlmm=${repo}/run_fastLMM_on_all_phenotypes.sh
 
 ##### default value of all arguments
 #rootODir=/cluster/scratch3/vyp-scratch2/cian
@@ -90,9 +89,9 @@ if [[ "$step1" == "yes" ]]; then
 #$ -l h_rt=24:00:00
 #$ -cwd
 
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $firstStep cluster/R/step1.1_first_step.Rout
-#sh $clean $rootODir $release
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $filter cluster/R/step1.3.filter_snps.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/first.step.R cluster/R/step1.1_first_step.Rout
+sh $clean $rootODir $release
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $filter cluster/R/step1.3.filter_snps.Rout
 $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $pca cluster/R/step1.4.pca.Rout
 sh $pca_extract $rootODir $release
 $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $plot_pca cluster/R/step1.4.Plotpca.Rout

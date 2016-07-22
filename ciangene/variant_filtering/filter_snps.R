@@ -16,6 +16,7 @@ if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 
 oDir <- paste0(rootODir, "/UCLex_", release, "/")
 print(oDir)
+oDir<-paste0(rootODir,'/') 
 extCtrl.var <- read.table( paste0(oDir, "/Ext_ctrl_variant_summary") , header=T) 
 
 hwe <- read.table(paste0(oDir, "gstats.hwe" ) , header=T ) 
@@ -46,6 +47,12 @@ lof <-  c("frameshift deletion", "frameshift substitution", "frameshift insertio
 
 funky <- annotations$clean.signature[annotations$ExonicFunc %in% unlist(func) ] 
 rare <- subset(annotations$clean.signature, annotations$ESP6500si_ALL >= min.maf & annotations$ESP6500si_ALL <= max.maf & annotations$X1000g2012apr_ALL >= min.maf & annotations$X1000g2012apr_ALL <= max.maf ) 
+
+####################
+### NEED TO MAKE SURE THIS IS ACTUALLY KEEPING RARE AND NOT USING MIN MAF TO REMOVE THE RAREST FIRST
+###################
+
+
 
 #save(extCtrl.var, funky, rare, clean.variants, file = "tmp.RData")
 funky.rare <- funky[funky %in% rare]

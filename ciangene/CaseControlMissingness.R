@@ -5,8 +5,6 @@ getArgs <- function() {
   return (myargs)
 }
 
-release <- 'June2015'
-rootODir<-'/scratch2/vyp-scratch2/cian'
 
 myArgs <- getArgs()
 
@@ -29,7 +27,7 @@ for(i in 1:nrow(groups))
 	write.table(paste0("release=",release),oFile,col.names=F,row.names=F,quote=F,sep="\t") 
 	write.table(paste0("mpheno=",i),oFile,col.names=F,row.names=F,quote=F,sep="\t",append=T) 
 	write.table(paste0("batch=",groups[i,1]),oFile,col.names=F,row.names=F,quote=F,sep="\t",append=T) 
-	system(paste('cat /cluster/project8/vyp/cian/data/UCLex/ciangene/scripts/CaseControlMissingnessTemplate >>', oFile)) 
+	system(paste('cat CaseControlMissingnessTemplate >>', oFile)) 
 
 }
 files<-list.files(outDir,pattern="sh",full.names=T)

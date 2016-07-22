@@ -8,10 +8,10 @@ rootODir=/cluster/project8/vyp/cian/data/UCLex
 release=June2016
 rootODir=${1-$rootODir}
 release=${2-$release}
-bDir=${rootODir}/UCLex_${release}/
+bDir=${rootODir}/
 
-data=/cluster/project8/vyp/cian/data/UCLex/UCLex_${release}/allChr_snpStats_out
-extract=/cluster/project8/vyp/cian/data/UCLex/ciangene/scripts/PCA/SNPs_for_pca
+data=/SAN/vyplab/UCLex/mainset_July2016/cian/allChr_snpStats_out
+extract=../PCA/SNPs_for_pca
 plink=/share/apps/genomics/plink-1.09beta/plink
 
 UCLex_bed=${bDir}UCLex${release}_pca

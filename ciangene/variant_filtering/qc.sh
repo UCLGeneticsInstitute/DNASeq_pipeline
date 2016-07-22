@@ -3,11 +3,11 @@ ldak=/cluster/project8/vyp/cian/support/ldak/ldak
 Rbin=/share/apps/R/bin/R
 plink=/share/apps/genomics/plink-1.07/plink
 #rootODir=/scratch2/vyp-scratch2/ciangene
-rootODir=/cluster/project8/vyp/cian/data/UCLex/UCLex_June2016/
+rootODir=/cluster/project8/vyp/cian/data/UCLex/
 release=June2016
 rootODir=${1-$rootODir}
 release=${2-$release}
-bDir=${rootODir}/UCLex_${release}/
+bDir=${rootODir}
 
 iData=$bDir"allChr_snpStats"
 ln -s $bDir"UCLex_${release}.bim" $iData".bim"
@@ -23,7 +23,7 @@ $plink --noweb --bfile $data  --impute-sex --out $bDir/gstats
 
 
  
-sed -i 's/ \+ /\t/g' gstats.imiss
+sed -i 's/ \+ /\t/g' $bDir/gstats.imiss
 tr -s " " < ${bDir}gstats.imiss > ${bDir}gstats.imiss_clean
 
 oFile=$bDir/plot.qc.R
@@ -38,10 +38,10 @@ echo '
 	cohort.list<-c("Levine","Davina","Hardcastle","IoO","IoN","IoOFFS","IoONov2013","IoOPanos","Kelsell","LambiaseSD",
 	"Lambiase","LayalKC","Manchester","Nejentsev","PrionUnit","Prionb2","Shamima","Sisodiya","Syrris","Vulliamy","WebsterURMD")
 
-	pdf(paste0(dir, "/gstats.pdf") )
+	png(paste0(dir, "/plots/gstats.png") )
 		par(mfrow=c(2,2))  
-		plot(density(miss$F_MISS), xlab="Missingness", main = "UCLex_Missingness")		
-		hist(frq$MAF, xlab="MAF", main = "UCLex_MAF", breaks=100, ylim=c(0,10000))
+		plot.ecdf(miss$F_MISS, xlab="Missingness", main = "UCLex Variant Missingness") ### Change to CDF 		
+		plot.ecdf(frq$MAF, xlab="MAF", main = "UCLex_MAF")
 	dev.off() 
 
 	file<-read.table("gstats.imiss_clean",header=T,sep=" ") 
@@ -49,7 +49,7 @@ echo '
 	plot.data<-data.frame(sample=sample[,1],cohort=sample[,2],Missingness=file[,ncol(file)]) 
 	plot.data<-plot.data[plot.data$cohort%in%cohort.list,] 
 	dat<-ddply(plot.data,.(cohort),summarize,CallRate=1-mean(Missingness) ) 
-	pdf(paste0(dir, "callRate_cohort.pdf"))
+	pdf(paste0(dir, "/plots/callRate_cohort.pdf"))
 	print(qplot(cohort,CallRate,data=dat)+ theme(axis.text.x = element_text(angle = 45, hjust = 1)) )
 	dev.off()
 	' >> $oFile
