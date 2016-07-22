@@ -2,9 +2,11 @@
 
 [![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/vplagnol/pipelines?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
+Scripts for analysising WES and WGS.
 
 * [WGS](WGS) Whole Genome Sequencing
-* [DCUTILS] (DCUTILS) utilities written by @davenomiddlenamecurtis
+* [UCLex](UCLex) Building of the whole UCLex release.
+
 
 The joint calling and building of UCLex is done in [UCLex](UCLex).
 
