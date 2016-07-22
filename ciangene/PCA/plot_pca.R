@@ -5,8 +5,8 @@ getArgs <- function() {
   return (myargs)
 }
 
-release <- 'June2015'
-rootODir<-'/scratch2/vyp-scratch2/cian'
+release <- 'June2016'
+rootODir<-'/cluster/project8/vyp/cian/data/UCLex'
 
 myArgs <- getArgs()
 

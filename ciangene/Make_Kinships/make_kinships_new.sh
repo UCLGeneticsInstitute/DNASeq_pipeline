@@ -1,11 +1,11 @@
 #!/bin/bash
 
 ldak=/cluster/project8/vyp/cian/support/ldak/ldak
-ldak=/scratch2/vyp-scratch2/cian/ldak.5.98
-R=/share/apps/R-3.1.0/bin/R
+#ldak=/scratch2/vyp-scratch2/cian/ldak.5.98
+R=/share/apps/R/bin/R
 #rootODir=/scratch2/vyp-scratch2/ciangene
-rootODir=/scratch2/vyp-scratch2/cian/
-release=June2015
+rootODir=/cluster/project8/vyp/cian/data/UCLex/
+release=June2016
 rootODir=${1-$rootODir}
 release=${2-$release}
 bDir=${rootODir}/UCLex_${release}/
@@ -182,4 +182,3 @@ echo '
 
 	' >> $oFile
 $R CMD BATCH --no-save --no-restore $oFile
-

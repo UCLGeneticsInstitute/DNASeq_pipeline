@@ -1,10 +1,10 @@
 #!/bin/bash
 ldak=/cluster/project8/vyp/cian/support/ldak/ldak
-Rbin=/cluster/project8/vyp/vincent/Software/R-3.1.2/bin/R
-plink=/share/apps/genomics/plink-1.07-x86_64/plink
+Rbin=/share/apps/R/bin/R
+plink=/share/apps/genomics/plink-1.07/plink
 #rootODir=/scratch2/vyp-scratch2/ciangene
-rootODir=/scratch2/vyp-scratch2/cian/
-release=June2015
+rootODir=/cluster/project8/vyp/cian/data/UCLex/UCLex_June2016/
+release=June2016
 rootODir=${1-$rootODir}
 release=${2-$release}
 bDir=${rootODir}/UCLex_${release}/

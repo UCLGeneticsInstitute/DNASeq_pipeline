@@ -5,8 +5,8 @@ getArgs <- function() {
   return (myargs)
 }
 
-release <- 'September2015'
-rootODir<-'/scratch2/vyp-scratch2/cian'
+release <- 'June2016'
+rootODir<-'/cluster/project8/vyp/cian/data/UCLex'
 
 myArgs <- getArgs()
 
@@ -17,8 +17,9 @@ if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 library(snpStats)
 percent.ext.ctrls <- .10
 
+#dir <- paste0("/cluster/project8/vyp/exome_sequencing_multisamples/mainset/GATK/mainset_", release , "/mainset_", release,  "_snpStats/")
+dir<-paste0('/SAN/vyplab/UCLex/mainset_',release,'/mainset_',release, '_snpStats/') 
 
-dir <- paste0("/cluster/project8/vyp/exome_sequencing_multisamples/mainset/GATK/mainset_", release , "/mainset_", release,  "_snpStats/")
 files <- list.files(dir, pattern ="_snpStats.RData", full.names=T) 
 files <- files[order(as.numeric(gsub(gsub(basename(files), pattern ="chr", replacement =""), pattern = "_.*", replacement = "") ) )]
 

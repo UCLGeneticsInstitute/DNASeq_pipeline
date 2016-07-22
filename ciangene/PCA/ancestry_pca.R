@@ -5,8 +5,8 @@ getArgs <- function() {
   return (myargs)
 }
 
-release <- 'June2015'
-rootODir<-'/scratch2/vyp-scratch2/cian'
+release <- 'June2016'
+rootODir<-'/cluster/project8/vyp/cian/data/UCLex'
 
 myArgs <- getArgs()
 
@@ -46,7 +46,7 @@ write.table(one.bim[,1:6],paste0(oDir,"onekg_calls_for_uclex_snps.bim"),col.name
 write.table(one.fam,paste0(oDir,"onekg_calls_for_uclex_snps.fam"),col.names=F,row.names=F,quote=F,sep="\t") 
 
 system("sh /cluster/project8/vyp/cian/data/UCLex/ciangene/scripts/PCA/getPCAsnps_UCLex.sh")
-system("/share/apps/R-3.1.0/bin/R CMD BATCH /cluster/project8/vyp/cian/data/UCLex/ciangene/scripts/PCA/plot_pca.R")
+system("/share/apps/R/bin/R CMD BATCH /cluster/project8/vyp/cian/data/UCLex/ciangene/scripts/PCA/plot_pca.R")
 
 
 

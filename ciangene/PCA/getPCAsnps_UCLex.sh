@@ -1,18 +1,18 @@
 #!/bin/bash
 
-#ldak=/cluster/project8/vyp/cian/support/ldak/ldak
-ldak=/scratch2/vyp-scratch2/cian/ldak.5.98
-R=/share/apps/R-3.1.0/bin/R
+ldak=/cluster/project8/vyp/cian/support/ldak/ldak
+#ldak=/scratch2/vyp-scratch2/cian/ldak.5.98
+R=/share/apps/R/bin/R
 #rootODir=/scratch2/vyp-scratch2/ciangene
-rootODir=/scratch2/vyp-scratch2/cian/
-release=June2015
+rootODir=/cluster/project8/vyp/cian/data/UCLex
+release=June2016
 rootODir=${1-$rootODir}
 release=${2-$release}
 bDir=${rootODir}/UCLex_${release}/
 
-data=/scratch2/vyp-scratch2/cian/UCLex_${release}/allChr_snpStats_out
+data=/cluster/project8/vyp/cian/data/UCLex/UCLex_${release}/allChr_snpStats_out
 extract=/cluster/project8/vyp/cian/data/UCLex/ciangene/scripts/PCA/SNPs_for_pca
-plink=/share/apps/genomics/plink-1.07-x86_64/plink
+plink=/share/apps/genomics/plink-1.09beta/plink
 
 UCLex_bed=${bDir}UCLex${release}_pca
 OneKG_sp=${bDir}onekg_calls_for_uclex_snps

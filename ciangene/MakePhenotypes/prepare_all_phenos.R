@@ -5,8 +5,8 @@ getArgs <- function() {
   return (myargs)
 }
 
-release <- 'July2015'
-rootODir<-'/scratch2/vyp-scratch2/cian'
+release <- 'June2016'
+rootODir<-'/cluster/project8/vyp/cian/data/UCLex'
 
 myArgs <- getArgs()
 
@@ -47,7 +47,7 @@ if(!file.exists(paste0(oDir,"/External_Control_data/") ))dir.create(paste0(oDir,
 pheno<-lambiaseSD  ## or last modified pheno file
 data.frame( pheno[rows,1], pheno$Lambiase[rows],pheno$LambiaseSD[rows],pheno$Syrris[rows] ) 
 
-plink<-'/share/apps/genomics/plink-1.07-x86_64/plink --noweb --allow-no-sex --bfile' 
+plink<-'/share/apps/genomics/plink-1.09beta/plink --noweb --allow-no-sex --bfile' 
 for(i in 1:length(cohort.list))
 {
 	hit<-grep(cohort.list[i],groups$Cohort)
@@ -86,4 +86,6 @@ for(i in 1:nb.groups)
 }
 write.table(perm,paste0(inPheno,"_fastlmm_permuted"), col.names=F, row.names=F, quote=F, sep="\t")
 
-source("MakeGoodPhenotypeFile.R") 
+source("/cluster/project8/vyp/cian/data/UCLex/ciangene/scripts/MakePhenotypes/MakeGoodPhenotypeFile.R") 
+
+

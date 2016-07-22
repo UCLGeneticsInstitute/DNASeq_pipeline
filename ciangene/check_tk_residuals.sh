@@ -2,16 +2,16 @@
 
 ldak=/cluster/project8/vyp/cian/support/ldak/ldak
 #rootODir=/scratch2/vyp-scratch2/ciangene
-rootODir=/scratch2/vyp-scratch2/cian/
-release=February2015
+rootODir=/cluster/project8/vyp/cian/data/UCLex/
+release=June2016
 rootODir=${1-$rootODir}
 release=${2-$release}
-R=/share/apps/R-3.1.0/bin/R
+R=/share/apps/R/bin/R
 bDir=${rootODir}/UCLex_${release}/
 genes=/SAN/biomed/biomed14/vyp-scratch/cian/LDAK/genesldak_ref.txt
 kinship=$bDir"TechKin"
 pKinship=$bDir"PopKin"
-dKinship=$bDir"read_depth/Depthkin"
+dKinship=$bDir"DepthKin"
 data=$bDir"allChr_snpStats_out"
 phenotypes=$bDir"Phenotypes"
 groups=$bDir"cohort.summary"
