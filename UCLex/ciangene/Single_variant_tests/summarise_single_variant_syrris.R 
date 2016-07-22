@@ -1,0 +1,37 @@
+########################################
+######### Now run
+#########################################
+exit
+setwd("/scratch2/vyp-scratch2/cian/UCLex_June2015/FastLMM_Single_Variant_all_phenos/") 
+file<-read.table("Syrris_final",header=T,sep="\t",stringsAsFactors=F) 
+file$TechKinPvalue<-as.numeric(file$TechKinPvalue)
+filt<-variant.filter(file,pval=.000001) 
+calls<-prepData(filt)
+pvals<-doFisher(calls) 
+
+merged<-merge(filt, pvals,by="SNP") 
+ensembl = useMart("ensembl",dataset="hsapiens_gene_ensembl")
+filter="ensembl_gene_id"
+attributes =  c("ensembl_gene_id", "external_gene_name",  "phenotype_description")
+gene.data <- getBM(attributes= attributes , filters = filter , values = merged$Gene , mart = ensembl)
+gene.data.uniq <- gene.data[!duplicated(gene.data$external_gene_name),]
+
+genes<-unlist(read.table("/cluster/project8/vyp/cian/data/Support/CandidateGenes/candidate_genes_SCD",header=F,sep="\t")) 
+anno$Candidate<-FALSE
+anno$Candidate[anno$external_gene_name%in%genes[,1]]<-TRUE
+
+anno<-merge(merged,gene.data.uniq,by.x='Gene',by.y='ensembl_gene_id')
+anno<-anno[order(anno$FisherPvalue),]
+anno$Pvalue<-as.numeric(as.character(anno$Pvalue))
+anno$TechKinPvalue<-as.numeric(as.character(anno$TechKinPvalue))
+
+dat.small<-data.frame(anno$SNP, anno$ExonicFunc,anno$external_gene_name, anno$Gene, anno$FisherPvalue,anno$OR, anno$nb.mutations.Syrris,anno$nb.mutations.ctrls,
+anno$nb.Syrris,anno$nb.ctrls,anno$Syrris.maf,anno$ctrls.maf,anno$nb.Homs.Syrris,anno$nb.Homs.ctrls,
+anno$nb.Hets.Syrris,anno$nb.Hets.ctrls,anno$nb.NAs.Syrris,anno$nb.NAs.ctrls,anno$phenotype_description) 
+colnames(dat.small)<-gsub(colnames(dat.small),pattern="anno.",replacement="")
+dat.sig<-subset(dat.small,dat.small$FisherPvalue<=0.001)
+dat.sig<-dat.sig[order(dat.sig$FisherPvalue),]
+
+write.table(dat.sig, "Syrris_ARVC_vs_UCLex.csv", col.names=T,row.names=F,quote=T,sep=",") 
+
+
