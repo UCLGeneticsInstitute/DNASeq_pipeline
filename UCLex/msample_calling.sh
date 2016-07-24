@@ -25,7 +25,6 @@ GATK=/cluster/project8/vyp/vincent/Software/GenomeAnalysisTK-3.5-0/GenomeAnalysi
 #baseFolder=/cluster/project8/vyp/vincent/Software/DNASeq_pipeline
 baseFolder="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 echo $baseFolder
-crunchpl=${baseFolder}/UCLex/crunch_controls.pl
 
 submit=no 
 force=no
@@ -53,34 +52,23 @@ do
     --tmpDir )
         shift
         tmpDir=$1;;
-    --genotype )
+    --mode )
         shift
-        genotype=$1;;
-    --recal )
-        shift
-        recal=$1;;
-    --annovar )
-        shift
-        annovar=$1;;
-    --convertToR )
-        shift
-        convertToR=$1;;
-    --finalCrunch )
-        shift
-        finalCrunch=$1;;
+        mode=$1;;
     --gVCFlist )
         shift
         gVCFlist=$1;;
     --currentUCLex )
         shift
         currentUCLex=$1;;
-        -* )
-            echo "Unrecognized option: $1"
-            exit 1;;
+    -* )
+       echo "Unrecognized option: $1"
+       exit 1;;
     esac
     shift
     if [ "$#" = "0" ]; then break; fi
 done
+
 
 ############## Now options are all set
 output=${scratchFolder}/mainset_${currentUCLex}/mainset_${currentUCLex}
@@ -102,28 +90,6 @@ mainScript=cluster/submission/calling.sh
 ## individual scripts of the form cluster/submission/subscript_chr${chr}.sh
 
 mkdir -p cluster/submission/
-
-echo "
-#$ -o cluster/out
-#$ -e cluster/error
-#$ -S /bin/bash
-#$ -l h_vmem=${memo}G,tmem=${memo}G
-#$ -l h_rt=240:0:0
-#$ -R y
-#$ -pe smp 1
-#$ -cwd 
-#$ -t 1-23
-#$ -tc 23
-
-LISTCHROMS=(chr 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X )
-
-CHR=\${LISTCHROMS[ \$SGE_TASK_ID ]}
-
-sh cluster/submission/subscript_chr\${CHR}.sh
-
-" > $mainScript
-
-
 ######## first clean up the individual files
 for chr in `seq 1 22` X
 do
@@ -131,8 +97,7 @@ do
 done
 
 ##################################################
-if [[ "$genotype" == "yes" ]]
-then
+function genotype() {
     echo "Running the genotype module"
     mkdir -p cluster/submission/
     for chr in `seq 1 22` X
@@ -162,13 +127,12 @@ $java -Djava.io.tmpdir=/scratch0/ -Xmx${memoSmall}g -jar $GATK \\
 	    echo "   -o ${output}_chr${chr}.vcf.gz" >> $script
 	fi
     done 
+}
     
-fi
 
 
 ##################################################
-if [[ "$recal" == "yes" ]]
-then
+function recal() {
     echo "Running the recalibration module"
     for chr in `seq 1 22` X
     do
@@ -183,8 +147,7 @@ then
                 maxGauLoc=4
             fi
             echo "
-if [ ! -e $tmpDir ]; then mkdir $tmpDir; fi
-
+mkdir -p $tmpDir
 #### extract the indels
 $java  -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} \
      -T SelectVariants \
@@ -246,14 +209,14 @@ rm -rf $tmpDir
 rm ${output}_chr${chr}_indels.vcf.gz ${output}_chr${chr}_SNPs.vcf.gz ${output}_chr${chr}_SNPs_filtered.vcf.gz
 " >> $script
 	fi
-
     done
+}
     
-fi
 
 
-if [[ "$annovar" == "yes" ]]
-then
+##################################################
+function annovar() {
+    memo=15
     for chr in `seq 1 22` X
     do
         script=cluster/submission/subscript_chr${chr}.sh
@@ -281,13 +244,78 @@ touch ${output}_snpStats/chr${chr}.done
 " >> $script
       fi
     done
-fi
+}
 
 
 
-if [[ "$convertToR" == "yes" ]]
-then
-    if [ ! -e ${output}_snpStats ]; then mkdir ${output}_snpStats; echo "Created ${output}_snpStats"; fi
+##################################################
+function VEP() {
+    memo=20
+    mkdir -p ${output}_VEP
+    for chr in `seq 1 22` X
+    do
+        script=cluster/submission/subscript_chr${chr}.sh
+        VEP_output="--json --output_file ${output}_VEP/VEP_${chr}.json"
+        #VEP_output="--tab --output_file ${output}_VEP/VEP_${chr}.txt"
+        echo "
+reference=1kg
+#will set to missing individuals with depth < 20
+
+cat ${output}_chr${chr}_for_annovar.vcf | python ${baseFolder}/annotation/multiallele_to_single_gvcf.py  > ${output}_chr${chr}_for_VEP.vcf
+
+####CONFIGURE SOFTWARE SHORTCUTS AND PATHS
+ensembl=/cluster/project8/vyp/AdamLevine/software/ensembl/
+#VEP=${ensembl}/src/ensembl-tools/scripts/variant_effect_predictor/variant_effect_predictor.pl
+#dir_cache=${ensembl}/cache/
+PERL5LIB=${PERL5LIB}:${ensembl}/src/bioperl-1.6.1
+PERL5LIB=${PERL5LIB}:${ensembl}/src/ensembl/modules
+PERL5LIB=${PERL5LIB}:${ensembl}/src/ensembl-compara/modules
+PERL5LIB=${PERL5LIB}:${ensembl}/src/ensembl-variation/modules
+PERL5LIB=${PERL5LIB}:${ensembl}/src/ensembl-funcgen/modules
+PERL5LIB=${PERL5LIB}:${ensembl}/Plugins
+export PERL5LIB
+export PATH=$PATH:/cluster/project8/vyp/vincent/Software/tabix-0.2.5/
+# RUN VEP
+/share/apps/perl/bin/perl /cluster/project8/vyp/Software/ensembl-tools-release-82/scripts/variant_effect_predictor/variant_effect_predictor.pl --port 3337 --verbose --ASSEMBLY GRCh37 --fasta /cluster/scratch3/vyp-scratch2//reference_datasets/human_reference_sequence//human_g1k_v37.fasta --cache --dir_cache /cluster/project8/vyp/AdamLevine/software/ensembl//cache/ --sift b --polyphen b --symbol --canonical --check_existing --check_alleles --no_progress --fork 4 --maf_esp --gmaf --maf_1kg \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/CADD/chr${chr}.vcf.gz,CADD,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/ExAC/0.3/chr${chr}_AFR.vcf.gz,EXAC_AFR,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/ExAC/0.3/chr${chr}_AMR.vcf.gz,EXAC_AMR,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/ExAC/0.3/chr${chr}_Adj.vcf.gz,EXAC_Adj,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/ExAC/0.3/chr${chr}_EAS.vcf.gz,EXAC_EAS,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/ExAC/0.3/chr${chr}_FIN.vcf.gz,EXAC_FIN,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/ExAC/0.3/chr${chr}_NFE.vcf.gz,EXAC_NFE,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/ExAC/0.3/chr${chr}_OTH.vcf.gz,EXAC_OTH,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/ExAC/0.3/chr${chr}_SAS.vcf.gz,EXAC_SAS,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/1kg/chr${chr}_EUR.vcf.gz,1KG_EUR,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/1kg/chr${chr}_AFR.vcf.gz,1KG_AFR,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/1kg/chr${chr}_AMR.vcf.gz,1KG_AMR,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/1kg/chr${chr}_ASN.vcf.gz,1KG_ASN,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/esp/chr${chr}_EA.vcf.gz,ESP_EA,vcf,exact \
+--custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/esp/chr${chr}_AA.vcf.gz,ESP_AA,vcf,exact \
+--custom /cluster/scratch3/vyp-scratch2/reference_datasets/Kaviar/Kaviar-160204-Public/hg19/VEP_annotation.vcf.gz,Kaviar,vcf,exact \
+--plugin Condel,/cluster/project8/vyp/AdamLevine/software/ensembl//Plugins/config/Condel/config,b \
+--plugin Carol \
+#--plugin CADD,/cluster/project9/IBDAJE/VEP_custom_annotations/1kg/CADD/chr${chr}.vcf.gz \
+--plugin GO \
+--plugin ExAC,/cluster/project9/IBDAJE/VEP_custom_annotations/1kg/ExAC/0.3/chr${chr}.vcf.gz \
+--force_overwrite \
+--hgvs \
+--plugin HGVSshift \
+--plugin SameCodon \
+--input_file ${output}_chr${chr}_for_VEP.vcf \
+$VEP_output
+" >> $script
+echo "
+python ${baseFolder}/annotation/postprocess_VEP_json.py < ${output}_VEP/VEP_${chr}.json | grep '^JSON:' | sed 's/^JSON://' | gzip -c > ${output}_VEP/VEP_${chr}.json.gz
+" >> $script
+  done
+}
+
+
+
+##################################################
+function convertToR() {
+    mkdir -p ${output}_snpStats
     for chr in `seq 1 22` X
     do
         script=cluster/submission/subscript_chr${chr}.sh
@@ -299,26 +327,51 @@ then
 " >> $script
         fi
     done
-fi
+}
 
 
 
-if [[ "$finalCrunch" == "yes" ]]
-then
+##################################################
+function finalCrunch() {
     keyWords=data/controlKeywords.tab
     casekeyWords=data/caseKeywords.tab
     for chr in `seq 1 22` X
     do
         script=cluster/submission/subscript_chr${chr}.sh
         echo "
-${crunchpl} ${output}_chr${chr}_exome_table.csv $keyWords $casekeyWords ${output}_chr${chr}_exome_crunched.csv data/sampleList_exome.tab none no  ##include all samples
+${baseFolder}/UCLex/crunch_controls.pl ${output}_chr${chr}_exome_table.csv $keyWords $casekeyWords ${output}_chr${chr}_exome_crunched.csv data/sampleList_exome.tab none no  ##include all samples
 
 #python /cluster/project8/vyp/vincent/Software/pipeline/UCLex/annovar_vcf_combine_VP.py ${output}_recal_filtered.vcf ${output}_db.genome_summary.csv ${output}_genome_table.csv
 
 #${crunchpl} ${output}_genome_table.csv $keyWords $casekeyWords ${output}_genome_crunched.csv data/sampleList_genome.tab none no  ##include all samples
 " >> $script
     done
-fi
+}
+
+echo mode ${mode}
+${mode}
+
+
+echo "
+#$ -o cluster/out
+#$ -e cluster/error
+#$ -S /bin/bash
+#$ -l h_vmem=${memo}G,tmem=${memo}G
+#$ -l h_rt=240:0:0
+#$ -R y
+#$ -pe smp 1
+#$ -cwd 
+#$ -t 1-23
+#$ -tc 23
+
+LISTCHROMS=(chr 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X )
+
+CHR=\${LISTCHROMS[ \$SGE_TASK_ID ]}
+
+sh cluster/submission/subscript_chr\${CHR}.sh
+
+" > $mainScript
+
 
 
 
