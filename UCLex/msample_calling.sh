@@ -295,7 +295,7 @@ then
         then
             echo "
 #/share/apps/R/bin/R CMD BATCH --no-save --no-restore --chromosome=${chr} --root=${output} ${baseFolder}/UCLex/convert_to_R.R cluster/R/convert_to_R_chr${chr}.out
-Rscript ${baseFolder}/UCLex/convert_to_R.R --chromosome ${chr} --root ${output} > cluster/R/convert_to_R_chr${chr}.out
+/share/apps/R/bin/Rscript ${baseFolder}/UCLex/convert_to_R.R --chromosome ${chr} --root ${output} > cluster/R/convert_to_R_chr${chr}.out
 " >> $script
         fi
     done
