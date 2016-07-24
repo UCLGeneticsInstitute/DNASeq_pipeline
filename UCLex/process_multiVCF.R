@@ -137,9 +137,6 @@ process.multiVCF <- function(calls,
     
   }
   
-
-
-  
 ######################
   all.variants.folder <- paste(oFolder, '/all_variants', sep= '')
   hom.variants.folder <- paste(oFolder, '/homozygous_variants', sep= '')
@@ -159,8 +156,6 @@ process.multiVCF <- function(calls,
     }
   }
   
-
-
   good.ids <- my.cases %in% dimnames(calls)[[1]]
   correct.ids <- subset(my.cases, good.ids)
   if (sum(good.ids) < dim(calls)[1]) {
@@ -306,9 +301,7 @@ process.multiVCF <- function(calls,
     annotations.loc <- annotations[ selected, ]
     calls.loc <- calls.loc[ selected ]
     depth.loc <- depth.loc[ selected ]
-    good.hom <- (depth.loc >= depth.threshold.conf.homs) & (calls.loc == 2) & !is.na(calls.loc)
-
-    
+    good.hom <- (depth.loc >= depth.threshold.conf.homs) & (calls.loc == 2) & !is.na(calls.loc) 
     
     summary.frame$n.func.rare.calls[ sample ] <- sum(annotations.loc$rare & (annotations.loc$splicing | annotations.loc$lof | annotations.loc$non.syn) & !annotations.loc$remove.bad.transcripts , na.rm = TRUE)
     summary.frame$n.func.rare.hom.calls[ sample ] <- sum(annotations.loc$rare & (annotations.loc$splicing | annotations.loc$lof | annotations.loc$non.syn) & !annotations.loc$remove.bad.transcripts  & good.hom, na.rm = TRUE)
@@ -328,7 +321,7 @@ process.multiVCF <- function(calls,
 ##### output the full list of calls for this sample
     if (print.individual.files) {
       output.all <- paste(all.variants.folder, '/', id, '.csv', sep = '')
-      write.csv(x = annotations.loc[, my.names2], file = output.all, row.names = FALSE)
+      write.csv(x = annotations.loc[, my.names2], file = output.all, row.names = FALSE, quote=TRUE)
       message('Outputting all variants in ', output.all, ', ncalls: ', nrow(annotations.loc))
     }
 
@@ -414,15 +407,12 @@ process.multiVCF <- function(calls,
     message('Outputting all rare X linked variants ', output.X, ', ncalls: ', nrow(chrX))
     
 ##### now the variants in known genes, keep the wrong transcripts in this folder for now
-    known.genes.calls <- subset(annotations.loc, somewhat.rare & calls.loc >= 1 & (non.syn | splicing | lof) 
-                                & (Gene %in% known.genes | gsub(pattern = '\\(.*', replacement = '', annotations.loc$HUGO) %in% known.genes | HUGO %in% known.genes))
+    known.genes.calls <- subset(annotations.loc, somewhat.rare & calls.loc >= 1 & (non.syn | splicing | lof) & (Gene %in% known.genes | gsub(pattern = '\\(.*', replacement = '', annotations.loc$HUGO) %in% known.genes | HUGO %in% known.genes))
     known.genes.calls <- known.genes.calls[, my.names2]
     output.known <- paste(known.genes.folder, '/', id, '.csv', sep = '')
     write.csv(x = known.genes.calls, file = output.known, row.names = FALSE)
     message('Outputting all rare variants in known genes ', output.known, ', ncalls: ', nrow(known.genes.calls))
   }
-
-
 
   
 ############################################################ preferred choice to print the labels
@@ -460,7 +450,7 @@ process.multiVCF <- function(calls,
   ###
   write.csv(x = summary.frame,
             file = paste(supportFolder, '/summary_frame.csv', sep = ''),
-            row.names = FALSE)
+            row.names = FALSE, quote=TRUE)
 
   stamp.file <- paste(oFolder, '/time_stamp.txt', sep = '')
   cat(date(), file = stamp.file)
