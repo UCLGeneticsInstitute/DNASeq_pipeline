@@ -5,8 +5,6 @@ getArgs <- function() {
   return (myargs)
 }
 
-release <- 'July2015'
-rootODir<-'/scratch2/vyp-scratch2/cian'
 
 myArgs <- getArgs()
 
@@ -14,17 +12,16 @@ if ('rootODir' %in% names(myArgs))  rootODir <- myArgs[[ "rootODir" ]]
 if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 
 ######################
-bDir <- paste0(rootODir, "/UCLex_", release, "/")
 ldak<-'/cluster/project8/vyp/cian/support/ldak/ldak'
 minMaf<-0 
-maxMaf<-.5
+maxMaf<-.01
 maxMiss<-2
 hwe.pval<-0.00001 
 
-#annotations<-read.csv(paste0(bDir,'annotations.snpStat'),header=T,sep="\t")
-ex.ctrl<-list.files(paste0(bDir,"External_Control_data/"),pattern='ctrls.frq',full.names=T)
-ex.ctrl.hwe<-list.files(paste0(bDir,"External_Control_data/"),pattern='hwe',full.names=T)
-ex.ctrl.case<-list.files(paste0(bDir,"External_Control_data/"),pattern='case_qc.lmiss',full.names=T)
+annotations<-read.csv(paste0(rootODir,'annotations.snpStat'),header=T,sep="\t")
+ex.ctrl<-list.files(paste0(rootODir,"External_Control_data/"),pattern='ctrls.frq',full.names=T)
+ex.ctrl.hwe<-list.files(paste0(rootODir,"External_Control_data/"),pattern='hwe',full.names=T)
+ex.ctrl.case<-list.files(paste0(rootODir,"External_Control_data/"),pattern='case_qc.lmiss',full.names=T)
 names<-gsub(basename(ex.ctrl),pattern="_.*",replacement="")
 
 func <- c("nonsynonymous SNV", "stopgain SNV", "nonframeshift insertion", "nonframeshift deletion", "frameshift deletion",
@@ -51,7 +48,7 @@ for(i in 1:length(ex.ctrl))
 	case<-read.table(paste0(ex.ctrl.case[i],"_clean"),header=T) 
 	case.miss<-case$SNP[case$F_MISS<=maxMiss]
 	variants<-file$SNP[file$SNP%in%clean&file$MAF<=maxMaf&file$SNP%in%case.miss&file$SNP%in%hwe.good.snps]
-	oFile<-paste0(bDir,"External_Control_data/",names[i],"_rare_func_variants")
+	oFile<-paste0(rootODir,"External_Control_data/",names[i],"_rare_func_variants")
 	write.table(variants,file=oFile,col.names=F,row.names=F,quote=F,sep='\t')
 }
 

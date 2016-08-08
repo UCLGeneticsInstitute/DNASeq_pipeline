@@ -13,7 +13,7 @@ pheno=${repo}/MakePhenotypes/prepare_all_phenos.R ## step 2.1
 MissingNess=${repo}/CaseControlMissingness.R ##step 2.2
 
 ## Third step - creating and validating the technical Kinship
-VariantLists=${repo}/LDAK/make_list_of_variants_for_gene_tests.R # step 3.1
+VariantLists=${repo}/Gene_Based_Tests/make_list_of_variants_for_gene_tests.R # step 3.1
 secondStep=${repo}/convert_genotype_to_missingNonMissing.sh  ## step3.2
 makeKin=${repo}/Make_Kinships/make_kinships_new.sh # step 3.3
 checkKin=${repo}/check_tk_residuals.sh # step 3.4
@@ -89,12 +89,12 @@ if [[ "$step1" == "yes" ]]; then
 #$ -l h_rt=24:00:00
 #$ -cwd
 
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/first.step.R cluster/R/step1.1_first_step.Rout
-sh $clean $rootODir $release
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/first.step.R cluster/R/step1.1_first_step.Rout
+#sh $clean $rootODir $release
 $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $filter cluster/R/step1.3.filter_snps.Rout
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $pca cluster/R/step1.4.pca.Rout
-sh $pca_extract $rootODir $release
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $plot_pca cluster/R/step1.4.Plotpca.Rout
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $pca cluster/R/step1.4.pca.Rout
+#sh $pca_extract $rootODir $release
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $plot_pca cluster/R/step1.4.Plotpca.Rout
 
 
 " > $script
@@ -115,7 +115,7 @@ if [[ "$step2" == "yes" ]]; then
 #$ -o cluster/out
 #$ -e cluster/error
 #$ -l h_vmem=8G,tmem=8G
-#$ -pe smp 4
+#$ -pe smp 2
 #$ -N step2_cian
 #$ -l h_rt=24:00:00
 #$ -cwd
@@ -144,17 +144,17 @@ if [[ "$step3" == "yes" ]]; then
 #$ -S /bin/bash
 #$ -o cluster/out
 #$ -e cluster/error
-#$ -l h_vmem=5G,tmem=5G
+#$ -l h_vmem=15G,tmem=15G
 #$ -pe smp 1
 #$ -N step3_cian
 #$ -l h_rt=24:00:00
 #$ -cwd
 
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $VariantLists cluster/R/step3.1.variant.lists.Rout
-sh $secondStep $rootODir $release ## convert geno to missingNonMissing
-sh $makeKin $rootODir $release ### make kinship matrices
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $VariantLists cluster/R/step3.1.variant.lists.Rout
+#sh $secondStep $rootODir $release ## convert geno to missingNonMissing
+#sh $makeKin $rootODir $release ### make kinship matrices
 sh $checkKin $rootODir $release # check how much variance the kinships explained. 
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $convertKin cluster/R/step2.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $convertKin cluster/R/step3.2.Rout
 " > $script
 
     qsub $hold $script

@@ -4,17 +4,18 @@ ldak=/cluster/project8/vyp/cian/support/ldak/ldak
 #ldak=/scratch2/vyp-scratch2/cian/ldak.5.98
 R=/share/apps/R/bin/R
 #rootODir=/scratch2/vyp-scratch2/ciangene
-rootODir=/cluster/project8/vyp/cian/data/UCLex/
-release=June2016
+
+
 rootODir=${1-$rootODir}
 release=${2-$release}
 bDir=${rootODir}/UCLex_${release}/
 
-missingNonMissing=$bDir"/Matrix.calls.Missing.NonMissing_out"
-techOut=$bDir"/TechKin"
-Depth=$bDir/read_depth/Depth_Matrix
-DepthOut=$bDir/DepthKin
-extract=$bDir"Clean_variants_func_rare"
+missingNonMissing=${rootODir}Matrix.calls.Missing.NonMissing_out
+techOut=${rootODir}TechKin
+Depth=${rootODir}/read_depth/Depth_Matrix
+DepthOut=${rootODir}DepthKin
+extract=${rootODir}Clean_variants_func_rare
+
 ## Some basic parameters: 
 minObs=0.7	## SNP needs to be present in 90% samples to be included. 
 minMaf=0.001			## SNP with MAF >= this are retained
@@ -24,14 +25,14 @@ minVar=0.0000001			## SNP with variance >= this are retained?
 
 
 ######### Tech Kin
-$ldak --calc-kins-direct $techOut --bfile $missingNonMissing --ignore-weights YES --kinship-raw YES \
- --minmaf $minMaf --maxmaf $maxMaf --minvar $minVar --minobs $minObs --extract $extract 
+#$ldak --calc-kins-direct $techOut --bfile $missingNonMissing --ignore-weights YES --kinship-raw YES \
+ #--minmaf $minMaf --maxmaf $maxMaf --minvar $minVar --minobs $minObs --extract $extract 
 
-$ldak --pca $bDir"TechPCs" --grm $techOut 
+#$ldak --pca ${rootODir}TechPCs --grm $techOut 
 
 
-oFile=$bDir/plot.techpca.R
-echo "dir<-'"$bDir"'" > $oFile
+oFile=${rootODir}plot.techpca.R
+echo "dir<-'"${rootODir}"'" > $oFile
 echo '
 	file <- read.table(paste0(dir, "TechPCs.vect"), header=F) 
 	groups <- read.table(paste0(dir, "Sample.cohort"), header=F)
@@ -44,7 +45,7 @@ echo '
 	ymin <- min(file[,4]) - buffer
 	ymax <- max(file[,4]) + buffer
 
-	pdf(paste0(dir, "/TechPCA.pdf") ) 
+	png(paste0(dir, "/plots/TechPCA.png") ) 
 	for(i in 1:nb.groups)
 #	for(i in 72:nb.groups)
 	{
@@ -63,6 +64,8 @@ echo '
 			points(file[hit,3], file[hit,4], col=i)
 		}
 	}
+	dev.off()
+	png(paste0(dir, "/plots/TechPCA.var.png") ) 
 	file <- read.table(paste0(dir,"TechPCs.values"), header=F)
 	file$sd <- file[,1]^.5
 	file$var <- file[,1]^2 / sum(file[,1]^2)
@@ -72,7 +75,7 @@ echo '
 	vec<-read.table(paste0(dir, "TechPCs.vect"),header=T,sep=" ")
 	miss<-read.table(paste0(dir, "gstats.imiss"),header=T,sep="\t",row.names=NULL)
 	plot.data<-data.frame(PC1=vec[,3],PC2=vec[,4],CallRate=miss$F_MISS)
-	pdf(paste0(dir, "TechPCS_and_CallRate.pdf")) 
+	png(paste0(dir, "TechPCS_and_CallRate.png")) 
 	print(qplot(PC1,PC2,color=CallRate,data=plot.data,main="Technical PCs distinguish samples based on Missingness"))
 	dev.off()
 
@@ -82,16 +85,16 @@ $R CMD BATCH --no-save --no-restore $oFile
 
 
 ######### Pop Kin
-missingNonMissing=$bDir"/allChr_snpStats_out"
-techOut=$bDir"/PopKin"
+missingNonMissing=${rootODir}allChr_snpStats_out
+techOut=${rootODir}PopKin
 
-$ldak --calc-kins-direct $techOut --bfile $missingNonMissing --ignore-weights YES --kinship-raw YES \
---minmaf $minMaf --maxmaf $maxMaf --minvar $minVar --minobs $minObs  --extract $extract 
-$ldak --pca $bDir"popPCs" --grm $techOut  
+#$ldak --calc-kins-direct $techOut --bfile $missingNonMissing --ignore-weights YES --kinship-raw YES \
+#--minmaf $minMaf --maxmaf $maxMaf --minvar $minVar --minobs $minObs  --extract $extract 
+#$ldak --pca ${rootODir}popPCs --grm $techOut  
 
 
-oFile=$bDir/plot.popPca.R
-echo "dir<-'"$bDir"'" > $oFile
+oFile=${rootODir}plot.popPca.R
+echo "dir<-'"${rootODir}"'" > $oFile
 echo '
 	file <- read.table(paste0(dir, "popPCs.vect"), header=F) 
 	groups <- read.table(paste0(dir, "Sample.cohort"), header=F)
@@ -104,7 +107,7 @@ echo '
 	ymin <- min(file[,4]) - buffer
 	ymax <- max(file[,4]) + buffer
 
-	pdf(paste0(dir, "/popPCA.pdf") ) 
+	png(paste0(dir, "/plots/popPCA.png") ) 
 	for(i in 1:nb.groups)
 #	for(i in 72:nb.groups)
 	{
@@ -123,6 +126,8 @@ echo '
 			points(file[hit,3], file[hit,4], col=i)
 		}
 	}
+	dev.off()
+	png(paste0(dir, "/plots/PopPCA.var.png") ) 
 	file <- read.table(paste0(dir,"popPCs.values"), header=F)
 	# file$sd <- file[,1]^.5
 	file$var <- file[,1]^2 / sum(file[,1]^2)
@@ -134,14 +139,23 @@ $R CMD BATCH --no-save --no-restore $oFile
 
 
 ######### Depth Kin
-DepthOut=$bDir"/DepthKin"
+
+## Some basic parameters: 
+minObs=0 ## SNP needs to be present in 90% samples to be included. 
+minMaf=0			## SNP with MAF >= this are retained
+maxMaf=0.5				## SNP with MAF <= this are retained # for techKIN maf is missingness rate. 
+minVar=0.0000001			## SNP with variance >= this are retained? 
+## maxTime=500			## Nb minutes calculation allowed run for. 
+
+
+DepthOut=${rootODir}DepthKin
 $ldak --calc-kins-direct $DepthOut --sp $Depth --ignore-weights YES --kinship-raw YES \
---minmaf $minMaf --maxmaf $maxMaf --minvar $minVar --minobs $minObs  --extract $extract 
-$ldak --pca $bDir"DepthPCs" --grm $DepthOut 
+--minmaf $minMaf --minvar $minVar --minobs $minObs  --extract $extract 
+$ldak --pca ${rootODir}DepthPCs --grm $DepthOut 
 
 
-oFile=$bDir/plot.Depthpca.R
-echo "dir<-'"$bDir"'" > $oFile
+oFile=${rootODir}plot.Depthpca.R
+echo "dir<-'"${rootODir}"'" > $oFile
 echo '
 	file <- read.table(paste0(dir, "DepthPCs.vect"), header=F) 
 	groups <- read.table(paste0(dir, "Sample.cohort"), header=F)
@@ -155,7 +169,7 @@ echo '
 	ymax <- max(file[,4]) + buffer
 	cohort.list<-c("Levine","Davina","Hardcastle","IoO","IoN","IoOFFS","IoONov2013","IoOPanos","Kelsell","LambiaseSD",
 	"Lambiase","LayalKC","Manchester","Nejentsev","PrionUnit","Prionb2","Shamima","Sisodiya","Syrris","Vulliamy","WebsterURMD")
-	pdf(paste0(dir, "/DepthPCA.pdf") ) 
+	png(paste0(dir, "/plots/DepthPCA.png") ) 
 	for(i in 1:nb.groups)
 #	for(i in 72:nb.groups)
 	{
@@ -174,6 +188,8 @@ echo '
 			points(file[hit,3], file[hit,4], col=i)
 		}
 	}
+	dev.off()
+	png(paste0(dir, "/plots/DepthPCA.var.png") ) 
 	file <- read.table(paste0(dir,"DepthPCs.values"), header=F)
 	file$sd <- file[,1]^.5
 	file$var <- file[,1]^2 / sum(file[,1]^2)

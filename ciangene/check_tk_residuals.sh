@@ -1,28 +1,27 @@
 #!/bin/bash
 
 ldak=/cluster/project8/vyp/cian/support/ldak/ldak
-#rootODir=/scratch2/vyp-scratch2/ciangene
-rootODir=/cluster/project8/vyp/cian/data/UCLex/
-release=June2016
+
+
 rootODir=${1-$rootODir}
 release=${2-$release}
 R=/share/apps/R/bin/R
-bDir=${rootODir}/UCLex_${release}/
-genes=/SAN/biomed/biomed14/vyp-scratch/cian/LDAK/genesldak_ref.txt
-kinship=$bDir"TechKin"
-pKinship=$bDir"PopKin"
-dKinship=$bDir"DepthKin"
-data=$bDir"allChr_snpStats_out"
-phenotypes=$bDir"Phenotypes"
-groups=$bDir"cohort.summary"
 
-Names=$bDir"GroupNames"
+genes=/SAN/biomed/biomed14/vyp-scratch/cian/LDAK/genesldak_ref.txt
+kinship=${rootODir}TechKin
+pKinship=${rootODir}PopKin
+dKinship=${rootODir}DepthKin
+data=${rootODir}allChr_snpStats_out
+phenotypes=${rootODir}Phenotypes
+groups=${rootODir}cohort.summary
+
+Names=${rootODir}GroupNames
 awk '{print $4}' $groups > tmp
 tail -n +2 "tmp" > $Names
 rm tmp
 nbGroups=$(wc -l $Names | awk {'print $1}') 
 
-oDir=$bDir"KinshipDecomposition/"
+oDir=${rootODir}KinshipDecomposition/
 if [ ! -e $oDir ]; then mkdir $oDir; fi
 
 startPheno=1
@@ -43,20 +42,20 @@ do
 
 	if (($pheno==$startPheno))
 	then
-		awk '{ print $1, $1}' $oDir$batch"_tech.indi.res" > $bDir".NewPhenotypeFiletmp"
+		awk '{ print $1, $1}' $oDir$batch"_tech.indi.res" > ${rootODir}.NewPhenotypeFiletmp
 	fi
 	
 	cut -f5 $oDir$batch'_tech.indi.res' > .tmp
 	tt=$(expr $pheno + 2)
 	cat .tmp | cut -d ' ' -f $tt |  sed "1s/.*/$batch/"  > .tmp2
-	paste  $bDir".NewPhenotypeFiletmp" .tmp2 > .tmp3
-	mv .tmp3 $bDir".NewPhenotypeFiletmp" 
+	paste  ${rootODir}.NewPhenotypeFiletmp .tmp2 > .tmp3
+	mv .tmp3 ${rootODir}.NewPhenotypeFiletmp 
 	
 
 done
 
-mv $bDir".NewPhenotypeFiletmp"  $bDir"NewPhenotypeFile"
-tail -n +2 $bDir"NewPhenotypeFile" > $bDir"phenotype_res"
+mv ${rootODir}.NewPhenotypeFiletmp ${rootODir}NewPhenotypeFile
+tail -n +2 ${rootODir}NewPhenotypeFile > ${rootODir}phenotype_res
 
 oFile=$oDir/plot.residuals.R
 echo "dir<-'"$oDir"'" > $oFile
@@ -78,6 +77,3 @@ echo '
 
 	' >> $oFile
 $R CMD BATCH --no-save --no-restore $oFile
-
-
-

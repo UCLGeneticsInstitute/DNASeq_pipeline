@@ -25,6 +25,7 @@ for(i in 1:nrow(groups))
 {
 	oFile<- paste0(outDir,groups[i,1],".sh")  
 	write.table(paste0("release=",release),oFile,col.names=F,row.names=F,quote=F,sep="\t") 
+	write.table(paste0("rootODir=",rootODir),oFile,col.names=F,row.names=F,quote=F,sep="\t",append=T) 
 	write.table(paste0("mpheno=",i),oFile,col.names=F,row.names=F,quote=F,sep="\t",append=T) 
 	write.table(paste0("batch=",groups[i,1]),oFile,col.names=F,row.names=F,quote=F,sep="\t",append=T) 
 	system(paste('cat /SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/CaseControlMissingnessTemplate >>', oFile)) 
@@ -34,4 +35,4 @@ files<-list.files(outDir,pattern="sh",full.names=T)
 names<-gsub(basename(files),pattern="\\..*",replacement="")
 cohort.list<-c('Levine','Hardcastle','IoO','IoN','Kelsell','LambiaseSD','Lambiase','LayalKC','Nejentsev','PrionUnit','Prionb2','Shamima','Sisodiya','Syrris','Vulliamy','WebsterURMD')
 files<-files[names%in%cohort.list]
-mclapply(files,function(x)system(paste("sh",x)),mc.cores=4) 
+mclapply(files,function(x)system(paste("sh",x)),mc.cores=2) 
