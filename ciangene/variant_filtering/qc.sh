@@ -15,6 +15,11 @@ ln -s $bDir"UCLex_${release}.fam" $iData".fam"
 
 $ldak --make-bed $iData --sp $iData
 
+HPOpheno=/cluster/project8/vyp/pontikos/UCLex/phenotypes.csv
+keep=/cluster/project8/vyp/cian/data/UCLex/DNAseq_pipeline/HPO/keep.samples
+sed 's/,/\t/g' $HPOpheno | sed 's/ //g' | awk '{print $3,$3}' > $keep
+#$plink --bfile $data --keep $keep --make-bed --out $data
+
 data=$bDir"allChr_snpStats_out" 
 $plink --noweb --allow-no-sex --bfile $data --freq --out $bDir/gstats
 $plink --noweb --allow-no-sex --bfile $data --missing --out $bDir/gstats

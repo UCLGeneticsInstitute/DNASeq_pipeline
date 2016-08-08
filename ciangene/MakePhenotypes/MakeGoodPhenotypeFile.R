@@ -1,6 +1,18 @@
-dir<-'/scratch2/vyp-scratch2/cian/UCLex_July2015/'
-base<-read.table(paste0(dir,'Phenotypes'),header=F)
-base.groups<-read.table(paste0(dir,'GroupNames'),header=F)
+getArgs <- function() {
+  myargs.list <- strsplit(grep("=",gsub("--","",commandArgs()),value=TRUE),"=")
+  myargs <- lapply(myargs.list,function(x) x[2] )
+  names(myargs) <- lapply(myargs.list,function(x) x[1])
+  return (myargs)
+}
+
+myArgs <- getArgs()
+
+if ('rootODir' %in% names(myArgs))  rootODir <- myArgs[[ "rootODir" ]]
+if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
+#############################################
+
+base<-read.table(paste0(rootODir,'Phenotypes'),header=F)
+base.groups<-read.table(paste0(rootODir,'GroupNames'),header=F)
 fam<-read.table(paste0(dir,'allChr_snpStats_out.fam'),header=F)
 
 cohort.list<-c('Levine','Hardcastle','IoO','IoN','Kelsell','LambiaseSD','Lambiase','LayalKC','Nejentsev','PrionUnit','Prionb2','Shamima','Sisodiya','Syrris','Vulliamy','WebsterURMD')
@@ -48,12 +60,12 @@ residuals[!residuals[,1]%in%caucasian,3:ncol(residuals)]<-NA
 
 #dat<-data.frame(base[,1:2],
 
-write.table(dat,paste0(dir,'Clean_pheno_subset'),col.names=F,row.names=F,quote=F,sep="\t")
-write.table(perm,paste0(dir,'Clean_pheno_subset_permuted'),col.names=F,row.names=F,quote=F,sep="\t")
-write.table(residuals,paste0(dir,'Clean_pheno_subset_tk_depth_residuals'),col.names=F,row.names=F,quote=F,sep="\t")
+write.table(dat,paste0(rootODir,'Clean_pheno_subset'),col.names=F,row.names=F,quote=F,sep="\t")
+write.table(perm,paste0(rootODir,'Clean_pheno_subset_permuted'),col.names=F,row.names=F,quote=F,sep="\t")
+write.table(residuals,paste0(rootODir,'Clean_pheno_subset_tk_depth_residuals'),col.names=F,row.names=F,quote=F,sep="\t")
 
 dat[dat==1]<-2
 dat[dat==0]<-1
 dat[is.na(dat)]<- '-9'
 
-write.table(dat,paste0(dir,'Clean_pheno_subset_plink'),col.names=F,row.names=F,quote=F,sep="\t")
+write.table(dat,paste0(rootODir,'Clean_pheno_subset_plink'),col.names=F,row.names=F,quote=F,sep="\t")

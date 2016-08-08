@@ -1,0 +1,9 @@
+rootODir=/scratch2/vyp-scratch2/cian/
+bDir=${rootODir}/UCLex_${release}/
+plink=/share/apps/genomics/plink-1.07-x86_64/plink
+oDir=$bDir"CaseControlMissingness/"
+for chr in {1..23}
+do
+	$plink --noweb --allow-no-sex --bfile $bDir"allChr_snpStats_out" --test-missing  --chr $chr \
+	--out ${oDir}/${batch}_missing_${chr} --pheno ${bDir}Phenotype_fastlmm --mpheno $mpheno --pfilter 1e-3
+done

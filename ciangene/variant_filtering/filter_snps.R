@@ -24,7 +24,7 @@ hwe.pval <- .0001
 hwe2 <- subset(hwe$SNP, hwe$TEST == "ALL" & hwe$P >= hwe.pval ) 
 
 ## some parameters
-missingness.threshold <- 0 # snps higher than this are kept. 
+missingness.threshold <- 80 # snps higher than this are kept. 
 min.maf <- 0.01
 max.maf <- 0.5
 
@@ -47,11 +47,6 @@ lof <-  c("frameshift deletion", "frameshift substitution", "frameshift insertio
 
 funky <- annotations$clean.signature[annotations$ExonicFunc %in% unlist(func) ] 
 rare <- subset(annotations$clean.signature, annotations$ESP6500si_ALL >= min.maf & annotations$ESP6500si_ALL <= max.maf & annotations$X1000g2012apr_ALL >= min.maf & annotations$X1000g2012apr_ALL <= max.maf ) 
-
-####################
-### NEED TO MAKE SURE THIS IS ACTUALLY KEEPING RARE AND NOT USING MIN MAF TO REMOVE THE RAREST FIRST
-###################
-
 
 
 #save(extCtrl.var, funky, rare, clean.variants, file = "tmp.RData")

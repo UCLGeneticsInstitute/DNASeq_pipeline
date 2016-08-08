@@ -5,8 +5,6 @@ getArgs <- function() {
   return (myargs)
 }
 
-release <- 'July2015'
-rootODir<-'/scratch2/vyp-scratch2/cian'
 
 myArgs <- getArgs()
 
@@ -14,9 +12,7 @@ if ('rootODir' %in% names(myArgs))  rootODir <- myArgs[[ "rootODir" ]]
 if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 #############################################
 
-oDir <- paste0(rootODir, "/UCLex_", release, "/")
-
-fam <- read.table(paste0(oDir, "UCLex_",release,".fam"), header=F) 
+fam <- read.table(paste0(rootODir, "UCLex_",release,".fam"), header=F) 
 groups <- gsub(fam[,1], pattern = "_.*",replacement = "")
 groups.unique <- unique(groups)
 # Tring to group samples by cohort correctly. Default method is to use string before first underscore in their name, but that doesn't work for all samples, 
@@ -96,15 +92,14 @@ for(i in 1:nb.groups)
 }
 
 
-write.table(groups.unique, paste0(oDir, "GroupNames"), col.names=F, row.names=F, quote=F, sep="\t")
-write.table(pheno, file = paste0(oDir, "Phenotypes"), col.names=F, row.names=F, quote=F, sep="\t") 
-write.table(data.frame(pheno[,1], groups ), paste0(oDir, "Sample.cohort"),  col.names=F, row.names=F, quote=F, sep="\t") 
-write.table(cohort.summary, file = paste0(oDir, "cohort.summary"), col.names=T, row.names=F, quote=F, sep="\t") 
+write.table(groups.unique, paste0(rootODir, "GroupNames"), col.names=F, row.names=F, quote=F, sep="\t")
+write.table(pheno, file = paste0(rootODir, "Phenotypes"), col.names=F, row.names=F, quote=F, sep="\t") 
+write.table(data.frame(pheno[,1], groups ), paste0(rootODir, "Sample.cohort"),  col.names=F, row.names=F, quote=F, sep="\t") 
+write.table(cohort.summary, file = paste0(rootODir, "cohort.summary"), col.names=T, row.names=F, quote=F, sep="\t") 
 
 
 ### fastLMM wants missing as -9, so use separate pheno file. 
-oDir <- paste0(rootODir, "/UCLex_", release, "/")
-inPheno<-paste0(oDir, 'Phenotypes')
+inPheno<-paste0(rootODir, 'Phenotypes')
 pheno <- read.table(inPheno, header=F)
 pheno[is.na(pheno)] <- '-9'
 write.table(pheno,paste0(inPheno,"_fastlmm"), col.names=F, row.names=F, quote=F, sep="\t")

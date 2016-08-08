@@ -1,16 +1,12 @@
 #!/bin/bash
 
 ldak=/cluster/project8/vyp/cian/support/ldak/ldak
-#ldak=/scratch2/vyp-scratch2/cian/ldak.5.98
 R=/share/apps/R/bin/R
-#rootODir=/scratch2/vyp-scratch2/ciangene
-rootODir=/cluster/project8/vyp/cian/data/UCLex
-release=June2016
 rootODir=${1-$rootODir}
 release=${2-$release}
 bDir=${rootODir}/
 
-data=/SAN/vyplab/UCLex/mainset_July2016/cian/allChr_snpStats_out
+data=/SAN/vyplab/UCLex/mainset_${release}/cian/allChr_snpStats_out
 extract=../PCA/SNPs_for_pca
 plink=/share/apps/genomics/plink-1.09beta/plink
 

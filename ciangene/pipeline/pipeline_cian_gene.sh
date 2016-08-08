@@ -114,13 +114,17 @@ if [[ "$step2" == "yes" ]]; then
 #$ -S /bin/bash
 #$ -o cluster/out
 #$ -e cluster/error
-#$ -l h_vmem=2G,tmem=2G
+#$ -l h_vmem=8G,tmem=8G
 #$ -pe smp 4
 #$ -N step2_cian
 #$ -l h_rt=24:00:00
 #$ -cwd
 
+
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/make_phenotype_file.R cluster/R/make_phenotype_file.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/CaseControl_support.R cluster/R/CaseControl_support.Rout
 $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $pheno cluster/R/step2.1.pheno.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/MakeGoodPhenotypeFile.R cluster/R/MakeGoodPhenotypeFile.Rout
 $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $MissingNess cluster/R/step2.2.CaseControlMissingness.Rout
 
 " > $script
@@ -146,9 +150,9 @@ if [[ "$step3" == "yes" ]]; then
 #$ -l h_rt=24:00:00
 #$ -cwd
 
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $VariantLists cluster/R/step3.1.variant.lists.Rout
-#sh $secondStep $rootODir $release ## convert geno to missingNonMissing
-#sh $makeKin $rootODir $release ### make kinship matrices
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $VariantLists cluster/R/step3.1.variant.lists.Rout
+sh $secondStep $rootODir $release ## convert geno to missingNonMissing
+sh $makeKin $rootODir $release ### make kinship matrices
 sh $checkKin $rootODir $release # check how much variance the kinships explained. 
 $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $convertKin cluster/R/step2.Rout
 " > $script

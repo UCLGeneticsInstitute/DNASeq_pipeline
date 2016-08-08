@@ -13,12 +13,12 @@ if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 
 ######################
 library(parallel) 
-oDir <- paste0(rootODir, "/UCLex_", release, "/")
-plink<-'/share/apps/genomics/plink-1.07-x86_64/plink --noweb --allow-no-sex --bfile' 
-outDir<-paste0(oDir,"CaseControlMissingness/") 
+
+plink<-'/home/sejjcmu/bin/plink/plink --noweb --allow-no-sex --bfile' 
+outDir<-paste0(rootODir,"CaseControlMissingness/") 
 if(!file.exists(outDir))dir.create(outDir) 
 
-groups<-read.table(paste0(oDir,"GroupNames"),header=F) 
+groups<-read.table(paste0(rootODir,"GroupNames"),header=F) 
 nb.groups<-nrow(groups) 
 
 for(i in 1:nrow(groups))
@@ -27,7 +27,7 @@ for(i in 1:nrow(groups))
 	write.table(paste0("release=",release),oFile,col.names=F,row.names=F,quote=F,sep="\t") 
 	write.table(paste0("mpheno=",i),oFile,col.names=F,row.names=F,quote=F,sep="\t",append=T) 
 	write.table(paste0("batch=",groups[i,1]),oFile,col.names=F,row.names=F,quote=F,sep="\t",append=T) 
-	system(paste('cat CaseControlMissingnessTemplate >>', oFile)) 
+	system(paste('cat /SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/CaseControlMissingnessTemplate >>', oFile)) 
 
 }
 files<-list.files(outDir,pattern="sh",full.names=T)

@@ -15,8 +15,9 @@ if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 
 ######################
 
-oDir <- paste0(rootODir, "/UCLex_", release, "/")
+#oDir <- paste0(rootODir, "/UCLex_", release, "/")
 oDir<-paste0(rootODir,'/') 
+print(oDir)
 onekgpositions <- read.table('/SAN/vyplab/UCLex/data/filteredPurcell_final.012.pos', header = FALSE, col.names = c('CHROM', 'POS'))
 onekg <- read.table('/SAN/vyplab/UCLex/data/filteredPurcell_final.012', header = FALSE, sep = '\t')[,-1]
 ids<- read.table("/SAN/vyplab/UCLex/data/OneKG_sample_ids.tab",header=T,sep="\t") 
@@ -45,8 +46,8 @@ write.table(t(onekg.filt),paste0(oDir,"onekg_calls_for_uclex_snps.sp"),col.names
 write.table(one.bim[,1:6],paste0(oDir,"onekg_calls_for_uclex_snps.bim"),col.names=F,row.names=F,quote=F,sep="\t") 
 write.table(one.fam,paste0(oDir,"onekg_calls_for_uclex_snps.fam"),col.names=F,row.names=F,quote=F,sep="\t") 
 
-system("sh ../PCA/getPCAsnps_UCLex.sh")
-system("/share/apps/R/bin/R CMD BATCH ../PCA/plot_pca.R")
+#system("sh ../PCA/getPCAsnps_UCLex.sh")
+#system("/share/apps/R/bin/R CMD BATCH ../PCA/plot_pca.R")
 
 
 

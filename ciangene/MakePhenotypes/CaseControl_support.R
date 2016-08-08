@@ -1,4 +1,4 @@
-plink<-'/share/apps/genomics/plink-1.07-x86_64/plink --noweb --allow-no-sex --bfile'
+plink<-'/home/sejjcmu/bin/plink/plink --noweb --allow-no-sex --bfile'
 
 removeConflictingControls<-function(basePheno,remove,cases,oDir)
 {
