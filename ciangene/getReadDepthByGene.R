@@ -31,14 +31,32 @@ for(i in 1:length(files))
 	print(files[i])
 	matrix.depth <- apply(matrix.depth, 2, as.numeric)
 
+
+	for(long in 1:length(annotations.snpStats$Gene)) ## Some variant names label with multiple genes, so i want to separate and include all of tehse
+	{
+		gene<-annotations.snpStats$Gene[long]
+		if(nchar(gene)>15)
+		{
+		#	long.hit<- gregexpr(pattern ='ENS', x)
+		#	for(i in 1:length(long.hit[[1]]))
+		#	{
+		#		genes<-c(genes, substr(x,long.hit[[1]][i],long.hit[[1]][i]+14 ) )
+		#	}
+			annotations.snpStats$Gene[long]<-substr(gene,1,15)
+		} else annotations.snpStats$Gene[long]<-gene
+	}
+
 	uniq.genes<-unique(annotations.snpStats$Gene)
-	uniq.genes.dat<-data.frame(matrix(nrow=length(uniq.genes),ncol=4+nb.cohorts))
+	uniq.genes.dat<-data.frame(matrix(nrow=length(uniq.genes),ncol=4+nb.cohorts,0))
 	colnames(uniq.genes.dat)<-c('Gene','Chr','Start','End',uniq.cohorts)
 	uniq.genes.dat$Gene<-uniq.genes
 
-	uniq.genes.sample<-data.frame(matrix(nrow=length(uniq.genes),ncol=4+ncol(matrix.depth)))
+	uniq.genes.sample<-data.frame(matrix(nrow=length(uniq.genes),ncol=4+ncol(matrix.depth),0))
 	colnames(uniq.genes.sample)<-c('Gene','Chr','Start','End',colnames(matrix.depth))
 	uniq.genes.sample$Gene<-uniq.genes
+
+
+
 
 	for(gene in 1:length(uniq.genes))
 	{
