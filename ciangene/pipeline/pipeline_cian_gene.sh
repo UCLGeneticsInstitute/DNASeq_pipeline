@@ -114,18 +114,20 @@ if [[ "$step2" == "yes" ]]; then
 #$ -S /bin/bash
 #$ -o cluster/out
 #$ -e cluster/error
-#$ -l h_vmem=8G,tmem=8G
-#$ -pe smp 2
+#$ -l h_vmem=25G,tmem=25G
+#$ -pe smp 1
 #$ -N step2_cian
 #$ -l h_rt=24:00:00
 #$ -cwd
 
 
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/make_phenotype_file.R cluster/R/make_phenotype_file.Rout
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/CaseControl_support.R cluster/R/CaseControl_support.Rout
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $pheno cluster/R/step2.1.pheno.Rout
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/MakeGoodPhenotypeFile.R cluster/R/MakeGoodPhenotypeFile.Rout
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $MissingNess cluster/R/step2.2.CaseControlMissingness.Rout
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/make_phenotype_file.R cluster/R/make_phenotype_file.Rout
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/CaseControl_support.R cluster/R/CaseControl_support.Rout
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $pheno cluster/R/step2.1.pheno.Rout
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/MakeGoodPhenotypeFile.R cluster/R/MakeGoodPhenotypeFile.Rout
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $MissingNess cluster/R/step2.2.CaseControlMissingness.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/getReadDepthByGene.R cluster/R/getReadDepthByGene.Rout
+
 
 " > $script
     
