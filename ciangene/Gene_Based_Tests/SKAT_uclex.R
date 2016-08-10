@@ -76,8 +76,8 @@ oDir<-paste0(rootODir,'SKAT/')
 dir.create(oDir)
 
 
-
-for(phen in 1:nrow(pheno.matching))
+##for(phen in 1:nrow(pheno.matching)) skip the first few samples. 
+for(phen in 73:nrow(pheno.matching))
 {
 #	cases<-grep(pheno.matching[phen,1],pheno[,1])
 
@@ -112,13 +112,13 @@ for(phen in 1:nrow(pheno.matching))
 		nb.snps.in.gene<-nrow(gene.snp.data)
 		print(paste(nb.snps.in.gene,'snps in', uniq.genes[gene]))
 
-		if(nb.snps.in.gene)>0)
+		if(nb.snps.in.gene>0)
 		{
 			obj<-SKAT_Null_Model(current.pheno ~ 1, out_type="D")
 			results[gene,2] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2, kernel = "linear")$p.value
 			results[gene,3] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2, kernel = "linear")$p.value
 			results[gene,3] <- nb.snps.in.gene
-			write.table(data.frame(rownames(gene.snp.data),uniq.genes[gene]), paste0(rootODir,pheno.matching[phen,1],'_snps'), col.names=F,row.names=F,quote=F,sep='\t',append=T)
+			write.table(data.frame(rownames(gene.snp.data),uniq.genes[gene]), paste0(oDir,pheno.matching[phen,1],'_snps'), col.names=F,row.names=F,quote=F,sep='\t',append=T)
 		}
 	}
 
