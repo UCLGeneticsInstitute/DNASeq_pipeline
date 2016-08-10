@@ -58,11 +58,13 @@ mv ${rootODir}.NewPhenotypeFiletmp ${rootODir}NewPhenotypeFile
 tail -n +2 ${rootODir}NewPhenotypeFile > ${rootODir}phenotype_res
 
 oFile=$oDir/plot.residuals.R
-echo "dir<-'"$oDir"'" > $oFile
+pDir=${rootODir}plots/
+echo "pdir<-'"$pDir"'" > $oFile
+echo "dir<-'"$oDir"'" >> $oFile
 echo '
 	files <- list.files(dir, pattern = "indi\\.res", full.names=T)
 
-	pdf(paste0(dir, "/Residuals.pdf") )
+	pdf(paste0(pdir, "/Residuals.pdf") )
 		par(mfrow=c(2,2))  
 		lapply(files, function(x)
 		{

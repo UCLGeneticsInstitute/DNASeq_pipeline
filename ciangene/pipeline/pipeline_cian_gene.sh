@@ -121,11 +121,11 @@ if [[ "$step2" == "yes" ]]; then
 #$ -cwd
 
 
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/make_phenotype_file.R cluster/R/make_phenotype_file.Rout
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/CaseControl_support.R cluster/R/CaseControl_support.Rout
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $pheno cluster/R/step2.1.pheno.Rout
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/MakeGoodPhenotypeFile.R cluster/R/MakeGoodPhenotypeFile.Rout
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $MissingNess cluster/R/step2.2.CaseControlMissingness.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/make_phenotype_file.R cluster/R/make_phenotype_file.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/CaseControl_support.R cluster/R/CaseControl_support.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $pheno cluster/R/step2.1.pheno.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/MakeGoodPhenotypeFile.R cluster/R/MakeGoodPhenotypeFile.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $MissingNess cluster/R/step2.2.CaseControlMissingness.Rout
 $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/getReadDepthByGene.R cluster/R/getReadDepthByGene.Rout
 
 
@@ -175,17 +175,20 @@ if [[ "$step4" == "yes" ]]; then
 #$ -S /bin/bash
 #$ -o cluster/out
 #$ -e cluster/error
-#$ -l h_vmem=40G,tmem=40G
+#$ -l h_vmem=4G,tmem=4G
 #$ -pe smp 1
 #$ -N step4_cian
 #$ -l h_rt=24:00:00
 #$ -cwd
 
-sh $thirdStep $rootODir $release 
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/Gene_Based_Tests/make_variant_list_gene_tests.R cluster/R/make_variant_list_gene_tests.Rout
+sh ${repo}/Gene_Based_Tests/extract_variants.sh $rootODir $release 
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/Gene_Based_Tests/SKAT_uclex.R cluster/R/SKAT_uclex.Rout
 
-sh $singleVariant $rootODir $release 
 
-sh $fastlmm $rootODir $release 
+#sh $thirdStep $rootODir $release 
+#sh $singleVariant $rootODir $release 
+#sh $fastlmm $rootODir $release 
 
 " > $script
 
@@ -195,6 +198,4 @@ sh $fastlmm $rootODir $release
 fi
 
 
-
 ls -ltrh $script
-

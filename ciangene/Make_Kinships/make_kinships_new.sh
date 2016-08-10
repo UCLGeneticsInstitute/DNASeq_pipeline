@@ -8,7 +8,7 @@ R=/share/apps/R/bin/R
 
 rootODir=${1-$rootODir}
 release=${2-$release}
-bDir=${rootODir}/UCLex_${release}/
+#bDir=${rootODir}/UCLex_${release}/
 
 missingNonMissing=${rootODir}Matrix.calls.Missing.NonMissing_out
 techOut=${rootODir}TechKin

@@ -24,27 +24,31 @@ sample.cohort<-read.table(paste0(rootODir,'Sample.cohort'),header=F)
 uniq.cohorts<-unique(sample.cohort[,2])
 nb.cohorts<-length(uniq.cohorts)
 
+## list of what gene each snp is in - used for skat later on. 
+snp.oFile<-paste0(rootODir,'snp_gene_id')
+if(file.exists(snp.oFile))file.remove(snp.oFile)
+
+
 FIRST<-TRUE
 for(i in 1:length(files))
 {
 	load(files[i])
 	print(files[i])
-	matrix.depth <- apply(matrix.depth, 2, as.numeric)
 
+	matrix.depth <- apply(matrix.depth, 2, as.numeric)
 
 	for(long in 1:length(annotations.snpStats$Gene)) ## Some variant names label with multiple genes, so i want to separate and include all of tehse
 	{
 		gene<-annotations.snpStats$Gene[long]
 		if(nchar(gene)>15)
 		{
-		#	long.hit<- gregexpr(pattern ='ENS', x)
-		#	for(i in 1:length(long.hit[[1]]))
-		#	{
-		#		genes<-c(genes, substr(x,long.hit[[1]][i],long.hit[[1]][i]+14 ) )
-		#	}
 			annotations.snpStats$Gene[long]<-substr(gene,1,15)
 		} else annotations.snpStats$Gene[long]<-gene
 	}
+
+	## list of what gene each snp is in - used for skat later on. 
+	dat<-data.frame(annotations.snpStats$clean.signature,annotations.snpStats$Gene)
+	write.table(dat,snp.oFile,,col.names=F,row.names=F,quote=F,sep='\t',append=T)
 
 	uniq.genes<-unique(annotations.snpStats$Gene)
 	uniq.genes.dat<-data.frame(matrix(nrow=length(uniq.genes),ncol=4+nb.cohorts,0))
@@ -54,9 +58,6 @@ for(i in 1:length(files))
 	uniq.genes.sample<-data.frame(matrix(nrow=length(uniq.genes),ncol=4+ncol(matrix.depth),0))
 	colnames(uniq.genes.sample)<-c('Gene','Chr','Start','End',colnames(matrix.depth))
 	uniq.genes.sample$Gene<-uniq.genes
-
-
-
 
 	for(gene in 1:length(uniq.genes))
 	{
@@ -73,18 +74,17 @@ for(i in 1:length(files))
 		for(batch in 1:nb.cohorts)
 		{
 			cohort.hits<-sample.cohort[,2]%in%uniq.cohorts[batch]
-			mean.depth<-mean(matrix.depth[gene.start.row:gene.end.row,cohort.hits],na.rm=T) # average readDepth per gene by cohort
+			mean.depth<-round(mean(matrix.depth[gene.start.row:gene.end.row,cohort.hits],na.rm=T)) # average readDepth per gene by cohort
 			uniq.genes.dat[gene,4+batch]<-mean.depth
 		}
-
 
 		uniq.genes.sample$Chr[gene]<-chr
 		uniq.genes.sample$Start[gene]<-start
 		uniq.genes.sample$End[gene]<-end
 		for(sample in 1:ncol(matrix.depth))
 		{
-			mean.depth<-mean(matrix.depth[gene.start.row:gene.end.row,sample],na.rm=T) # average readDepth per gene by sample
-			uniq.genes.sample[gene,4+batch]<-mean.depth
+			mean.depth<-round(mean(matrix.depth[gene.start.row:gene.end.row,sample],na.rm=T)) # average readDepth per gene by sample
+			uniq.genes.sample[gene,4+sample]<-mean.depth
 		}
 	}#gene
 	print(nrow(uniq.genes.dat))
