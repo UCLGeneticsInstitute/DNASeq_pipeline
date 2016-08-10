@@ -11,9 +11,9 @@ rootODir=/SAN/vyplab/UCLex/mainset_${release}/cian/
 #rootODir=/cluster/scratch3/vyp-scratch2/cian
 
 step1=no
-step2=yes
+step2=no
 step3=no
-step4=no
+step4=yes
 
 mkdir -p $rootODir
 

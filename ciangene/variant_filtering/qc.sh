@@ -1,5 +1,5 @@
 #!/bin/bash
-ldak=/cluster/project8/vyp/cian/support/ldak/ldak
+ldak=/home/sejjcmu/bin/ldak/ldak.4.9.fast
 Rbin=/share/apps/R/bin/R
 plink=/share/apps/genomics/plink-1.07/plink
 #rootODir=/scratch2/vyp-scratch2/ciangene

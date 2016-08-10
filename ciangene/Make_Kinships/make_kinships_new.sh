@@ -1,6 +1,6 @@
 #!/bin/bash
 
-ldak=/cluster/project8/vyp/cian/support/ldak/ldak
+ldak=/home/sejjcmu/bin/ldak/ldak.4.9.fast
 #ldak=/scratch2/vyp-scratch2/cian/ldak.5.98
 R=/share/apps/R/bin/R
 #rootODir=/scratch2/vyp-scratch2/ciangene

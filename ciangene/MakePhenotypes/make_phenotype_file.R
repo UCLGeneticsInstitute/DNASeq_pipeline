@@ -94,6 +94,8 @@ for(i in 1:nb.groups)
 
 write.table(groups.unique, paste0(rootODir, "GroupNames"), col.names=F, row.names=F, quote=F, sep="\t")
 write.table(pheno, file = paste0(rootODir, "Phenotypes"), col.names=F, row.names=F, quote=F, sep="\t") 
+write.table(pheno, file = paste0(rootODir, "Phenotypes_named"), col.names=T, row.names=F, quote=F, sep="\t") 
+
 write.table(data.frame(pheno[,1], groups ), paste0(rootODir, "Sample.cohort"),  col.names=F, row.names=F, quote=F, sep="\t") 
 write.table(cohort.summary, file = paste0(rootODir, "cohort.summary"), col.names=T, row.names=F, quote=F, sep="\t") 
 

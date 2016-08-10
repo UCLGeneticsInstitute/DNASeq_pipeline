@@ -14,99 +14,114 @@ if ('rootODir' %in% names(myArgs))  rootODir <- myArgs[[ "rootODir" ]]
 if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 
 ######################
+library(SKAT)
+
+## these are teh snps that have been filterd by func and maf
+snp.sp<-read.table(paste0(rootODir,'gene_test_variants_out.sp'),header=F)
+snp.bim<-read.table(paste0(rootODir,'gene_test_variants_out.bim'),header=F)
+snp.fam<-read.table(paste0(rootODir,'gene_test_variants_out.fam'),header=F)
+colnames(snp.sp)<-snp.fam[,1]
+rownames(snp.sp)<-snp.bim[,2]
+
+
+## Three measures to choose valid controls I need to implement
+#  ethnicity matching - remove non Caucasians
+#  phenotype matching - removeConflictingControls in phenotype file making step - augment with matched control table
+#	read depth matching - remove the samples who have poor coverage 
+
+
+## ancestry matching
+ancestry<-read.table(paste0(rootODir,'UCLex_samples_ancestry'),header=T)
+caucasians<-ancestry$V1[ancestry$Caucasian]
+snps<-snp.sp[,colnames(snp.sp)%in%caucasians]
 
 
 
+## read depth 
+read.depth<-read.table(paste0(rootODir,'Average.read.depth.by.gene.by.sample.tab'),header=T)
+min.depth<-20
+sample.means<-colMeans(read.depth[,4:ncol(read.depth)])
+good.samples<-which(sample.means>=min.depth)
+
+gene.means<-rowMeans(read.depth[,4:ncol(read.depth)])
+good.genes<-which(gene.means>=min.depth)
+
+snp.gene<-read.table(paste0(rootODir,'snp_gene_id'),header=F)
+
+good.genes.snps<-snp.gene[snp.gene[,2] %in% read.depth[good.genes,1],1]
 
 
-spl <- t(data.frame(strsplit(as.character(snps$SNPs), "_"))) 
+clean.snp.data<- snps[ rownames(snps) %in% good.genes.snps ,  colnames(snps) %in% colnames(read.depth)[good.samples] ]
+## this is now a snp * sample matrix of snps that is filtered by
+## gatk vqsr PASS 
+## function and maf (refer to 'make_variant_list_gene_tests.R' for exact metrics )
+## ancestry - non caucasians removed - may need to alter for IBD samples
+## read depth - only the genes and samples that have a mean read depth by gene of 'min.depth' are kept. 
 
-snps$Gene <- substr(snps$Gene, 1, 15 )
-snps$Chr <- gsub(snps$SNPs, pattern = "_.*", replacement = "" )
-snps$Chr <- gsub(snps$Chr, pattern = "X", replacement = 23 )
-snps$BP <- as.numeric(spl[,2]) 
 
-for (chr in 1:23)
+
+## Pheno matching
+pheno.matching<-data.frame(read.csv('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Support/phenotype.info.csv',header=FALSE))
+
+
+pheno<-read.table(paste0(rootODir,'Phenotypes'),header=F)
+pheno.cohorts<-read.table(paste0(rootODir,'cohort.summary'),header=T)
+
+good.genes.data<-snp.gene[snp.gene[,2] %in% read.depth[good.genes,1],]
+uniq.genes<-unique(good.genes.data[,2])
+nb.genes<-length(uniq.genes)
+
+
+oDir<-paste0(rootODir,'SKAT/')
+dir.create(oDir)
+
+
+
+for(phen in 1:nrow(pheno.matching))
 {
-snps.small <- subset(snps, snps$Chr == chr)
-# tra <- data.frame(aggregate(snps$BP, list(snps$Chr) , summary) )
-bed <- data.frame(snps.small$Chr[1], min(snps.small$BP), max(snps.small$BP), snps.small$Chr[1] ) 
-write.table(bed, file = paste0(chr, "_ranges"), col.names=F, row.names=F, quote=F, sep="\t")
-}
+#	cases<-grep(pheno.matching[phen,1],pheno[,1])
 
+	current.pheno<- grep(pheno.matching[phen,1],pheno.cohorts[,4])+2 ## plus two because first two rows of pheno file are ID
 
-
-snps.func <- snps[ snps$ExonicFunc %in% unlist(func) , ]
-write.table(snps.func, "SNPs.func", col.names=T, row.names=F, quote=F, sep="\t")
-snps.lof <- snps[ snps$ExonicFunc %in% unlist(lof) , ]
-write.table(snps.lof, "SNPs.lof", col.names=T, row.names=F, quote=F, sep="\t")
-
-
-
-doSKAT <- function(data, t,  pheno, oBase, type)
-{
-	iFile <- paste0(data, t)
-	if(file.exists(paste0(iFile, ".bed") ))
+	remove.phenos<-length(which(pheno.matching[phen,3:ncol(pheno.matching)]>0))
+	if(remove.phenos>0)
 	{
-		plinky.func <- read.plink(iFile)
-		
-		bim <- read.table(paste0(iFile, ".bim"), header=F, sep="\t") 
-		colnames(plinky.func) <- bim[,2] 
-
-		pheno <- read.table(pheno, header=F ,sep="\t")#[,3]
-	
-		plinky.func <- plinky.func[rownames(plinky.func) %in% pheno[,1], ]
-
-		pheno <- pheno[,3] 
-		pheno <- pheno[pheno != '-9']
-
-		type <- subset(type, type$Chr == bim[1,1])
-		genes <- unique(type$Gene) 
-		func <- data.frame(matrix(nrow= length(genes), ncol = 2))
-		func[,1] <- as.character(genes) 
-
-
-		for(i in 1:length(genes))
+		for(ct in 1:remove.phenos)
 		{
-			hit <- which(type$Gene == genes[i] )
-			# hit <- unique(hit, grep( genes[i] , func.genes$Gene))
-			hit.snps <- as.character(unlist(type$SNPs[hit] )) 
-			snps <- as.matrix(plinky.func[ ,  colnames(plinky.func)  %in% hit.snps  ] ) 
-		#	snps <- as.matrix(snps[!rownames(snps) %in% remove,])
-			if(ncol(snps) > 0 )
-			{
-			obj<-SKAT_Null_Model(pheno[!is.na(pheno)] ~ 1, out_type="D")
-			func[i,2] <- SKAT(snps, obj, missing_cutoff=0.4, estimate_MAF=2, kernel = "linear")$p.value
-			message(func[i,])
-			} 
+			pheno[  grep(pheno.matching[phen,(ct+2)] , pheno[,1]),  current.pheno ] <-NA ## remove conflicting controls
 		}
-
-		func <- func[order(func[,2]), ]
-
-		oFile <- paste0(oBase, t)
-		write.table(func, oFile,  col.names=F, row.names=F, quote=F, sep="\t")
 	}
+
+	case.controls<-pheno[!is.na(pheno[,current.pheno]),1]
+	clean.pheno.snps <- clean.snp.data[,colnames(clean.snp.data)%in%case.controls ]
+	cases<-grep(pheno.matching[phen,1],colnames(clean.pheno.snps))
+
+	cols<-c("Gene",'SKAT','SKATO','nb.snps')
+	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols))) ## will add more columns later. (maf, call rate, mean depth etc)
+	results[,1]<-uniq.genes
+	results.out <- paste0(oDir,pheno.matching[phen,1],'_skat.csv')
+
+	current.pheno<- rep(0,ncol(clean.pheno.snps))
+	current.pheno[cases]<-1
+
+	for(gene in 1:nb.genes)
+	{
+		gene.snps<-good.genes.data[ grep(uniq.genes[gene],good.genes.data[,2]) ,1]
+
+		gene.snp.data<-clean.pheno.snps[ rownames(clean.pheno.snps) %in% gene.snps ,]
+		nb.snps.in.gene<-nrow(gene.snp.data)
+		print(paste(nb.snps.in.gene,'snps in', uniq.genes[gene]))
+
+		if(nb.snps.in.gene)>0)
+		{
+			obj<-SKAT_Null_Model(current.pheno ~ 1, out_type="D")
+			results[gene,2] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2, kernel = "linear")$p.value
+			results[gene,3] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2, kernel = "linear")$p.value
+			results[gene,3] <- nb.snps.in.gene
+			write.table(data.frame(rownames(gene.snp.data),uniq.genes[gene]), paste0(rootODir,pheno.matching[phen,1],'_snps'), col.names=F,row.names=F,quote=F,sep='\t',append=T)
+		}
+	}
+
+	results <- results[order(results[,2]), ]
+	write.table(results,results.out,col.names=T,row.names=F,quote=F,sep='\t')
 }
-
-# doFISHER <- function(data, t,  pheno, oBase, type)
-
-
-
-ivfPheno <- '/cluster/project8/vyp/cian/data/UCLex/UCLex_October2014/Lambiase_case_control/support/IVF.pheno'
-Lambiase_vs_UCLecx_Pheno <- "/cluster/project8/vyp/cian/data/UCLex/UCLex_October2014/Lambiase_case_control/support/Lambiase_vs_UCLex_phenotype_file"
-
-
-data <- "/scratch2/vyp-scratch2/cian/UCLex_October2014/Lambiase_case_control/UCLex_"
-
-for(t in 1:23)
-{
-	doSKAT (data , t, ivfPheno , "IVFvsUCLgene_func_SKAT_"  , snps.func ) 
-	doSKAT( data , t, ivfPheno , "IVFvsUCLgene_lof_SKAT_", snps.lof) 
-
-	doSKAT (data , t, Lambiase_vs_UCLecx_Pheno , "LambiaseVsUCLgene_func_SKAT_"  , snps.func ) 
-	doSKAT( data , t, Lambiase_vs_UCLecx_Pheno , "LambiaseVsUCLgene_lof_SKAT_", snps.lof) 
-
-}
-
-
-
