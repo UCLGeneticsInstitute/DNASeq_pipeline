@@ -15,6 +15,7 @@ if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 
 ######################
 library(SKAT)
+library(parallel)
 
 ## these are teh snps that have been filterd by func and maf
 snp.sp<-read.table(paste0(rootODir,'gene_test_variants_out.sp'),header=F)
@@ -75,6 +76,7 @@ nb.genes<-length(uniq.genes)
 oDir<-paste0(rootODir,'SKAT/')
 dir.create(oDir)
 
+test<-FALSE
 
 ##for(phen in 1:nrow(pheno.matching)) skip the first few samples. 
 for(phen in 73:nrow(pheno.matching))
@@ -92,11 +94,15 @@ for(phen in 73:nrow(pheno.matching))
 		}
 	}
 
+	ex.ctrl.in<-paste0(rootODir,'External_Control_data/', pheno.matching[phen,1], '_ex_ctrls.frq_clean')
+	ex.ctrl<-read.table(ex.ctrl.in,header=T)
+	ex.ctrl.rare.snps<-ex.ctrl$SNP[ex.ctrl$MAF <= 0.01]
+
 	case.controls<-pheno[!is.na(pheno[,current.pheno]),1]
-	clean.pheno.snps <- clean.snp.data[,colnames(clean.snp.data)%in%case.controls ]
+	clean.pheno.snps <- clean.snp.data[rownames(clean.snp.data) %in% ex.ctrl.rare.snps ,colnames(clean.snp.data)%in%case.controls ]
 	cases<-grep(pheno.matching[phen,1],colnames(clean.pheno.snps))
 
-	cols<-c("Gene",'SKAT','SKATO','nb.snps')
+	cols<-c("Gene",'SKATO','nb.snps')
 	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols))) ## will add more columns later. (maf, call rate, mean depth etc)
 	results[,1]<-uniq.genes
 	results.out <- paste0(oDir,pheno.matching[phen,1],'_skat.csv')
@@ -104,24 +110,41 @@ for(phen in 73:nrow(pheno.matching))
 	current.pheno<- rep(0,ncol(clean.pheno.snps))
 	current.pheno[cases]<-1
 
-	for(gene in 1:nb.genes)
+	## to speed up, run 4 tests per time. theres probably a better way to do this. 
+	oData<-paste0(oDir,pheno.matching[phen,1],'.RData')
+	save( nb.genes,good.genes.data,uniq.genes,clean.pheno.snps,current.pheno,results,phen,results.out,pheno.matching,oDir , file=oData )
+	script.out<-paste0(oDir,pheno.matching[phen,1],'.R')
+	oData<-paste0('load("',paste0(oDir,pheno.matching[phen,1],'.RData"'),')')
+	write.table(oData,script.out,col.names=F,row.names=F,quote=F,sep='\t')
+	runR='sh /cluster/project8/vyp/cian/scripts/bash/runRonCluster.sh'
+	file.append( script.out, 'SKAT_uclex.template.R') 
+	system(paste(runR,script.out))
+
+
+	if(test)
 	{
-		gene.snps<-good.genes.data[ grep(uniq.genes[gene],good.genes.data[,2]) ,1]
-
-		gene.snp.data<-clean.pheno.snps[ rownames(clean.pheno.snps) %in% gene.snps ,]
-		nb.snps.in.gene<-nrow(gene.snp.data)
-		print(paste(nb.snps.in.gene,'snps in', uniq.genes[gene]))
-
-		if(nb.snps.in.gene>0)
+		for(gene in 1:nb.genes)
 		{
-			obj<-SKAT_Null_Model(current.pheno ~ 1, out_type="D")
-			results[gene,2] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2, kernel = "linear")$p.value
-			results[gene,3] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2, kernel = "linear")$p.value
-			results[gene,3] <- nb.snps.in.gene
-			write.table(data.frame(rownames(gene.snp.data),uniq.genes[gene]), paste0(oDir,pheno.matching[phen,1],'_snps'), col.names=F,row.names=F,quote=F,sep='\t',append=T)
-		}
-	}
+			gene.snps<-good.genes.data[ grep(uniq.genes[gene],good.genes.data[,2]) ,1]
 
-	results <- results[order(results[,2]), ]
-	write.table(results,results.out,col.names=T,row.names=F,quote=F,sep='\t')
+			gene.snp.data<-clean.pheno.snps[ rownames(clean.pheno.snps) %in% gene.snps ,]
+			nb.snps.in.gene<-nrow(gene.snp.data)
+			print(paste(nb.snps.in.gene,'snps in', uniq.genes[gene]))
+
+			if(nb.snps.in.gene>0)
+			{
+				obj<-SKAT_Null_Model(current.pheno ~ 1, out_type="D")
+				#results$SKAT[gene] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2)$p.value 
+				results$SKATO[gene] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2,method="optimal.adj")$p.value
+				results$nb.snps[gene] <- nb.snps.in.gene
+				write.table( data.frame( rownames(gene.snp.data),uniq.genes[gene]), paste0(oDir,pheno.matching[phen,1],'_snps'), col.names=F,row.names=F,quote=F,sep='\t',append=T)
+			}
+		}
+		results <- results[order(results[,2]), ]
+		write.table(results,results.out,col.names=T,row.names=F,quote=F,sep='\t')
+	}# test 
 }
+exit
+files<-list.files(oDir,pattern="sh",full.names=T)
+mclapply(files,function(x)system(paste("sh",x)),mc.cores=4)
+

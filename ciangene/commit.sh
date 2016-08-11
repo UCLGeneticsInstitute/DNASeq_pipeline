@@ -1,4 +1,4 @@
 git add -u
-git commit -m "Read Depth by gene and adding SKAT"
+git commit -m "Added ex ctrl maf filter"
 git push -u origin master
 

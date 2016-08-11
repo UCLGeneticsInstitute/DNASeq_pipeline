@@ -175,7 +175,7 @@ if [[ "$step4" == "yes" ]]; then
 #$ -S /bin/bash
 #$ -o cluster/out
 #$ -e cluster/error
-#$ -l h_vmem=4G,tmem=4G
+#$ -l h_vmem=3G,tmem=3G
 #$ -pe smp 1
 #$ -N step4_cian
 #$ -l h_rt=24:00:00
