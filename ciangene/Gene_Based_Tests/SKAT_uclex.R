@@ -16,6 +16,8 @@ if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 ######################
 library(SKAT)
 library(parallel)
+library(snpStats)
+
 
 ## these are teh snps that have been filterd by func and maf
 snp.sp<-read.table(paste0(rootODir,'gene_test_variants_out.sp'),header=F)
@@ -23,6 +25,23 @@ snp.bim<-read.table(paste0(rootODir,'gene_test_variants_out.bim'),header=F)
 snp.fam<-read.table(paste0(rootODir,'gene_test_variants_out.fam'),header=F)
 colnames(snp.sp)<-snp.fam[,1]
 rownames(snp.sp)<-snp.bim[,2]
+
+
+snp.gene.base<-read.table(paste0(rootODir,'snp_gene_id'),header=F)
+colnames(snp.gene.base)<-c("SNP",'ENSEMBL')
+gene.dict<-read.table(paste0(rootODir,'gene_dict_skat'),header=T)
+gene.dict$ENST<-NULL
+gene.dict<-unique(gene.dict)
+
+snp.gene<-merge(gene.dict,snp.gene.base,by="ENSEMBL",all.y=T)
+
+oDir<-paste0(rootODir,'SKAT/')
+if(!file.exists(oDir))dir.create(oDir)
+
+qc<-paste0(rootODir,'SKAT/qc/')
+if(!file.exists(qc))dir.create(qc)
+
+test<-FALSE
 
 
 ## Three measures to choose valid controls I need to implement
@@ -39,20 +58,26 @@ snps<-snp.sp[,colnames(snp.sp)%in%caucasians]
 
 
 ## read depth 
-read.depth<-read.table(paste0(rootODir,'Average.read.depth.by.gene.by.sample.tab'),header=T)
 min.depth<-20
-sample.means<-colMeans(read.depth[,4:ncol(read.depth)])
+
+read.depth<-read.table(paste0(rootODir,'Average.read.depth.by.gene.by.sample.tab'),header=T)
+
+sample.means<-colMeans(read.depth[,5:ncol(read.depth)])
 good.samples<-which(sample.means>=min.depth)
+bad.samples<-names(which(sample.means<min.depth))
+write.table(bad.samples,paste0(qc,'samples_removed_because_of_low_read_depth.tab'),col.names=F,row.names=F,quote=F,sep='\t')
 
-gene.means<-rowMeans(read.depth[,4:ncol(read.depth)])
+gene.means<-rowMeans(read.depth[,5:ncol(read.depth)])
 good.genes<-which(gene.means>=min.depth)
-
-snp.gene<-read.table(paste0(rootODir,'snp_gene_id'),header=F)
-
-good.genes.snps<-snp.gene[snp.gene[,2] %in% read.depth[good.genes,1],1]
+bad.genes<-read.depth$Gene[which(gene.means<min.depth)]
+write.table(bad.genes,paste0(qc,'genes_removed_because_of_low_read_depth.tab'),col.names=F,row.names=F,quote=F,sep='\t')
 
 
+good.genes.snps<-snp.gene$SNP[snp.gene$ENSEMBL %in% read.depth$Gene[good.genes]]
 clean.snp.data<- snps[ rownames(snps) %in% good.genes.snps ,  colnames(snps) %in% colnames(read.depth)[good.samples] ]
+snp.gene.clean<-snp.gene[snp.gene$SNP %in%rownames(clean.snp.data),]
+write.table(snp.gene.clean,paste0(qc,'read.depth.ancestry.func.clean.snps.tab'),col.names=F,row.names=F,quote=F,sep='\t')
+
 ## this is now a snp * sample matrix of snps that is filtered by
 ## gatk vqsr PASS 
 ## function and maf (refer to 'make_variant_list_gene_tests.R' for exact metrics )
@@ -68,22 +93,18 @@ pheno.matching<-data.frame(read.csv('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/c
 pheno<-read.table(paste0(rootODir,'Phenotypes'),header=F)
 pheno.cohorts<-read.table(paste0(rootODir,'cohort.summary'),header=T)
 
-good.genes.data<-snp.gene[snp.gene[,2] %in% read.depth[good.genes,1],]
-uniq.genes<-unique(good.genes.data[,2])
+good.genes.data<-snp.gene[snp.gene$ENSEMBL %in% read.depth$Gene[good.genes],]
+uniq.genes<-unique(good.genes.data$ENSEMBL)
 nb.genes<-length(uniq.genes)
 
 
-oDir<-paste0(rootODir,'SKAT/')
-dir.create(oDir)
-
-test<-FALSE
-
 ##for(phen in 1:nrow(pheno.matching)) skip the first few samples. 
-for(phen in 73:nrow(pheno.matching))
+for(phen in 70:nrow(pheno.matching))
 {
 #	cases<-grep(pheno.matching[phen,1],pheno[,1])
 
-	current.pheno<- grep(pheno.matching[phen,1],pheno.cohorts[,4])+2 ## plus two because first two rows of pheno file are ID
+	current.pheno<- grep(paste0(pheno.matching[phen,1],'$'),pheno.cohorts[,4])+2 ## plus two because first two rows of pheno file are ID
+	## $ added at end of grep to differentiate between batches Lambiase and LambiaseSD. 
 
 	remove.phenos<-length(which(pheno.matching[phen,3:ncol(pheno.matching)]>0))
 	if(remove.phenos>0)
@@ -95,24 +116,40 @@ for(phen in 73:nrow(pheno.matching))
 	}
 
 	ex.ctrl.in<-paste0(rootODir,'External_Control_data/', pheno.matching[phen,1], '_ex_ctrls.frq_clean')
+	if(file.exists(ex.ctrl.in))## When preceding scripts are fully run, this file should always exist.  
+	{
 	ex.ctrl<-read.table(ex.ctrl.in,header=T)
 	ex.ctrl.rare.snps<-ex.ctrl$SNP[ex.ctrl$MAF <= 0.01]
+	} else ex.ctrl.rare.snps<-rownames(clean.snp.data) 
 
 	case.controls<-pheno[!is.na(pheno[,current.pheno]),1]
 	clean.pheno.snps <- clean.snp.data[rownames(clean.snp.data) %in% ex.ctrl.rare.snps ,colnames(clean.snp.data)%in%case.controls ]
 	cases<-grep(pheno.matching[phen,1],colnames(clean.pheno.snps))
 
-	cols<-c("Gene",'SKATO','nb.snps')
+	if(length(cases)>10)
+	{
+	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls')
 	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols))) ## will add more columns later. (maf, call rate, mean depth etc)
-	results[,1]<-uniq.genes
-	results.out <- paste0(oDir,pheno.matching[phen,1],'_skat.csv')
+	colnames(results)<-cols
+	results$Gene<-uniq.genes
+
+	results<-merge(gene.dict,results,by.y='Gene',by.x='ENSEMBL',all.y=T)
+	srt<-data.frame(1:length(uniq.genes),uniq.genes)
+	results<-merge(results,srt,by.y='uniq.genes',by.x='ENSEMBL')
+	results<-results[order(results[,(ncol(results))]),]
+	results<-results[,1:(ncol(results)-1)]
+
+	uniq.genes<-unique(results[,1])
+	nb.genes<-length(uniq.genes)
 
 	current.pheno<- rep(0,ncol(clean.pheno.snps))
 	current.pheno[cases]<-1
+	results$nb.cases<-table(current.pheno)[[2]]
+	results$nb.ctrls<-table(current.pheno)[[1]]
 
 	## to speed up, run 4 tests per time. theres probably a better way to do this. 
 	oData<-paste0(oDir,pheno.matching[phen,1],'.RData')
-	save( nb.genes,good.genes.data,uniq.genes,clean.pheno.snps,current.pheno,results,phen,results.out,pheno.matching,oDir , file=oData )
+	save(snp.gene,nb.genes,good.genes.data,uniq.genes,clean.pheno.snps,current.pheno,results,phen,pheno.matching,oDir , file=oData )
 	script.out<-paste0(oDir,pheno.matching[phen,1],'.R')
 	oData<-paste0('load("',paste0(oDir,pheno.matching[phen,1],'.RData"'),')')
 	write.table(oData,script.out,col.names=F,row.names=F,quote=F,sep='\t')
@@ -123,27 +160,12 @@ for(phen in 73:nrow(pheno.matching))
 
 	if(test)
 	{
-		for(gene in 1:nb.genes)
-		{
-			gene.snps<-good.genes.data[ grep(uniq.genes[gene],good.genes.data[,2]) ,1]
-
-			gene.snp.data<-clean.pheno.snps[ rownames(clean.pheno.snps) %in% gene.snps ,]
-			nb.snps.in.gene<-nrow(gene.snp.data)
-			print(paste(nb.snps.in.gene,'snps in', uniq.genes[gene]))
-
-			if(nb.snps.in.gene>0)
-			{
-				obj<-SKAT_Null_Model(current.pheno ~ 1, out_type="D")
-				#results$SKAT[gene] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2)$p.value 
-				results$SKATO[gene] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2,method="optimal.adj")$p.value
-				results$nb.snps[gene] <- nb.snps.in.gene
-				write.table( data.frame( rownames(gene.snp.data),uniq.genes[gene]), paste0(oDir,pheno.matching[phen,1],'_snps'), col.names=F,row.names=F,quote=F,sep='\t',append=T)
-			}
-		}
-		results <- results[order(results[,2]), ]
-		write.table(results,results.out,col.names=T,row.names=F,quote=F,sep='\t')
+		 ## this bit moved to SKAT_uclex.template.R for now - makes it easier to run more phenotypes at once on cluster. 
 	}# test 
+		
 }
+
+} 
 exit
 files<-list.files(oDir,pattern="sh",full.names=T)
 mclapply(files,function(x)system(paste("sh",x)),mc.cores=4)
