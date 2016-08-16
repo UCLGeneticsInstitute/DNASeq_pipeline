@@ -15,10 +15,6 @@ if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 
 ######################
 
-library(SKAT)
-library(MultiPhen)
-library(parallel)
-
 
 ## Firstly, I want ot make a list of variants to use for gene based tests
 
@@ -49,6 +45,7 @@ sift.remove<-'tolerated'
 	#	)
 
 oFile<-paste0(rootODir,'filtered_snps_skat')
+geneTable<-paste0(rootODir,'gene_dict_skat')
 
 for(i in 1:length(files))
 {
@@ -68,4 +65,9 @@ for(i in 1:length(files))
 	{
 		write.table(filt.bim$V2,oFile,col.names=F,row.names=F,quote=F,sep='\t',append=T)
 	}
+
+	genes<-unique(data.frame(file$Gene,file$Feature,file$SYMBOL)) 
+	colnames(genes)<-c('ENSEMBL','ENST','Symbol') 
+	write.table(genes,geneTable,col.names=T,row.names=F,quote=F,sep='\t',append=T)
+
 }

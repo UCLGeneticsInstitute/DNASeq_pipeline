@@ -146,7 +146,7 @@ if [[ "$step3" == "yes" ]]; then
 #$ -S /bin/bash
 #$ -o cluster/out
 #$ -e cluster/error
-#$ -l h_vmem=15G,tmem=15G
+#$ -l h_vmem=5G,tmem=5G
 #$ -pe smp 1
 #$ -N step3_cian
 #$ -l h_rt=24:00:00
@@ -156,7 +156,7 @@ if [[ "$step3" == "yes" ]]; then
 #sh $secondStep $rootODir $release ## convert geno to missingNonMissing
 #sh $makeKin $rootODir $release ### make kinship matrices
 sh $checkKin $rootODir $release # check how much variance the kinships explained. 
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $convertKin cluster/R/step3.2.Rout
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $convertKin cluster/R/step3.2.Rout
 " > $script
 
     qsub $hold $script

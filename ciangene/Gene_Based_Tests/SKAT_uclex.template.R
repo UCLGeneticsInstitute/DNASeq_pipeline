@@ -1,7 +1,7 @@
 ## changes
 # Keeping only protective variants
 # Fixed snp/gene matching
-
+## MOdel == SKAT
 
 library(SKAT)
 library(snpStats)
@@ -108,8 +108,8 @@ for(gene in 1:nb.genes)
 			maf.snp.ctrls<-apply(ctrl.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
 
 			obj<-SKAT_Null_Model(current.pheno ~ 1, out_type="D")
-			#results$SKAT[gene] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2)$p.value 
-			results$SKATO[gene] <- SKAT(t(as.matrix(final.snp.set)) , obj, missing_cutoff=0.8, estimate_MAF=2,method="optimal.adj")$p.value
+			results$SKATO[gene] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2)$p.value 
+			#results$SKATO[gene] <- SKAT(t(as.matrix(final.snp.set)) , obj, missing_cutoff=0.8, estimate_MAF=2,method="optimal.adj")$p.value
 			results$nb.snps[gene] <- nb.snps.in.gene
 
 			snp.out<-data.frame( rownames(final.snp.set),case.snp.hets,case.snp.homs, maf.snp.cases,ctrl.snp.hets,ctrl.snp.homs, maf.snp.ctrls,results[gene,1:8]) 
@@ -131,6 +131,20 @@ for(gene in 1:nb.genes)
 				case.dat<-data.frame(cbind(case.variants,case.carriers.clean))
 			}
 			
+			if( ( identical(case.dat[,1],case.dat[,2])  | is.na(case.dat[,1])) && nrow(case.snps)>1)
+			{
+				case.carriers<-colnames(case.snps)[apply(case.snps,1,function(x) which(x>0 ))]
+				case.variants<-str_extract(rownames(case.snps),"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
+				case.dat<-data.frame(cbind(case.variants,case.carriers))
+			} 
+			if( ( identical(case.dat[,1],case.dat[,2])  | is.na(case.dat[,1]) ) && nrow(case.snps)==1)
+			{
+				case.carriers<-case.car
+				case.carriers.clean<-gsub(case.carriers,pattern="[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]\\.",replacement="")
+				case.variants<-str_extract(case.car,"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
+				case.dat<-data.frame(cbind(case.variants,case.carriers.clean))
+			} 
+
 
 			ctrl.car<- rownames( data.frame(unlist(apply(ctrl.snps,1,function(x) which(x>0 )))))
 			if(nrow(ctrl.snps)==1)
@@ -147,6 +161,20 @@ for(gene in 1:nb.genes)
 				ctrl.dat<-data.frame(cbind(ctrl.variants,ctrl.carriers.clean))
 			}
 			
+			if( ( identical(ctrl.dat[,1],ctrl.dat[,2]) | is.na(ctrl.dat[,1]) ) && nrow(ctrl.snps)>1)
+			{
+				ctrl.carriers<-colnames(ctrl.snps)[apply(ctrl.snps,1,function(x) which(x>0 ))]
+				ctrl.variants<-str_extract(rownames(ctrl.snps),"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
+				ctrl.dat<-data.frame(cbind(ctrl.variants,ctrl.carriers))
+			} 
+			if( ( identical(ctrl.dat[,1],ctrl.dat[,2])  | is.na(ctrl.dat[,1]) ) && nrow(ctrl.snps)==1)
+			{
+				ctrl.carriers<-ctrl.car
+				ctrl.carriers.clean<-gsub(ctrl.carriers,pattern="[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]\\.",replacement="")
+				ctrl.variants<-str_extract(ctrl.car,"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
+				ctrl.dat<-data.frame(cbind(ctrl.variants,ctrl.carriers.clean))
+			} 
+
 			write.table(case.dat,caseFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
 			write.table(ctrl.dat,ctrlFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
 		}
@@ -155,8 +183,11 @@ for(gene in 1:nb.genes)
 
 results <- results[order(results[,2]), ]
 results.out <- paste0(oDir,pheno.matching[phen,1],'_skat.csv')
-qqplot.out <- paste0(rootODir,'/plots/',pheno.matching[phen,1],'_skat_QQplot.png')
+qqplot.out <- paste0(dirname(oDir),'/plots/',pheno.matching[phen,1],'_skat_QQplot.png')
 write.table(results,results.out,col.names=T,row.names=F,quote=F,sep='\t')
 png(qqplot.out)
 qq.chisq(-2*log(results$SKATO), df=2, x.max=30, main=paste(pheno.matching[phen,1],'SKAT'),cex.main=0.7)	
 dev.off() 
+
+
+

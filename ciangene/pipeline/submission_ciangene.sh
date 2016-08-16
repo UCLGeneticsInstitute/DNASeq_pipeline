@@ -12,8 +12,8 @@ rootODir=/SAN/vyplab/UCLex/mainset_${release}/cian/
 
 step1=no
 step2=no
-step3=no
-step4=yes
+step3=yes
+step4=no
 
 mkdir -p $rootODir
 

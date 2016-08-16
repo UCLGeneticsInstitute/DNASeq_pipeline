@@ -24,21 +24,21 @@ nbGroups=$(wc -l $Names | awk {'print $1}')
 oDir=${rootODir}KinshipDecomposition/
 if [ ! -e $oDir ]; then mkdir $oDir; fi
 
-startPheno=1
+startPheno=73 ## skip the first shitty phenotypes. 
 
 for pheno in $(seq $startPheno $nbGroups)
 do
 
 	batch=$(sed -n $pheno'p' $Names); echo $batch is nb $pheno
-	if (($pheno==$startPheno))
-	then
-		$ldak --reml $oDir$batch"_tech" --grm $kinship  --pheno $phenotypes --mpheno $pheno --eigen-save $oDir/techEigen
-		$ldak --reml $oDir$batch"_geno" --grm $pKinship  --pheno $phenotypes --mpheno $pheno --eigen-save $oDir/popEigen
-		$ldak --reml $oDir$batch"_tech" --grm $dKinship  --pheno $phenotypes --mpheno $pheno --eigen-save $oDir/depthEigen
-	fi
-		$ldak --reml $oDir$batch"_tech" --grm $kinship  --pheno $phenotypes --mpheno $pheno --eigen $oDir/techEigen	
-		$ldak --reml $oDir$batch"_geno" --grm $pKinship  --pheno $phenotypes --mpheno $pheno --eigen $oDir/popEigen
-		$ldak --reml $oDir$batch"_geno" --grm $dKinship  --pheno $phenotypes --mpheno $pheno --eigen $oDir/depthEigen
+#	if (($pheno==$startPheno))
+#	then
+#		$ldak --reml $oDir$batch"_tech" --grm $kinship  --pheno $phenotypes --mpheno $pheno --eigen-save $oDir/techEigen
+#		$ldak --reml $oDir$batch"_geno" --grm $pKinship  --pheno $phenotypes --mpheno $pheno --eigen-save $oDir/popEigen
+#		$ldak --reml $oDir$batch"_depth" --grm $dKinship  --pheno $phenotypes --mpheno $pheno --eigen-save $oDir/depthEigen
+#	fi
+		$ldak --reml $oDir$batch"_tech" --grm $kinship  --pheno $phenotypes --mpheno $pheno
+		$ldak --reml $oDir$batch"_geno" --grm $pKinship  --pheno $phenotypes --mpheno $pheno
+		$ldak --reml $oDir$batch"_depth" --grm $dKinship  --pheno $phenotypes --mpheno $pheno
 
 	if (($pheno==$startPheno))
 	then

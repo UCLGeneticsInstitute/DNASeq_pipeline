@@ -5,6 +5,7 @@ getArgs <- function() {
   return (myargs)
 }
 
+rootODir<-'/SAN/vyplab/UCLex/mainset_July2016/cian/'
 myArgs <- getArgs()
 
 if ('rootODir' %in% names(myArgs))  rootODir <- myArgs[[ "rootODir" ]]
@@ -17,9 +18,9 @@ fam<-read.table(paste0(rootODir,'allChr_snpStats_out.fam'),header=F)
 
 cohort.list<-c('Levine','Hardcastle','IoO','IoN','Kelsell','LambiaseSD','Lambiase','LayalKC','Nejentsev','PrionUnit','Prionb2','Shamima','Sisodiya','Syrris','Vulliamy','WebsterURMD')
 write.table(cohort.list,paste0(rootODir,"cohort.list"),col.names=F,row.names=F,quote=F,sep="\t") 
-res<-list.files(paste0(dir,'KinshipDecomposition_combined_SNP_TK_RD'),pattern="\\.res",full.names=T)
+res<-list.files(paste0(rootODir,'KinshipDecomposition'),pattern="\\.res",full.names=T)
 
-
+res<-res[grep('tech',res)]
 for(i in 1:length(cohort.list))
 {
 
@@ -59,6 +60,7 @@ perm[!perm[,1]%in%caucasian,3:ncol(perm)]<-NA
 residuals[!residuals[,1]%in%caucasian,3:ncol(residuals)]<-NA
 
 #dat<-data.frame(base[,1:2],
+exit
 
 write.table(dat,paste0(rootODir,'Clean_pheno_subset'),col.names=F,row.names=F,quote=F,sep="\t")
 write.table(perm,paste0(rootODir,'Clean_pheno_subset_permuted'),col.names=F,row.names=F,quote=F,sep="\t")

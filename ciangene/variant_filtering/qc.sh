@@ -1,17 +1,14 @@
 #!/bin/bash
-ldak=/home/sejjcmu/bin/ldak/ldak.4.9.fast
+ldak=/cluster/project8/vyp/cian/support/ldak/ldak
 Rbin=/share/apps/R/bin/R
-plink=/share/apps/genomics/plink-1.07/plink
-#rootODir=/scratch2/vyp-scratch2/ciangene
-rootODir=/cluster/project8/vyp/cian/data/UCLex/
-release=June2016
+plink=/home/sejjcmu/bin/plink/plink
+
 rootODir=${1-$rootODir}
 release=${2-$release}
-bDir=${rootODir}
 
-iData=$bDir"allChr_snpStats"
-ln -s $bDir"UCLex_${release}.bim" $iData".bim"
-ln -s $bDir"UCLex_${release}.fam" $iData".fam"
+iData=${rootODir}allChr_snpStats
+ln -s ${rootODir}UCLex_${release}.bim $iData".bim"
+ln -s ${rootODir}UCLex_${release}.fam $iData".fam"
 
 $ldak --make-bed $iData --sp $iData
 
@@ -20,7 +17,15 @@ keep=/cluster/project8/vyp/cian/data/UCLex/DNAseq_pipeline/HPO/keep.samples
 sed 's/,/\t/g' $HPOpheno | sed 's/ //g' | awk '{print $3,$3}' > $keep
 #$plink --bfile $data --keep $keep --make-bed --out $data
 
-data=$bDir"allChr_snpStats_out" 
+
+## keeping only unrelated samples
+kinshipFile=/SAN/vyplab/UCLex/mainset_{release}/kinship/UCL-exome_unrelated.txt
+unrelated=kinshipFile=/SAN/vyplab/UCLex/mainset_{release}/cian/unrelated_samples
+awk '{print $1,$1}' $kinshipFile > $unrelated
+$plink --bfile $data --keep $unrelated --make-bed --out $data
+
+
+data=${rootODir}allChr_snpStats_out
 $plink --noweb --allow-no-sex --bfile $data --freq --out $bDir/gstats
 $plink --noweb --allow-no-sex --bfile $data --missing --out $bDir/gstats
 $plink --noweb --allow-no-sex --bfile $data --hardy --out $bDir/gstats
@@ -31,7 +36,7 @@ $plink --noweb --bfile $data  --impute-sex --out $bDir/gstats
 sed -i 's/ \+ /\t/g' $bDir/gstats.imiss
 tr -s " " < ${bDir}gstats.imiss > ${bDir}gstats.imiss_clean
 
-oFile=$bDir/plot.qc.R
+oFile=${rootODir}plot.qc.R
 echo "dir<-'"$bDir"'" > $oFile
 echo '
 	library(plyr) 
