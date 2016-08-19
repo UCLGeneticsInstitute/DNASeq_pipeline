@@ -3,10 +3,11 @@ release<-'July2016'
 
 pheno.matching<-data.frame(read.csv('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Support/phenotype.info.csv',header=FALSE))
 
-oDir<-paste0(rootODir,'SKAT2/')
+oDir<-paste0(rootODir,'SKATnew/')
 if(!file.exists(oDir)) dir.create(oDir)
 
-for(phen in 70:nrow(pheno.matching))
+#for(phen in 73:nrow(pheno.matching))
+for(phen in 73:110)
 {
 	script.out<-paste0(oDir,pheno.matching[phen,1],'.R')
 	oData<-paste0('load("',paste0(oDir,pheno.matching[phen,1],'.RData"'),')')

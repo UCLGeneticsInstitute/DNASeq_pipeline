@@ -24,6 +24,10 @@ thirdStep=${repo}/LDAK/run_ldak_on_all_phenos.sh
 singleVariant=${repo}/plink_single_variant_tests.sh
 fastlmm=${repo}/run_fastLMM_on_all_phenotypes.sh
 
+
+## Fifth step - ExomeDepth
+
+
 ##### default value of all arguments
 #rootODir=/cluster/scratch3/vyp-scratch2/cian
 rootODir=/cluster/project8/vyp/cian/data/UCLex
@@ -61,6 +65,9 @@ until [ -z "$1" ]; do
 	--step4)
 	    shift
 	    step4=$1;;
+	--step5)
+	    shift
+	    step5=$1;;
 	-* )
 	    echo "Unrecognized option: $1"
 	    exit 1;;
@@ -166,7 +173,7 @@ fi
 
 
 
-#########
+######### 
 if [[ "$step4" == "yes" ]]; then    
 
     script=cluster/submission/step4.sh
@@ -175,14 +182,14 @@ if [[ "$step4" == "yes" ]]; then
 #$ -S /bin/bash
 #$ -o cluster/out
 #$ -e cluster/error
-#$ -l h_vmem=3G,tmem=3G
+#$ -l h_vmem=10G,tmem=10G
 #$ -pe smp 1
 #$ -N step4_cian
 #$ -l h_rt=24:00:00
 #$ -cwd
 
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/Gene_Based_Tests/make_variant_list_gene_tests.R cluster/R/make_variant_list_gene_tests.Rout
-#sh ${repo}/Gene_Based_Tests/extract_variants.sh $rootODir $release 
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/Gene_Based_Tests/make_variant_list_gene_tests.R cluster/R/make_variant_list_gene_tests.Rout
+sh ${repo}/Gene_Based_Tests/extract_variants.sh $rootODir $release 
 $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/Gene_Based_Tests/SKAT_uclex.R cluster/R/SKAT_uclex.Rout
 
 #sh $thirdStep $rootODir $release 
@@ -195,6 +202,35 @@ $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODi
     if [[ "$hold" == "" ]]; then hold="-hold_jid step4_cian"; else hold="$hold,step4_cian"; fi
 
 fi
+
+
+#########
+if [[ "$step5" == "yes" ]]; then    
+
+    script=cluster/submission/step5.sh
+
+    echo "
+#$ -S /bin/bash
+#$ -o cluster/out
+#$ -e cluster/error
+#$ -l h_vmem=10G,tmem=10G
+#$ -pe smp 1
+#$ -N step5_cian
+#$ -l h_rt=24:00:00
+#$ -cwd
+
+#sh ${repo}/ExomeDepth/makeMergedBed.sh $rootODir $release 
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/ExomeDepth/exomeDepth_rscript.R cluster/R/exomeDepth_rscript.Rout
+
+" > $script
+
+    qsub $hold $script
+    if [[ "$hold" == "" ]]; then hold="-hold_jid step5_cian"; else hold="$hold,step5_cian"; fi
+
+fi
+
+
+
 
 
 ls -ltrh $script

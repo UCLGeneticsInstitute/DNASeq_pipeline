@@ -13,12 +13,46 @@ if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 
 ######################
 library(snpStats)
-percent.ext.ctrls <- .10
+
+params<-read.table('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Support/params',header=FALSE)
+percent.ext.ctrls <-params[grep('min.maf',params[,1]),2] /100
 
 dir<-paste0('/SAN/vyplab/UCLex/mainset_',release,'/mainset_',release, '_snpStats/') 
 
 files <- list.files(dir, pattern ="_snpStats.RData", full.names=T) 
 files <- files[order(as.numeric(gsub(gsub(basename(files), pattern ="chr", replacement =""), pattern = "_.*", replacement = "") ) )]
+
+
+############################################## New - combined annovar with VEP 
+files.chr<-as.numeric( gsub(gsub(basename(files),pattern='chr',replacement=''),pattern='_.*',replacement=''))
+
+func <- c("nonsynonymous SNV", "stopgain SNV", "nonframeshift insertion", "nonframeshift deletion", "frameshift deletion",
+		"frameshift substitution", "frameshift insertion",  "nonframeshift substitution", "stoploss SNV", "splicing"
+		,"exonic;splicing")
+lof <-  c("frameshift deletion", "frameshift substitution", "frameshift insertion",  "stoploss SNV", "splicing"
+		,"stopgain SNV","exonic;splicing"
+		)
+
+dir<-paste0('/SAN/vyplab/UCLex/mainset_',release,'/mainset_',release, '_VEP/') 
+vep.list <- list.files(dir, pattern ="csv$", full.names=T) 
+vep.chr<-as.numeric( gsub(gsub(basename(vep.list),pattern='.*chr',replacement=''),pattern='\\..*',replacement=''))
+
+params<-read.table('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Support/params',header=FALSE)
+min.maf<-params[grep('min.maf',params[,1]),2] # belwo this to be removed
+max.maf<-params[grep('max.maf',params[,1]),2]  # above this to be removed
+cadd<-params[grep('cadd',params[,1]),2] #below this to be removed
+
+
+#oFile<-paste0(rootODir,'Annotations/annovar.vep.merged.anno.tab')
+#if(file.exists(oFile))file.remove(oFile)
+func.file<-paste0(rootODir,'Annotations/func.tab')
+if(file.exists(func.file))file.remove(func.file)
+lof.file<-paste0(rootODir,'Annotations/lof.tab')
+if(file.exists(lof.file))file.remove(lof.file)
+############################################
+
+
+
 
 print(files)
 
@@ -30,7 +64,9 @@ if(!file.exists(readDepthDir) ) dir.create(readDepthDir)
 readDepthoFile <- "Depth_Matrix.sp"
 
 full <- file.path(oDir, "allChr_snpStats.sp") ## added '.sp' suffix
-annotations.out <- file.path(oDir, "/annotations.snpStat")
+annotations.dir<-file.path(oDir, "Annotations") 
+if(!file.exists(annotations.dir) ) dir.create(annotations.dir)
+annotations.out <- paste0(annotations.dir,"annotations.snpStat")
 
 oMap <- paste0(oDir, "/UCLex_", release, ".map")
 oBim <- paste0(oDir, "/UCLex_", release, ".bim")
@@ -96,6 +132,30 @@ for(i in 1:length(files)){
 		write.table(data.frame(cbind(map, annotations.snpStats$Obs,annotations.snpStats$Ref ) ) , oBim, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t", append=TRUE) 
 	}
 
+############################################ New
+	vep<-read.csv(vep.list[vep.chr %in% files.chr[i]],header=T)
+	snplist<-data.frame(rownames(annotations.snpStats),annotations.snpStats$ExonicFunc)
+	colnames(snplist)<-c('SNP','ExonicFunc')
+	id<-data.frame(t(data.frame(strsplit(snplist$SNP,'_'))))
+	snplist$id<-paste0(id[,1],':',id[,2])
+	merged.snp.data<-merge(snplist,vep,by.x='id',by.y='Location')
+
+	merged.snp.data.keep <-data.frame(merged.snp.data$SNP,merged.snp.data$ExonicFunc,merged.snp.data$Existing_variation,merged.snp.data$Gene,merged.snp.data$Consequence,merged.snp.data$SYMBOL,merged.snp.data$ExAC_MAF,merged.snp.data$CADD)
+	colnames(merged.snp.data.keep)<-gsub(colnames(merged.snp.data.keep),pattern='.*\\.',replacement='')
+
+	merged.snp.data.keep$Func<-FALSE
+	merged.snp.data.keep$LOF<-FALSE
+	merged.snp.data.keep$Rare<-FALSE
+	merged.snp.data.keep$Rare[merged.snp.data.keep$ExAC_MAF <= max.maf] <- TRUE
+	merged.snp.data.keep$Func[merged.snp.data.keep$ExonicFunc %in% func] <- TRUE
+	merged.snp.data.keep$LOF[merged.snp.data.keep$ExonicFunc %in% lof] <- TRUE
+	merged.rare<-subset(merged.snp.data.keep,merged.snp.data.keep$Rare)
+
+	merged.func<-subset(merged.rare<,merged.rare<$Func)
+	write.table(merged.func,func.file,col.names=!file.exists(func.file),row.names=FALSE,quote=FALSE,sep='\t',append=TRUE)
+	merged.func<-subset(merged.rare,merged.rare<$LOF)
+	write.table(merged.func,lof.file,col.names=!file.exists(lof.file),row.names=FALSE,quote=FALSE,sep='\t',append=TRUE)
+############################################
 
 } ## for(i in 1:length(files)
 

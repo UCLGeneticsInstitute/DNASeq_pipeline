@@ -12,9 +12,10 @@ rootODir=/SAN/vyplab/UCLex/mainset_${release}/cian/
 
 step1=no
 step2=no
-step3=yes
+step3=no
 step4=no
+step5=yes
 
 mkdir -p $rootODir
 
-sh ${pipeline} --step1 ${step1} --step2 ${step2} --step3 ${step3} --step4 ${step4} --rootODir ${rootODir} --release $release
+sh ${pipeline} --step1 ${step1} --step2 ${step2} --step3 ${step3} --step4 ${step4} --step5 ${step5} --rootODir ${rootODir} --release $release

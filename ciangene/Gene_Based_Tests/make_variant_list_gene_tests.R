@@ -14,7 +14,7 @@ if ('rootODir' %in% names(myArgs))  rootODir <- myArgs[[ "rootODir" ]]
 if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 
 ######################
-
+## changes: removed polyphen and sift fitlers. 
 
 ## Firstly, I want ot make a list of variants to use for gene based tests
 
@@ -29,11 +29,12 @@ files <- files[order(as.numeric(gsub(gsub(basename(files), pattern ="chr", repla
 
 
 ### filters
-min.maf<-0 # belwo this to be removed
-max.maf<-0.01 # above this to be removed
-cadd<-15 #below this to be removed
+params<-read.table('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Support/params',header=FALSE)
+min.maf<-params[grep('min.maf',params[,1]),2] # belwo this to be removed
+max.maf<-params[grep('max.maf',params[,1]),2]  # above this to be removed
+cadd<-params[grep('cadd',params[,1]),2] #below this to be removed
 
-polyphen.remove<-'benign'
+polyphen.remove<-'benign(0)'
 sift.remove<-'tolerated'
 
 
@@ -45,29 +46,25 @@ sift.remove<-'tolerated'
 	#	)
 
 oFile<-paste0(rootODir,'filtered_snps_skat')
+if(file.exists(oFile)) file.remove(oFile)
 geneTable<-paste0(rootODir,'gene_dict_skat')
+if(file.exists(geneTable)) file.remove(geneTable)
 
 for(i in 1:length(files))
 {
 	system(paste("sed -i 's/#//g' ",files[i]))
-	file<-read.csv(files[i],header=T)
-	filt<-file[-grep(polyphen.remove,file$PolyPhen), ]
-	filt<-filt[-grep(sift.remove,filt$SIFT), ]
+	filt<-read.csv(files[i],header=T)
+	#filt<-file[-grep(polyphen.remove,file$PolyPhen), ]
+	#filt<-filt[-grep(sift.remove,filt$SIFT), ]
+	filt$ExAC_MAF[is.na(filt$ExAC_MAF)]<-0
 	filt.func.rare<-subset(filt,filt$ExAC_MAF<=max.maf & filt$ExAC_MAF>=min.maf & filt$CADD>= cadd)
 	filt.func.rare$SNP<-paste(gsub(filt.func.rare$Location,pattern=':',replacement="_"),filt.func.rare$Allele,sep="_")
 
 	filt.bim<-merge(filt.func.rare,bim,by='SNP')
 	print(nrow(filt.bim))
-	if(i==1)
-	{
-		write.table(filt.bim$V2,oFile,col.names=F,row.names=F,quote=F,sep='\t')
-	} else
-	{
-		write.table(filt.bim$V2,oFile,col.names=F,row.names=F,quote=F,sep='\t',append=T)
-	}
+	write.table(filt.bim$V2,oFile,col.names=FALSE,row.names=F,quote=F,sep='\t',append=TRUE)
 
-	genes<-unique(data.frame(file$Gene,file$Feature,file$SYMBOL)) 
+	genes<-unique(data.frame(filt$Gene,filt$Feature,filt$SYMBOL)) 
 	colnames(genes)<-c('ENSEMBL','ENST','Symbol') 
-	write.table(genes,geneTable,col.names=T,row.names=F,quote=F,sep='\t',append=T)
-
+	write.table(genes,geneTable,col.names=!file.exists(geneTable),row.names=F,quote=F,sep='\t',append=TRUE)
 }

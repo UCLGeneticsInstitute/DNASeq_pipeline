@@ -50,7 +50,7 @@ echo '
 
 	png(paste0(dir, "/plots/gstats.png") )
 		par(mfrow=c(2,2))  
-		plot.ecdf(miss$F_MISS, xlab="Missingness", main = "UCLex Variant Missingness") ### Change to CDF 		
+		plot.ecdf(miss$F_MISS, xlab="Missingness", main = "UCLex Variant Missingness") 		
 		plot.ecdf(frq$MAF, xlab="MAF", main = "UCLex_MAF")
 	dev.off() 
 

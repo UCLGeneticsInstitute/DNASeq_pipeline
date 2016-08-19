@@ -26,7 +26,7 @@ for(i in 1:length(cohort.list))
 
 	res.file<-res[grep(cohort.list[i],res)]
 	if(cohort.list[i]=="Lambiase") res.file<-res.file[-grep('SD',res.file)]
-	if(cohort.list[i]=="IoO") res.file<-res[grep('IoO\\.',res)]
+	if(cohort.list[i]=="IoO") res.file<-res[grep('IoO\\_',res)]
 
 	file<-read.table(res.file,header=T,sep="\t")
 

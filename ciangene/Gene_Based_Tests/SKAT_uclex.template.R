@@ -183,8 +183,10 @@ for(gene in 1:nb.genes)
 
 results <- results[order(results[,2]), ]
 results.out <- paste0(oDir,pheno.matching[phen,1],'_skat.csv')
+results<-results[order(results$SKATO),]
 qqplot.out <- paste0(dirname(oDir),'/plots/',pheno.matching[phen,1],'_skat_QQplot.png')
-write.table(results,results.out,col.names=T,row.names=F,quote=F,sep='\t')
+
+write.table(results,results.out,col.names=T,row.names=F,quote=F,sep=',')
 png(qqplot.out)
 qq.chisq(-2*log(results$SKATO), df=2, x.max=30, main=paste(pheno.matching[phen,1],'SKAT'),cex.main=0.7)	
 dev.off() 

@@ -13,10 +13,10 @@ myArgs <- getArgs()
 if ('rootODir' %in% names(myArgs))  rootODir <- myArgs[[ "rootODir" ]]
 if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 
-######################
-library(SKAT)
-library(parallel)
-library(snpStats)
+#####################
+#library(SKAT)
+#library(parallel)
+#library(snpStats)
 
 
 ## these are teh snps that have been filterd by func and maf
@@ -35,10 +35,10 @@ gene.dict<-unique(gene.dict)
 
 snp.gene<-merge(gene.dict,snp.gene.base,by="ENSEMBL",all.y=T)
 
-oDir<-paste0(rootODir,'SKAT/')
+oDir<-paste0(rootODir,'SKATnew/')
 if(!file.exists(oDir))dir.create(oDir)
 
-qc<-paste0(rootODir,'SKAT/qc/')
+qc<-paste0(oDir,'/qc/')
 if(!file.exists(qc))dir.create(qc)
 
 test<-FALSE
@@ -96,7 +96,7 @@ pheno.cohorts<-read.table(paste0(rootODir,'cohort.summary'),header=T)
 good.genes.data<-snp.gene[snp.gene$ENSEMBL %in% read.depth$Gene[good.genes],]
 uniq.genes<-unique(good.genes.data$ENSEMBL)
 nb.genes<-length(uniq.genes)
-
+exit
 
 ##for(phen in 1:nrow(pheno.matching)) skip the first few samples. 
 for(phen in 70:nrow(pheno.matching))
@@ -124,9 +124,10 @@ for(phen in 70:nrow(pheno.matching))
 
 	case.controls<-pheno[!is.na(pheno[,current.pheno]),1]
 	clean.pheno.snps <- clean.snp.data[rownames(clean.snp.data) %in% ex.ctrl.rare.snps ,colnames(clean.snp.data)%in%case.controls ]
+	write.table(rownames(clean.snp.data), paste0(oDir,pheno.matching[phen,1],'_filt_snp_list'), col.names=F,row.names=F,quote=F,sep='\t')
 	cases<-grep(pheno.matching[phen,1],colnames(clean.pheno.snps))
 
-	if(length(cases)>10)
+	if(length(cases)>20)
 	{
 	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls')
 	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols))) ## will add more columns later. (maf, call rate, mean depth etc)
