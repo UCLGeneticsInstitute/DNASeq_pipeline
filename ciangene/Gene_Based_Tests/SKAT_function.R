@@ -110,14 +110,23 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 	uniq.genes<-unique(good.genes.data$ENSEMBL)
 	nb.genes<-length(uniq.genes)
 
+
+	current.pheno<-rep(NA,ncol(good.genes.data))
+	current.pheno[colnames(good.genes.data)%in%case.list]<-1
+	if(!is.null(control.list))
+	{
+		current.pheno[colnames(good.genes.data)%in%control.list]<-0
+	} else current.pheno[!colnames(good.genes.data)%in%case.list]<-0
+	write.table(current.pheno[current.pheno==0],paste0(outputDirectory,'control.list'),col.names=FALSE,row.names=FALSE,quote=FALSE)
+	write.table(current.pheno[current.pheno==1],paste0(outputDirectory,'case.list'),col.names=FALSE,row.names=FALSE,quote=FALSE)
+
+
 	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls','nb.variants.cases','nb.variants.ctrls','case.maf','ctrl.maf','total.maf','nb.case.homs',
 		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio'
 		)
 	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols))) ## will add more columns later. (maf, call rate, mean depth etc)
 	colnames(results)<-cols
 	results$Gene<-uniq.genes
-
-
 	results<-merge(gene.dict,results,by.y='Gene',by.x='ENSEMBL',all.y=T)
 	srt<-data.frame(1:length(uniq.genes),uniq.genes)
 	results<-merge(results,srt,by.y='uniq.genes',by.x='ENSEMBL')
@@ -153,12 +162,6 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 			if(test.gene!=uniq.genes[gene]) stop ("Genes not sorted correctly")
 			if(results$ENSEMBL[gene]!=uniq.genes[gene]) stop ("Genes not sorted correctly")
 
-			current.pheno<-rep(NA,ncol(gene.snp.data))
-			current.pheno[colnames(gene.snp.data)%in%case.list]<-1
-			if(!is.null(control.list))
-			{
-				current.pheno[colnames(gene.snp.data)%in%control.list]<-0
-			} else current.pheno[!colnames(gene.snp.data)%in%case.list]<-0
 
 			case.snps<-gene.snp.data[,which(current.pheno==1)]
 			ctrl.snps<-gene.snp.data[,which(current.pheno==0)]
