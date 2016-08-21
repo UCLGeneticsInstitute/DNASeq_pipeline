@@ -2,6 +2,15 @@ ciangene
 ========
 
 [![Join the chat at https://gitter.im/CianMurphy/ciangene](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/CianMurphy/ciangene?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
+```
+Rscript SKAT.R --param.file param.txt
+```
+
+```
+Rscript SKAT.R --percent.ext.ctrls 10 --min.maf 0 --cases --controls --cadd 20 --minReadDepth 20
+```
+
 # Order of scripts: 
 
 * first.step.R
