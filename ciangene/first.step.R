@@ -134,6 +134,7 @@ for(i in 1:length(files)){
 
 ############################################ New
 	vep<-read.csv(vep.list[vep.chr %in% files.chr[i]],header=T)
+	vep$ExAC_MAF[is.na(vep$ExAC_MAF)]<-0
 	snplist<-data.frame(rownames(annotations.snpStats),annotations.snpStats$ExonicFunc)
 	colnames(snplist)<-c('SNP','ExonicFunc')
 	id<-data.frame(t(data.frame(strsplit(snplist$SNP,'_'))))

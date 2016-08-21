@@ -1,7 +1,11 @@
 ## changes
-# Keeping only protective variants
+# added fisher test and odds ratio. 
+# changed nb.cases/ctrls to nb non NA calls (so nb.cases now is nb.patients*nb.variants)
+# changed case.count/ctlr.count to allele counts. 1 het and 1 hom is a count of 3 for nb.variants.cases 
+# not removing non caucasians - now adding top two PCs as covariates into SKATO instead. 
+# removing related individuals. 
 # Fixed snp/gene matching
-## MOdel == SKAT
+# Keeping only damaging variants
 
 library(SKAT)
 library(snpStats)
@@ -16,8 +20,8 @@ if(file.exists(caseFile))file.remove(caseFile)
 ctrlFile<-paste0(oDir,pheno.matching[phen,1],'_ctrl_carriers')
 if(file.exists(ctrlFile))file.remove(ctrlFile)
 
-results$case.count<-0
-results$ctrl.count<-0
+results$nb.variants.cases<-0
+results$nb.variants.ctrls<-0
 results$case.maf<-0
 results$ctrl.maf<-0
 results$total.maf<-0
@@ -28,7 +32,27 @@ results$nb.ctrl.hets<-0
 results$Chr<-0
 results$Start<-0
 results$End<-0 
+results$FisherPvalue<-0
+results$OddsRatio<-0
 
+#results$nb.unique.func.variants.cases<-0
+#results$nb.unique.lof.variants.cases<-0
+#results$nb.unique.func.variants.ctrls<-0
+#results$nb.unique.lof.variants.ctrls<-0
+
+### columns below this arent working yet. 
+#results$nb.compound.func.hets.cases<-0
+#results$nb.compound.func.hets.cases<-0
+#results$nb.compound.func.hets.ctrls<-0
+#results$nb.compound.lof.hets.cases<-0
+#results$nb.compound.lof.hets.ctrls<-0
+
+
+func<-read.csv(paste0(dirname(oDir),'/Annotations/func.tab'),header=TRUE,sep='\t')
+func$isFunc<-FALSE
+func$isFunc[func$Func&&func$Rare]<-TRUE
+func$isLOF<-FALSE
+func$isLOF[func$LOF&&func$Rare]<-TRUE
 
 write.table( data.frame( colnames(clean.pheno.snps), current.pheno),paste0(oDir,pheno.matching[phen,1],'_case_control_list'), col.names=F,row.names=F,quote=F,sep='\t') 
 
@@ -74,9 +98,11 @@ for(gene in 1:nb.genes)
 		{
 			case.snps<-final.snp.set[,current.pheno==1]
 			ctrl.snps<-final.snp.set[,current.pheno==0]
+			results$nb.cases[gene]<-length(which(!is.na(unlist(case.snps))) )
+			results$nb.ctrls[gene]<-length(which(!is.na(unlist(ctrl.snps))) )
 
-			results$case.count[gene]<-sum(case.snps,na.rm=T)
-			results$ctrl.count[gene]<-sum(ctrl.snps,na.rm=T)
+			results$nb.variants.cases[gene]<-(length(grep(1,unlist(case.snps))))+ (length(grep(2,unlist(case.snps)))*2)
+			results$nb.variants.ctrls[gene]<-(length(grep(1,unlist(ctrl.snps))))+ (length(grep(2,unlist(ctrl.snps)))*2)
 
 			##these counts are for gene total
 			if(sum(case.snps,na.rm=T)>0)results$case.maf[gene]<-signif(maf(as.numeric(unlist(table(unlist(case.snps))))),2) 
@@ -107,76 +133,84 @@ for(gene in 1:nb.genes)
 			ctrl.snp.homs<-apply(ctrl.snps,1,function(x) length(grep(2,x)))
 			maf.snp.ctrls<-apply(ctrl.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
 
-			obj<-SKAT_Null_Model(current.pheno ~ 1, out_type="D")
-			results$SKATO[gene] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2)$p.value 
-			#results$SKATO[gene] <- SKAT(t(as.matrix(final.snp.set)) , obj, missing_cutoff=0.8, estimate_MAF=2,method="optimal.adj")$p.value
-			results$nb.snps[gene] <- nb.snps.in.gene
+			ancestry.pcs<-ancestry[match(colnames(final.snp.set),ancestry$V1),]
+			obj<-SKAT_Null_Model(current.pheno ~ ancestry.pcs$V3+ancestry.pcs$V4, out_type="D")
+			#results$SKATO[gene] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2)$p.value 
+			results$SKATO[gene] <- SKAT(t(as.matrix(final.snp.set)) , obj, missing_cutoff=0.8, estimate_MAF=2,method="optimal.adj")$p.value
+			results$nb.snps[gene] <- nrow(final.snp.set)
 
-			snp.out<-data.frame( rownames(final.snp.set),case.snp.hets,case.snp.homs, maf.snp.cases,ctrl.snp.hets,ctrl.snp.homs, maf.snp.ctrls,results[gene,1:8]) 
+
+       		mat<-matrix(c(results$nb.ctrls[gene]*2 - results$nb.variants.ctrls[gene],
+       						results$nb.variants.ctrls[gene],
+       						results$nb.cases[gene]*2 - results$nb.variants.cases[gene],
+       						results$nb.variants.cases[gene])
+       						, nrow = 2, ncol = 2)
+			if (length(which(is.na(unlist(mat))))==0)
+       		{
+       			testy<-fisher.test(mat)
+       			results$FisherPvalue[gene]<-signif(testy$p.value,4) 
+       			results$OddsRatio[gene]<-signif(testy$estimate,4) 
+       		}
+
+
+			snp.out<-data.frame( rownames(final.snp.set),case.snp.hets,case.snp.homs, maf.snp.cases,ctrl.snp.hets,ctrl.snp.homs, maf.snp.ctrls,results[gene,]) 
 			write.table( snp.out, oFile, col.names=!file.exists(oFile),row.names=F,quote=F,sep='\t',append=T)
 
-			#case.carriers<-rownames(case.snps)[apply(case.snps,1,function(x) which(x>0 ))]
-			case.car<- rownames( data.frame(unlist(apply(case.snps,1,function(x) which(x>0 )))))
-			if(nrow(case.snps)==1)
+			fixNames<-function(snps)
 			{
-				case.carriers<-colnames(case.snps)[apply(case.snps,1,function(x) which(x>0 ))]
-				case.variants<-str_extract(rownames(case.snps),"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
-				case.dat<-data.frame(cbind(case.variants,case.carriers))
+				case.car<- rownames( data.frame(unlist(apply(case.snps,1,function(x) which(x>0 )))))
+				if(nrow(case.snps)==1)
+				{
+					case.carriers<-colnames(case.snps)[apply(case.snps,1,function(x) which(x>0 ))]
+					case.variants<-str_extract(rownames(case.snps),"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
+					case.dat<-data.frame(cbind(case.variants,case.carriers))
 
-			} else
-			{
-				case.carriers<-case.car
-				case.carriers.clean<-gsub(case.carriers,pattern="[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]\\.",replacement="")
-				case.variants<-str_extract(case.car,"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
-				case.dat<-data.frame(cbind(case.variants,case.carriers.clean))
+				} else
+				{
+					case.carriers<-case.car
+					case.carriers.clean<-gsub(case.carriers,pattern="[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]\\.",replacement="")
+					case.variants<-str_extract(case.car,"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
+					case.dat<-data.frame(cbind(case.variants,case.carriers.clean))
+				}
+				
+				if( ( identical(case.dat[,1],case.dat[,2])  | is.na(case.dat[,1])) && nrow(case.snps)>1)
+				{
+					case.carriers<-colnames(case.snps)[apply(case.snps,1,function(x) which(x>0 ))]
+					case.variants<-str_extract(rownames(case.snps),"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
+					case.dat<-data.frame(cbind(case.variants,case.carriers))
+				} 
+				if( ( identical(case.dat[,1],case.dat[,2])  | is.na(case.dat[,1]) ) && nrow(case.snps)==1)
+				{
+					case.carriers<-case.car
+					case.carriers.clean<-gsub(case.carriers,pattern="[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]\\.",replacement="")
+					case.variants<-str_extract(case.car,"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
+					case.dat<-data.frame(cbind(case.variants,case.carriers.clean))
+				} 
+			case.dat
 			}
-			
-			if( ( identical(case.dat[,1],case.dat[,2])  | is.na(case.dat[,1])) && nrow(case.snps)>1)
-			{
-				case.carriers<-colnames(case.snps)[apply(case.snps,1,function(x) which(x>0 ))]
-				case.variants<-str_extract(rownames(case.snps),"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
-				case.dat<-data.frame(cbind(case.variants,case.carriers))
-			} 
-			if( ( identical(case.dat[,1],case.dat[,2])  | is.na(case.dat[,1]) ) && nrow(case.snps)==1)
-			{
-				case.carriers<-case.car
-				case.carriers.clean<-gsub(case.carriers,pattern="[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]\\.",replacement="")
-				case.variants<-str_extract(case.car,"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
-				case.dat<-data.frame(cbind(case.variants,case.carriers.clean))
-			} 
 
-
-			ctrl.car<- rownames( data.frame(unlist(apply(ctrl.snps,1,function(x) which(x>0 )))))
-			if(nrow(ctrl.snps)==1)
-			{
-				ctrl.carriers<-colnames(ctrl.snps)[apply(ctrl.snps,1,function(x) which(x>0 ))]
-				ctrl.variants<-str_extract(rownames(ctrl.snps),"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
-				ctrl.dat<-data.frame(cbind(ctrl.variants,ctrl.carriers))
-
-			} else
-			{
-				ctrl.carriers<-ctrl.car
-				ctrl.carriers.clean<-gsub(ctrl.carriers,pattern="[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]\\.",replacement="")
-				ctrl.variants<-str_extract(ctrl.car,"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
-				ctrl.dat<-data.frame(cbind(ctrl.variants,ctrl.carriers.clean))
-			}
-			
-			if( ( identical(ctrl.dat[,1],ctrl.dat[,2]) | is.na(ctrl.dat[,1]) ) && nrow(ctrl.snps)>1)
-			{
-				ctrl.carriers<-colnames(ctrl.snps)[apply(ctrl.snps,1,function(x) which(x>0 ))]
-				ctrl.variants<-str_extract(rownames(ctrl.snps),"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
-				ctrl.dat<-data.frame(cbind(ctrl.variants,ctrl.carriers))
-			} 
-			if( ( identical(ctrl.dat[,1],ctrl.dat[,2])  | is.na(ctrl.dat[,1]) ) && nrow(ctrl.snps)==1)
-			{
-				ctrl.carriers<-ctrl.car
-				ctrl.carriers.clean<-gsub(ctrl.carriers,pattern="[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]\\.",replacement="")
-				ctrl.variants<-str_extract(ctrl.car,"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
-				ctrl.dat<-data.frame(cbind(ctrl.variants,ctrl.carriers.clean))
-			} 
-
-			write.table(case.dat,caseFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
+			case.dat<-fixNames(case.snps)
+			ctrl.dat<-fixNames(ctrl.snps)
+			case.dat<-data.frame(case.dat,uniq.genes[gene])
+			ctrl.dat<-data.frame(ctrl.dat,uniq.genes[gene])
+			write.table(case.dat, caseFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
 			write.table(ctrl.dat,ctrlFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
+
+
+			## Now do compound hets
+			func.snps<-subset(func,isFunc)
+
+			gene.func<-final.snp.set[ rownames(final.snp.set) %in% func.snps$SNP,]
+
+			gene.lof<-final.snp.set[ rownames(final.snp.set) %in% func.snps$SNP,]
+
+
+
+			#results$nb.compound.func.hets.cases
+			#results$nb.compound.func.hets.ctrls
+			#results$nb.compound.lof.hets.cases
+			#results$nb.compound.lof.hets.ctrls
+
 		}
 	}
 }

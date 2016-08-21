@@ -3,7 +3,7 @@ release<-'July2016'
 
 pheno.matching<-data.frame(read.csv('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Support/phenotype.info.csv',header=FALSE))
 
-oDir<-paste0(rootODir,'SKATnew/')
+oDir<-paste0(rootODir,'SKAT/')
 if(!file.exists(oDir)) dir.create(oDir)
 
 #for(phen in 73:nrow(pheno.matching))

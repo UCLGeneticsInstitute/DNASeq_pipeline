@@ -26,6 +26,8 @@ snp.fam<-read.table(paste0(rootODir,'gene_test_variants_out.fam'),header=F)
 colnames(snp.sp)<-snp.fam[,1]
 rownames(snp.sp)<-snp.bim[,2]
 
+unrelated<-read.table(paste0(dirname(rootODir),"/kinship/UCL-exome_unrelated.txt")) ## Keeping only unrelated individiuals
+snp.sp<-snp.sp[,colnames(snp.sp)%in%unrelated[,1]]
 
 snp.gene.base<-read.table(paste0(rootODir,'snp_gene_id'),header=F)
 colnames(snp.gene.base)<-c("SNP",'ENSEMBL')
@@ -35,13 +37,14 @@ gene.dict<-unique(gene.dict)
 
 snp.gene<-merge(gene.dict,snp.gene.base,by="ENSEMBL",all.y=T)
 
-oDir<-paste0(rootODir,'SKATnew/')
+oDir<-paste0(rootODir,'SKAT/')
 if(!file.exists(oDir))dir.create(oDir)
 
 qc<-paste0(oDir,'/qc/')
 if(!file.exists(qc))dir.create(qc)
 
 test<-FALSE
+
 
 
 ## Three measures to choose valid controls I need to implement
@@ -52,8 +55,9 @@ test<-FALSE
 
 ## ancestry matching
 ancestry<-read.table(paste0(rootODir,'UCLex_samples_ancestry'),header=T)
-caucasians<-ancestry$V1[ancestry$Caucasian]
-snps<-snp.sp[,colnames(snp.sp)%in%caucasians]
+#caucasians<-ancestry$V1[ancestry$Caucasian]
+#snps<-snp.sp[,colnames(snp.sp)%in%caucasians]
+snps<-snp.sp[,]
 
 
 
@@ -96,7 +100,7 @@ pheno.cohorts<-read.table(paste0(rootODir,'cohort.summary'),header=T)
 good.genes.data<-snp.gene[snp.gene$ENSEMBL %in% read.depth$Gene[good.genes],]
 uniq.genes<-unique(good.genes.data$ENSEMBL)
 nb.genes<-length(uniq.genes)
-exit
+
 
 ##for(phen in 1:nrow(pheno.matching)) skip the first few samples. 
 for(phen in 70:nrow(pheno.matching))
@@ -145,12 +149,10 @@ for(phen in 70:nrow(pheno.matching))
 
 	current.pheno<- rep(0,ncol(clean.pheno.snps))
 	current.pheno[cases]<-1
-	results$nb.cases<-table(current.pheno)[[2]]
-	results$nb.ctrls<-table(current.pheno)[[1]]
 
 	## to speed up, run 4 tests per time. theres probably a better way to do this. 
 	oData<-paste0(oDir,pheno.matching[phen,1],'.RData')
-	save(snp.gene,nb.genes,good.genes.data,uniq.genes,clean.pheno.snps,current.pheno,results,phen,pheno.matching,oDir , file=oData )
+	save(ancestry,snp.gene,nb.genes,good.genes.data,uniq.genes,clean.pheno.snps,current.pheno,results,phen,pheno.matching,oDir , file=oData )
 	script.out<-paste0(oDir,pheno.matching[phen,1],'.R')
 	oData<-paste0('load("',paste0(oDir,pheno.matching[phen,1],'.RData"'),')')
 	write.table(oData,script.out,col.names=F,row.names=F,quote=F,sep='\t')
