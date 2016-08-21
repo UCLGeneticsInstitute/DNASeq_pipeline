@@ -1,3 +1,11 @@
+## how to use me. 
+#  Rscript='/share/apps/R/bin/Rscript'
+#  SKAT=/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Gene_Based_Tests/SKAT/SKAT_function.R
+#  CaseFile = path to one column file containing list of cases
+#  ControlFile = path to one column file containing list of cases. If not specified, will use all non cases. 
+#  $Rscript $SKAT --case.list $CaseFile --oDir outputDirectory --control.list $ControlFile
+
+
 suppressPackageStartupMessages(library("SKAT"))
 suppressPackageStartupMessages(library("snpStats"))
 suppressPackageStartupMessages(library("optparse"))
