@@ -82,14 +82,14 @@ if(is.null(control.list))message("Controls not specified, so will use all non ca
 if(!is.null(control.list))
 {
 	if(!file.exists(control.list))message("Control file doesn't exist, so will use all non case samples as controls.")
-	message(paste('Reading controls from',control.list))
-	control.list<-read.table(control.list,header=FALSE)
-	message(paste('Found',nrow(control.list),'cases'))
+	message(paste('Reading controls from',paste0('--',control.list,'--')))
+	control.list<-read.table(control.list,header=FALSE,stringsAsFactors=FALSE)
+	message(paste('Found',nrow(control.list),'controls'))
 	control.list<-control.list[,1]
 }
 
 ## make or break oDir
-if(outputDirectory=='SKATtest')message('output directory not specified so will use default folder of ./SKATtest')
+if(outputDirectory=='SKATtest')message('Output directory not specified so will use default folder of ./SKATtest')
 
 
 message("Finished Argument checks.\n")
@@ -281,7 +281,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,release
 
 			maf.snp.cases<-apply(case.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
 			maf.snp.ctrls<-apply(ctrl.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
-
+			maf.snp.ctrls[is.na(maf.snp.ctrls)]<-0
 			damaging.snps<-names(which(maf.snp.cases>maf.snp.ctrls))
 			final.snp.set<-gene.snp.data[rownames(gene.snp.data) %in% damaging.snps, ]
 			nb.snps.in.gene2<-nrow(final.snp.set)

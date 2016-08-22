@@ -96,9 +96,9 @@ if [[ "$step1" == "yes" ]]; then
 #$ -l h_rt=24:00:00
 #$ -cwd
 
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/first.step.R cluster/R/step1.1_first_step.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/first.step.R cluster/R/step1.1_first_step.Rout
 #sh $clean $rootODir $release
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $filter cluster/R/step1.3.filter_snps.Rout
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $filter cluster/R/step1.3.filter_snps.Rout
 #$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $pca cluster/R/step1.4.pca.Rout
 #sh $pca_extract $rootODir $release
 #$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $plot_pca cluster/R/step1.4.Plotpca.Rout

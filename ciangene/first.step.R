@@ -99,15 +99,18 @@ for(i in 1:length(files)){
 	if(FIRST) 
 	{	
 		samples <- rownames(matrix.calls.snpStats)
-		ext.ctrls <- sample(length(samples), length(samples) * percent.ext.ctrls) # Get list of extCtrls. 
-		write.table(length(ext.ctrls) , file = paste0(oDir, "nb_ext_ctrl_samples"), col.names=F, row.names=F, quote=F, sep="\t") 
-		write.table(rownames(matrix.calls.snpStats[ext.ctrls,]) , file = paste0(oDir, "ext_ctrl_samples"), col.names=F, row.names=F, quote=F, sep="\t") 
-  		ext.samples <- matrix.calls.snpStats[ext.ctrls ,]
-		ext.samples.sum <- data.frame(colnames(matrix.calls.snpStats), col.summary(ext.samples) ) 
-		ext.samples.names <- data.frame(rownames(ext.samples) , row.summary(ext.samples) ) 
+		if(percent.ext.ctrls>0)
+		{
+			ext.ctrls <- sample(length(samples), length(samples) * percent.ext.ctrls) # Get list of extCtrls. 
+			write.table(length(ext.ctrls) , file = paste0(oDir, "nb_ext_ctrl_samples"), col.names=F, row.names=F, quote=F, sep="\t") 
+			write.table(rownames(matrix.calls.snpStats[ext.ctrls,]) , file = paste0(oDir, "ext_ctrl_samples"), col.names=F, row.names=F, quote=F, sep="\t") 
+	  		ext.samples <- matrix.calls.snpStats[ext.ctrls ,]
+			ext.samples.sum <- data.frame(colnames(matrix.calls.snpStats), col.summary(ext.samples) ) 
+			ext.samples.names <- data.frame(rownames(ext.samples) , row.summary(ext.samples) ) 
+			write.table(ext.samples.sum, file = paste0(oDir, "Ext_ctrl_variant_summary") , col.names=TRUE, row.names=FALSE, quote=FALSE, sep="\t", append=FALSE) 
+			write.table(ext.samples.names, file = paste0(oDir, "Ext_ctrl_sample_summary") , col.names=TRUE, row.names=FALSE, quote=FALSE, sep="\t", append=FALSE)
+		}
 
-		write.table(ext.samples.sum, file = paste0(oDir, "Ext_ctrl_variant_summary") , col.names=TRUE, row.names=FALSE, quote=FALSE, sep="\t", append=FALSE) 
-		write.table(ext.samples.names, file = paste0(oDir, "Ext_ctrl_sample_summary") , col.names=TRUE, row.names=FALSE, quote=FALSE, sep="\t", append=FALSE)
 		write.SnpMatrix(t(matrix.calls.snpStats), full, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t", append=FALSE)   ##this is where it becomes numbers
    		write.table(annotations.snpStats, annotations.out, col.names=TRUE, row.names=TRUE, quote=FALSE, sep="\t", append=FALSE)
 		write.table(matrix.depth, file = file.path(readDepthDir, readDepthoFile) , col.names=FALSE, row.names=FALSE, quote = FALSE, sep="\t" , append = FALSE)
@@ -117,12 +120,14 @@ for(i in 1:length(files)){
 		write.table(data.frame(cbind(map,annotations.snpStats$Obs,annotations.snpStats$Ref ) ) , oBim, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t", append=FALSE)
         FIRST <- FALSE
   	} else {
-  		ext.samples <- matrix.calls.snpStats[ext.ctrls ,]
-		ext.samples.sum <- data.frame(colnames(matrix.calls.snpStats), col.summary(ext.samples) ) 
-		ext.samples.names <- data.frame(rownames(ext.samples) , row.summary(ext.samples) ) 
-   		write.table(ext.samples.sum, file = paste0(oDir, "Ext_ctrl_variant_summary") , col.names=F, row.names=F, quote=F, sep="\t", append=T) 
-		write.table(ext.samples.names, file = paste0(oDir, "Ext_ctrl_sample_summary") , col.names=F, row.names=F, quote=F, sep="\t", append=T) 
-
+  		if(percent.ext.ctrls>0)
+		{
+	  		ext.samples <- matrix.calls.snpStats[ext.ctrls ,]
+			ext.samples.sum <- data.frame(colnames(matrix.calls.snpStats), col.summary(ext.samples) ) 
+			ext.samples.names <- data.frame(rownames(ext.samples) , row.summary(ext.samples) ) 
+	   		write.table(ext.samples.sum, file = paste0(oDir, "Ext_ctrl_variant_summary") , col.names=F, row.names=F, quote=F, sep="\t", append=T) 
+			write.table(ext.samples.names, file = paste0(oDir, "Ext_ctrl_sample_summary") , col.names=F, row.names=F, quote=F, sep="\t", append=T) 
+		}
 		write.SnpMatrix(t(matrix.calls.snpStats), full, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t", append=TRUE)  
    		write.table(annotations.snpStats, annotations.out, col.names=FALSE, row.names=TRUE, quote=FALSE, sep="\t", append=TRUE) 
 		write.table(matrix.depth,  file = file.path(readDepthDir, readDepthoFile) , col.names=FALSE, row.names=FALSE, quote = FALSE, sep="\t" , append = TRUE) 
@@ -152,9 +157,9 @@ for(i in 1:length(files)){
 	merged.snp.data.keep$LOF[merged.snp.data.keep$ExonicFunc %in% lof] <- TRUE
 	merged.rare<-subset(merged.snp.data.keep,merged.snp.data.keep$Rare)
 
-	merged.func<-subset(merged.rare<,merged.rare<$Func)
+	merged.func<-subset(merged.rare,merged.rare$Func)
 	write.table(merged.func,func.file,col.names=!file.exists(func.file),row.names=FALSE,quote=FALSE,sep='\t',append=TRUE)
-	merged.func<-subset(merged.rare,merged.rare<$LOF)
+	merged.func<-subset(merged.rare,merged.rare$LOF)
 	write.table(merged.func,lof.file,col.names=!file.exists(lof.file),row.names=FALSE,quote=FALSE,sep='\t',append=TRUE)
 ############################################
 

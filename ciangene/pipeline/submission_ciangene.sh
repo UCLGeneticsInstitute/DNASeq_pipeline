@@ -10,10 +10,10 @@ script=cluster/submission/cian.sh
 rootODir=/SAN/vyplab/UCLex/mainset_${release}/cian/
 #rootODir=/cluster/scratch3/vyp-scratch2/cian
 
-step1=no
+step1=yes
 step2=no
 step3=no
-step4=yes
+step4=no
 step5=no
 
 mkdir -p $rootODir
