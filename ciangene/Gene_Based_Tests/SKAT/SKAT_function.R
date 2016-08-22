@@ -61,7 +61,7 @@ if(!is.null(opt$SampleGene))
 if(!is.null(opt$TargetGenes))
 {
 	TargetGenes=read.table(opt$TargetGenes,header=FALSE)[,1]
-	message(paste("Read",length(TargetGenes),'genes from file',opt$TargetGenes))
+	message(paste("Read",length(TargetGenes),'genes from file',paste0('--',opt$TargetGenes,'--')))
 } 
 
 min.depth=as.numeric(opt$MinReadDepth) 
@@ -125,32 +125,32 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,release
 	filtered.snp.list<-subset(snp.annotations,snp.annotations$CADD>=minCadd & snp.annotations$ExAC_MAF<=maxExac)$SNP
 	message(paste(length(filtered.snp.list),'SNPs kept after CADD and Exac filters of',minCadd,'and',maxExac,'respectively.')) 
 
+	snplist.file<-paste0(outputDirectory,'qc/SNPlist')
+	ldak.subset.file<-paste0(outputDirectory,'qc/SNPlist_ldak')
 	if(!is.null(TargetGenes)) ## if we're testing a couple genes only, Im subsetting SNPmatrix to make it faster to read in. 
 	{
 		data<-paste0(rootODir,'gene_test_variants_out') 
 		target.snp.info<- snp.gene[ snp.gene$Symbol %in% TargetGenes,]
 		target.snps<- target.snp.info$SNP[target.snp.info$SNP %in% filtered.snp.list]
-		write.table(target.snps,paste0(outputDirectory,TargetGenes[1]),col.names=F,row.names=F,quote=F,sep='\t')
-		message(paste(length(target.snps),'SNPs found in:', TargetGenes))
-		message("Extracting from dataset...")
-		run<-paste(ldak,'--make-sp',paste0(outputDirectory,TargetGenes),'--sp',data,'--extract',paste0(outputDirectory,TargetGenes[1]))
-		print(run)
+		write.table(target.snps,snplist.file,col.names=F,row.names=F,quote=F,sep='\t')
+		message(paste(length(target.snps),'SNPs found in target genes'))
+		message("Extracting these from dataset...")
+		run<-paste(ldak,'--make-sp',ldak.subset.file,'--sp',data,'--extract',snplist.file)
 		system(run)
 		message("Reading in SNP data")
 		snp.data<-paste0(outputDirectory,TargetGenes[1],'_out')
-		snp.sp<-read.table(paste0(outputDirectory,TargetGenes[1],'_out.sp'),header=F)
-		snp.bim<-read.table(paste0(outputDirectory,TargetGenes[1],'_out.bim'),header=F)
-		snp.fam<-read.table(paste0(outputDirectory,TargetGenes[1],'_out.fam'),header=F)
+		snp.sp<-read.table(paste0(ldak.subset.file,'_out.sp'),header=F)
+		snp.bim<-read.table(paste0(ldak.subset.file,'_out.bim'),header=F)
+		snp.fam<-read.table(paste0(ldak.subset.file,'_out.fam'),header=F)
 		colnames(snp.sp)<-snp.fam[,1]
 		rownames(snp.sp)<-snp.bim[,2]
 	}
 
 	if(is.null(TargetGenes))
 	{
-		write.table(filtered.snp.list,paste0(outputDirectory,'SNPlist'),col.names=F,row.names=F,quote=F,sep='\t')
+		write.table(filtered.snp.list,snplist.file,col.names=F,row.names=F,quote=F,sep='\t')
 		message("Extracting from dataset...")
-		run<-paste(ldak,'--make-sp',paste0(outputDirectory,TargetGenes),'--sp',data,'--extract',paste0(outputDirectory,'SNPlist'))
-		print(run)
+		run<-paste(ldak,'--make-sp',ldak.subset.file,'--sp',data,'--extract',snplist.file)
 		system(run)
 		snp.sp<-read.table(paste0(rootODir,'gene_test_variants_out.sp'),header=F)
 		snp.bim<-read.table(paste0(rootODir,'gene_test_variants_out.bim'),header=F)
@@ -206,13 +206,13 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,release
 	current.pheno<-rep(NA,ncol(clean.snp.data))
 	current.pheno[colnames(clean.snp.data)%in%case.list]<-1
 	my.cases<-colnames(clean.snp.data)[colnames(clean.snp.data)%in%case.list]
-	my.controls<-colnames(clean.snp.data)[colnames(clean.snp.data)%in%control.list]
 	if(!is.null(control.list))
 	{
 		current.pheno[colnames(clean.snp.data)%in%control.list]<-0
 	} else current.pheno[!colnames(clean.snp.data)%in%case.list]<-0
-	write.table(my.cases,paste0(outputDirectory,'control.list'),col.names=FALSE,row.names=FALSE,quote=FALSE)
-	write.table(my.controls,paste0(outputDirectory,'case.list'),col.names=FALSE,row.names=FALSE,quote=FALSE)
+	my.controls<-colnames(current.pheno)[current.pheno==0]
+	write.table(my.cases,paste0(outputDirectory,'case.list'),col.names=FALSE,row.names=FALSE,quote=FALSE)
+	write.table(my.controls,paste0(outputDirectory,'control.list'),col.names=FALSE,row.names=FALSE,quote=FALSE)
 
 	## Make the outptu dataframe
 	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls','nb.variants.cases','nb.variants.ctrls','case.maf','ctrl.maf','total.maf','nb.case.homs',
@@ -222,7 +222,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,release
 	colnames(results)<-cols
 	results$Gene<-uniq.genes
 	results$minCadd<-minCadd
-	results$maxExac<-maxExacc
+	results$maxExac<-maxExac
 	results<-merge(gene.dict,results,by.y='Gene',by.x='ENSEMBL',all.y=T)
 	srt<-data.frame(1:length(uniq.genes),uniq.genes)
 	results<-merge(results,srt,by.y='uniq.genes',by.x='ENSEMBL')
@@ -242,7 +242,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,release
 
 	if(SavePrep)
 	{
-		robj<-paste0(outputDirectory,'test_setup.RData')
+		robj<-paste0(outputDirectory,'qc/test_setup.RData')
 		message(paste('Saving workspace image to', robj))
 		save(list=ls(environment()),file=robj)
 	}	
