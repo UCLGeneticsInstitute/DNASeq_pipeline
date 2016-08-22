@@ -5,6 +5,19 @@
 #  ControlFile = path to one column file containing list of cases. If not specified, will use all non cases. 
 #  $Rscript $SKAT --case.list $CaseFile --oDir outputDirectory --control.list $ControlFile
 
+### Changes ####
+# Add CompoundHeterozygote Function and pvalue.  
+# changed missingess to missing_cutoff=0.2. So variants with missingess >20% will be removed. 
+# added fisher test and odds ratio. 
+# changed nb.cases/ctrls to nb non NA calls (so nb.cases now is nb.patients*nb.variants)
+# changed case.count/ctlr.count to allele counts. 1 het and 1 hom is a count of 3 for nb.variants.cases 
+# now not removing non caucasians - adding top two PCs as covariates into SKATO instead. 
+# removing related individuals. 
+# Fixed snp/gene matching
+# Keeping only damaging variants
+########
+
+ldak='/cluster/project8/vyp/cian/support/ldak/ldak'
 
 suppressPackageStartupMessages(library("SKAT"))
 suppressPackageStartupMessages(library("snpStats"))
@@ -16,6 +29,7 @@ option_list <- list(
 	make_option(c("-v", "--verbose"), action="store_true", default=TRUE,help="Print extra output [default]"),
  	make_option(c("--case.list"),  help="one column file containing list of cases",type='character'),
  	make_option(c("--control.list"), default=NULL, help="one column file containing list of controls",type='character'),
+ 	make_option(c("--TargetGenes"), default=NULL, help="Gene Symbol(s)",type='character'),
  	make_option(c("--oDir"),default='SKATtest',type='character')
  )
 
@@ -29,10 +43,11 @@ if ( opt$verbose ) {
 case.list=opt$case.list
 control.list=opt$control.list
 outputDirectory=opt$oDir
+TargetGenes=opt$TargetGenes
 
 ## Check cases
 if(!file.exists(case.list))stop("Case file doesn't exist. ")
-message(paste('Reading cases from',case.list))
+message(paste('Reading cases from',paste0('--',case.list,'--')))
 case.list<-read.table(case.list,header=FALSE)
 message(paste('Found',nrow(case.list),'cases'))
 case.list<-case.list[,1]
@@ -53,10 +68,10 @@ if(!is.null(control.list))
 if(outputDirectory=='SKATtest')message('output directory not specified so will use default folder of ./SKATtest')
 
 
-message("Finished Argument checks.")
-message("Starting test setup.")
+message("Finished Argument checks.\n")
+message("Starting test setup.\n")
 
-doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,release='July2016')
+doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,release='July2016',compoundHets='Yes',TargetGenes=NULL)
 {
 	outputDirectory<-paste0(outputDirectory,'/')
 	rootODir<-paste0('/SAN/vyplab/UCLex/mainset_',release,'/cian/') 
@@ -64,22 +79,50 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 	qc<-paste0(outputDirectory,'/qc/')
 	if(!file.exists(qc))dir.create(qc)
 
-	message("Reading in SNP data")
-	##SNP data in sp/bim/fam format. 
-	snp.sp<-read.table(paste0(rootODir,'gene_test_variants_out.sp'),header=F)
-	snp.bim<-read.table(paste0(rootODir,'gene_test_variants_out.bim'),header=F)
-	snp.fam<-read.table(paste0(rootODir,'gene_test_variants_out.fam'),header=F)
-	colnames(snp.sp)<-snp.fam[,1]
-	rownames(snp.sp)<-snp.bim[,2]
-	
-
-	oFile<-paste0(outputDirectory,'snps')
+	oFile<-paste0(outputDirectory,'SKAT_results_by_SNP.tab')
 	if(file.exists(oFile)) file.remove(oFile)
 	caseFile<-paste0(outputDirectory,'case_carriers')
 	if(file.exists(caseFile)) file.remove(caseFile)
 	ctrlFile<-paste0(outputDirectory,'ctrl_carriers')
 	if(file.exists(ctrlFile)) file.remove(ctrlFile)
 
+	message("Reading in snp/gene database")
+	snp.gene.base<-read.table(paste0(rootODir,'snp_gene_id'),header=F)
+	colnames(snp.gene.base)<-c("SNP",'ENSEMBL')
+	gene.dict<-read.table(paste0(rootODir,'gene_dict_skat'),header=T)
+	gene.dict$ENST<-NULL
+	gene.dict<-unique(gene.dict)
+	snp.gene<-merge(gene.dict,snp.gene.base,by="ENSEMBL",all.y=T)
+
+	if(!is.null(TargetGenes)) ## if we're testing a couple genes only, Im subsetting SNPmatrix to make it faster to read in. 
+	{
+		data<-paste0(rootODir,'gene_test_variants_out') 
+		target.snp.info<- snp.gene[ snp.gene$Symbol %in% TargetGenes,]
+		write.table(target.snp.info$SNP,paste0(outputDirectory,TargetGenes[1]),col.names=F,row.names=F,quote=F,sep='\t')
+		message(paste(nrow(target.snp.info),'SNPs found in:', TargetGenes))
+		message("Extracting from dataset...")
+		run<-paste(ldak,'--make-sp',paste0(outputDirectory,TargetGenes),'--sp',data,'--extract',paste0(outputDirectory,TargetGenes[1]))
+		print(run)
+		system(run)
+		message("Reading in SNP data")
+		snp.data<-paste0(outputDirectory,TargetGenes[1],'_out')
+		snp.sp<-read.table(paste0(outputDirectory,TargetGenes[1],'_out.sp'),header=F)
+		snp.bim<-read.table(paste0(outputDirectory,TargetGenes[1],'_out.bim'),header=F)
+		snp.fam<-read.table(paste0(outputDirectory,TargetGenes[1],'_out.fam'),header=F)
+		colnames(snp.sp)<-snp.fam[,1]
+		rownames(snp.sp)<-snp.bim[,2]
+	}
+
+	if(is.null(TargetGenes))
+	{
+		message("Reading in SNP data")
+		##SNP data in sp/bim/fam format. 
+		snp.sp<-read.table(paste0(rootODir,'gene_test_variants_out.sp'),header=F)
+		snp.bim<-read.table(paste0(rootODir,'gene_test_variants_out.bim'),header=F)
+		snp.fam<-read.table(paste0(rootODir,'gene_test_variants_out.fam'),header=F)
+		colnames(snp.sp)<-snp.fam[,1]
+		rownames(snp.sp)<-snp.bim[,2]
+	}
 
 	## ancestry matching
 	ancestry<-read.table(paste0(rootODir,'UCLex_samples_ancestry'),header=T)
@@ -89,12 +132,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 	unrelated<-read.table(paste0(dirname(rootODir),"/kinship/UCL-exome_unrelated.txt")) ## Keeping only unrelated individiuals
 	snp.sp<-snp.sp[,colnames(snp.sp)%in%unrelated[,1]]
 
-	snp.gene.base<-read.table(paste0(rootODir,'snp_gene_id'),header=F)
-	colnames(snp.gene.base)<-c("SNP",'ENSEMBL')
-	gene.dict<-read.table(paste0(rootODir,'gene_dict_skat'),header=T)
-	gene.dict$ENST<-NULL
-	gene.dict<-unique(gene.dict)
-	snp.gene<-merge(gene.dict,snp.gene.base,by="ENSEMBL",all.y=T)
+
 
 	message("Reading in Read Depth data")
 
@@ -118,20 +156,27 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 	uniq.genes<-unique(good.genes.data$ENSEMBL)
 	nb.genes<-length(uniq.genes)
 
+	###### clean
+	rm(read.depth,snp.sp,snp.gene.base)
+	######
 
-	current.pheno<-rep(NA,ncol(good.genes.data))
-	current.pheno[colnames(good.genes.data)%in%case.list]<-1
+	current.pheno<-rep(NA,ncol(clean.snp.data))
+	current.pheno[colnames(clean.snp.data)%in%case.list]<-1
+	my.cases<-colnames(clean.snp.data)[colnames(clean.snp.data)%in%case.list]
+	my.controls<-colnames(clean.snp.data)[colnames(clean.snp.data)%in%control.list]
 	if(!is.null(control.list))
 	{
-		current.pheno[colnames(good.genes.data)%in%control.list]<-0
-	} else current.pheno[!colnames(good.genes.data)%in%case.list]<-0
-	write.table(current.pheno[current.pheno==0],paste0(outputDirectory,'control.list'),col.names=FALSE,row.names=FALSE,quote=FALSE)
-	write.table(current.pheno[current.pheno==1],paste0(outputDirectory,'case.list'),col.names=FALSE,row.names=FALSE,quote=FALSE)
+		current.pheno[colnames(clean.snp.data)%in%control.list]<-0
+	} else current.pheno[!colnames(clean.snp.data)%in%case.list]<-0
+	write.table(my.cases,paste0(outputDirectory,'control.list'),col.names=FALSE,row.names=FALSE,quote=FALSE)
+	write.table(my.controls,paste0(outputDirectory,'case.list'),col.names=FALSE,row.names=FALSE,quote=FALSE)
 
 
 	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls','nb.variants.cases','nb.variants.ctrls','case.maf','ctrl.maf','total.maf','nb.case.homs',
-		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio'
+		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio','CompoundHetPvalue'
 		)
+
+
 	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols))) ## will add more columns later. (maf, call rate, mean depth etc)
 	colnames(results)<-cols
 	results$Gene<-uniq.genes
@@ -140,14 +185,29 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 	results<-merge(results,srt,by.y='uniq.genes',by.x='ENSEMBL')
 	results<-results[order(results[,(ncol(results))]),]
 	results<-results[,1:(ncol(results)-1)]
-
 	uniq.genes<-unique(results[,1])
 	nb.genes<-length(uniq.genes)
 
-	message("Starting tests")
-###################################
+	if(!is.null(TargetGenes))
+	{
+		results<-results[,1:(ncol(results)-1)]
+		results<-results[results$Symbol %in% TargetGenes,]
+		if(nrow(results)==0)stop('Specified genes not found ffs.')
+		uniq.genes<-unique(results[,1])
+		nb.genes<-length(uniq.genes)
+	}
+
+	robj<-paste0(outputDirectory,'test_setup.RData')
+	message(paste('Saving workspace image to', robj))
+	save(list=ls(environment()),file=robj)
+
+	###################################
+	message(paste("Starting tests on", nb.genes, 'genes')) 
+	###################################
+
 	for(gene in 1:nb.genes)
 	{
+		if(gene%%100==0) message(paste('Up to gene',gene)) 
 		gene.snps<-good.genes.data$SNP[ grep(uniq.genes[gene],good.genes.data$ENSEMBL) ]
 
 		gene.data<- data.frame(t(data.frame(strsplit(gene.snps,'_')))) 
@@ -157,7 +217,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 
 		gene.snp.data<-clean.snp.data[ rownames(clean.snp.data) %in% gene.snps ,]
 		nb.snps.in.gene<-nrow(gene.snp.data)
-	#	print(paste(nb.snps.in.gene,'snps in', uniq.genes[gene]))
+		print(paste(nb.snps.in.gene,'snps in 1', uniq.genes[gene]))
 
 		results$Chr[gene]<-gene.chr
 		results$Start[gene]<-gene.start
@@ -180,9 +240,10 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 			damaging.snps<-names(which(maf.snp.cases>maf.snp.ctrls))
 			final.snp.set<-gene.snp.data[rownames(gene.snp.data) %in% damaging.snps, ]
 			nb.snps.in.gene2<-nrow(final.snp.set)
-			
+
 			if(nb.snps.in.gene2>0)
 			{
+				print(paste(nb.snps.in.gene2,'snps in', uniq.genes[gene]))
 				case.snps<-final.snp.set[,which(current.pheno==1)]
 				ctrl.snps<-final.snp.set[,which(current.pheno==0)]
 				results$nb.cases[gene]<-length(which(!is.na(unlist(case.snps))) )
@@ -223,7 +284,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 				ancestry.pcs<-ancestry[match(colnames(final.snp.set),ancestry$V1),]
 				obj<-SKAT_Null_Model(current.pheno ~ ancestry.pcs$V3+ancestry.pcs$V4, out_type="D")
 				#results$SKATO[gene] <- SKAT(t(as.matrix(gene.snp.data)) , obj, missing_cutoff=0.4, estimate_MAF=2)$p.value 
-				results$SKATO[gene] <- SKAT(t(as.matrix(final.snp.set)) , obj, missing_cutoff=0.8, estimate_MAF=2,method="optimal.adj")$p.value
+				results$SKATO[gene] <- SKAT(t(as.matrix(final.snp.set)) , obj, missing_cutoff=0.2, estimate_MAF=2,method="optimal.adj")$p.value
 				results$nb.snps[gene] <- nrow(final.snp.set)
 
 
@@ -245,36 +306,37 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 
 				fixNames<-function(snps)
 				{
-					case.car<- rownames( data.frame(unlist(apply(case.snps,1,function(x) which(x>0 )))))
-					if(nrow(case.snps)==1)
+					car<- rownames( data.frame(unlist(apply(snps,1,function(x) which(x>0 )))))
+					if(nrow(snps)==1)
 					{
-						case.carriers<-colnames(case.snps)[apply(case.snps,1,function(x) which(x>0 ))]
-						case.variants<-str_extract(rownames(case.snps),"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
-						case.dat<-data.frame(cbind(case.variants,case.carriers))
+						carriers<-colnames(snps)[apply(snps,1,function(x) which(x>0 ))]
+						variants<-str_extract(rownames(snps),"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
+						dat<-data.frame(cbind(variants,carriers))
 
 					} else
 					{
-						case.carriers<-case.car
-						case.carriers.clean<-gsub(case.carriers,pattern="[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]\\.",replacement="")
-						case.variants<-str_extract(case.car,"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
-						case.dat<-data.frame(cbind(case.variants,case.carriers.clean))
+						carriers<-car
+						carriers.clean<-gsub(carriers,pattern="[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]\\.",replacement="")
+						variants<-str_extract(car,"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
+						dat<-data.frame(cbind(variants,carriers.clean))
 					}
 					
-					if( ( identical(case.dat[,1],case.dat[,2])  | is.na(case.dat[,1])) && nrow(case.snps)>1)
+					if( ( identical(dat[,1],dat[,2])  | is.na(dat[,1])) && nrow(snps)>1)
 					{
-						case.carriers<-colnames(case.snps)[apply(case.snps,1,function(x) which(x>0 ))]
-						case.variants<-str_extract(rownames(case.snps),"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
-						case.dat<-data.frame(cbind(case.variants,case.carriers))
+						carriers<-colnames(snps)[apply(snps,1,function(x) which(x>0 ))]
+						variants<-str_extract(rownames(snps),"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
+						dat<-data.frame(cbind(variants,carriers))
 					} 
-					if( ( identical(case.dat[,1],case.dat[,2])  | is.na(case.dat[,1]) ) && nrow(case.snps)==1)
+					if( ( identical(dat[,1],dat[,2])  | is.na(dat[,1]) ) && nrow(snps)==1)
 					{
-						case.carriers<-case.car
-						case.carriers.clean<-gsub(case.carriers,pattern="[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]\\.",replacement="")
-						case.variants<-str_extract(case.car,"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
-						case.dat<-data.frame(cbind(case.variants,case.carriers.clean))
+						carriers<-car
+						carriers.clean<-gsub(carriers,pattern="[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]\\.",replacement="")
+						variants<-str_extract(car,"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
+						dat<-data.frame(cbind(variants,carriers.clean))
 					} 
-				case.dat
+				return(dat)
 				}
+
 
 				case.dat<-fixNames(case.snps)
 				ctrl.dat<-fixNames(ctrl.snps)
@@ -282,6 +344,57 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 				ctrl.dat<-data.frame(ctrl.dat,uniq.genes[gene])
 				write.table(case.dat, caseFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
 				write.table(ctrl.dat,ctrlFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
+
+				if(compoundHets=='Yes')
+				{
+
+					GetCompoundHets<-function(snp.dat,outFile)
+					{
+						compound.hets.names<-names(which(table(snp.dat$carriers.clean)>1))
+						nb.hets<-0
+						for(i in 1:length(compound.hets.names))
+						{
+							compound.snps<-t(snp.dat$variants[snp.dat$carriers.clean%in%compound.hets.names[i] ] )
+							tt<-data.frame(compound.hets.names[i],compound.snps,uniq.genes[gene]) 
+							if(length(tt)>0)
+							{
+								write.table(tt,outFile,col.names=F,row.names=F,quote=F,sep='\t',append=T)
+								nb.hets<-nb.hets+1
+							}
+						}
+						return(nb.hets)
+					}
+					compoundFileCases<-paste0(outputDirectory,'CompoundHets_cases')
+					compoundFileCtrls<-paste0(outputDirectory,'CompoundHets_ctrls')
+
+					caseTest<-FALSE
+					ctrlTest<-FALSE
+					if(length(unique(case.dat[,grep("carriers",colnames(case.dat))]))<nrow(case.dat) )
+					{
+						case.compound.hets<-GetCompoundHets(case.dat,compoundFileCases)
+						caseTest<-TRUE
+					}
+					if(length(unique(ctrl.dat[,grep("carriers",colnames(ctrl.dat))]))<nrow(ctrl.dat) )
+					{
+						ctrl.compound.hets<-GetCompoundHets(ctrl.dat,compoundFileCtrls)
+						ctrlTest<-TRUE
+					}
+					if(caseTest && ctrlTest)
+					{
+						nb.clean.cases<-ncol(case.snps)-case.compound.hets
+						nb.clean.ctrls<-ncol(ctrl.snps)-ctrl.compound.hets
+
+		       			mat<-matrix(c(nb.clean.ctrls,
+		       						ctrl.compound.hets,
+		       						nb.clean.cases,
+		       						case.compound.hets)
+		       						, nrow = 2, ncol = 2)
+						results$CompoundHetPvalue[gene]<-fisher.test(mat,alternative='greater')$p.value
+					}
+				}
+
+
+
 				print(results[gene,])
 			}
 		}
@@ -305,6 +418,6 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 
 
 #### now run function.
-doSKAT(case.list=case.list,control.list=control.list,outputDirectory=outputDirectory)
+doSKAT(case.list=case.list,control.list=control.list,outputDirectory=outputDirectory,TargetGenes=TargetGenes)
 
 
