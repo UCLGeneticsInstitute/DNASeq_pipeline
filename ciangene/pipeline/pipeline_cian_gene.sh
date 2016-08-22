@@ -188,9 +188,9 @@ if [[ "$step4" == "yes" ]]; then
 #$ -l h_rt=24:00:00
 #$ -cwd
 
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/Gene_Based_Tests/make_variant_list_gene_tests.R cluster/R/make_variant_list_gene_tests.Rout
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/Gene_Based_Tests/make_variant_list_gene_tests.R cluster/R/make_variant_list_gene_tests.Rout
 sh ${repo}/Gene_Based_Tests/extract_variants.sh $rootODir $release 
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/Gene_Based_Tests/SKAT_uclex.R cluster/R/SKAT_uclex.Rout
+#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/Gene_Based_Tests/SKAT_uclex.R cluster/R/SKAT_uclex.Rout
 
 #sh $thirdStep $rootODir $release 
 #sh $singleVariant $rootODir $release 

@@ -34,8 +34,8 @@ min.maf<-params[grep('min.maf',params[,1]),2] # belwo this to be removed
 max.maf<-params[grep('max.maf',params[,1]),2]  # above this to be removed
 cadd<-params[grep('cadd',params[,1]),2] #below this to be removed
 
-polyphen.remove<-'benign(0)'
-sift.remove<-'tolerated'
+#polyphen.remove<-'benign(0)'
+#sift.remove<-'tolerated'
 
 
 #func <- c("nonsynonymous SNV", "stopgain SNV", "nonframeshift insertion", "nonframeshift deletion", "frameshift deletion",

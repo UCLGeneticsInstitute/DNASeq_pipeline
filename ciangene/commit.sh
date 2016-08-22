@@ -1,4 +1,4 @@
 git add -u
-git commit -m "Added SKAT wrapper function."
+git commit -m "Improved SKAT wrapper loads"
 git push -u origin master
 

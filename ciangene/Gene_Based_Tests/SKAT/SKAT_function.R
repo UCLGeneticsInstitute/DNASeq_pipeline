@@ -6,6 +6,9 @@
 #  $Rscript $SKAT --case.list $CaseFile --oDir outputDirectory --control.list $ControlFile
 
 ### Changes ####
+# Added CADD and ExAC maf filter. 
+# Added ability to specify minReadDepth for filtering - default zero is fastest. 
+# Added ability to specify genes you're interested in testing: --TargetGenes for a file with names or --SampleGene for a single gene name
 # Add CompoundHeterozygote Function and pvalue.  
 # changed missingess to missing_cutoff=0.2. So variants with missingess >20% will be removed. 
 # added fisher test and odds ratio. 
@@ -29,7 +32,12 @@ option_list <- list(
 	make_option(c("-v", "--verbose"), action="store_true", default=TRUE,help="Print extra output [default]"),
  	make_option(c("--case.list"),  help="one column file containing list of cases",type='character'),
  	make_option(c("--control.list"), default=NULL, help="one column file containing list of controls",type='character'),
- 	make_option(c("--TargetGenes"), default=NULL, help="Gene Symbol(s)",type='character'),
+ 	make_option(c("--SampleGene"), default=NULL, help="Gene Symbol",type='character'),
+ 	make_option(c("--TargetGenes"), default=NULL, help="Gene File",type='character'),
+ 	make_option(c("--MinReadDepth"), default=0, help="Specify MinReadDepth",type='character'),
+ 	make_option(c("--SavePrep"), default=FALSE, help="Do you want to save an image of setup?",type='character'),
+ 	make_option(c("--minCadd"), default=20, help="minimum CADD score for retained variants",type='character'),
+ 	make_option(c("--maxExac"), default=0.01, help="Max EXAC maf for retained variants",type='character'),
  	make_option(c("--oDir"),default='SKATtest',type='character')
  )
 
@@ -43,7 +51,23 @@ if ( opt$verbose ) {
 case.list=opt$case.list
 control.list=opt$control.list
 outputDirectory=opt$oDir
-TargetGenes=opt$TargetGenes
+
+if( (!is.null(opt$SampleGene)) && ( !is.null(opt$TargetGenes)) ) stop("Please supply either a single gene to SampleGene or a file of gene names to TargetGenes. Not both.")
+if(!is.null(opt$SampleGene))
+{
+ 	TargetGenes=opt$SampleGene
+ 	message(paste("Setting up environment to test for gene:",TargetGenes))
+} 
+if(!is.null(opt$TargetGenes))
+{
+	TargetGenes=read.table(opt$TargetGenes,header=FALSE)[,1]
+	message(paste("Read",length(TargetGenes),'genes from file',opt$TargetGenes))
+} 
+
+min.depth=as.numeric(opt$MinReadDepth) 
+SavePrep=opt$SavePrep
+maxExac=as.numeric(opt$maxExac)
+minCadd=as.numeric(opt$minCadd)
 
 ## Check cases
 if(!file.exists(case.list))stop("Case file doesn't exist. ")
@@ -71,7 +95,9 @@ if(outputDirectory=='SKATtest')message('output directory not specified so will u
 message("Finished Argument checks.\n")
 message("Starting test setup.\n")
 
-doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,release='July2016',compoundHets='Yes',TargetGenes=NULL)
+doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,release='July2016',compoundHets='Yes',TargetGenes=NULL,
+	minCadd=20,maxExac=0.01
+	)
 {
 	outputDirectory<-paste0(outputDirectory,'/')
 	rootODir<-paste0('/SAN/vyplab/UCLex/mainset_',release,'/cian/') 
@@ -93,13 +119,19 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 	gene.dict$ENST<-NULL
 	gene.dict<-unique(gene.dict)
 	snp.gene<-merge(gene.dict,snp.gene.base,by="ENSEMBL",all.y=T)
+	
+	## This anno file contains Exac mafs, CADD scores etc. Filter SNP list based on user input. 
+	snp.annotations<-read.table(paste0(rootODir,'Annotations/func.tab'),header=TRUE,sep='\t')
+	filtered.snp.list<-subset(snp.annotations,snp.annotations$CADD>=minCadd & snp.annotations$ExAC_MAF<=maxExac)$SNP
+	message(paste(length(filtered.snp.list),'SNPs kept after CADD and Exac filters of',minCadd,'and',maxExac,'respectively.')) 
 
 	if(!is.null(TargetGenes)) ## if we're testing a couple genes only, Im subsetting SNPmatrix to make it faster to read in. 
 	{
 		data<-paste0(rootODir,'gene_test_variants_out') 
 		target.snp.info<- snp.gene[ snp.gene$Symbol %in% TargetGenes,]
-		write.table(target.snp.info$SNP,paste0(outputDirectory,TargetGenes[1]),col.names=F,row.names=F,quote=F,sep='\t')
-		message(paste(nrow(target.snp.info),'SNPs found in:', TargetGenes))
+		target.snps<- target.snp.info$SNP[target.snp.info$SNP %in% filtered.snp.list]
+		write.table(target.snps,paste0(outputDirectory,TargetGenes[1]),col.names=F,row.names=F,quote=F,sep='\t')
+		message(paste(length(target.snps),'SNPs found in:', TargetGenes))
 		message("Extracting from dataset...")
 		run<-paste(ldak,'--make-sp',paste0(outputDirectory,TargetGenes),'--sp',data,'--extract',paste0(outputDirectory,TargetGenes[1]))
 		print(run)
@@ -115,8 +147,11 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 
 	if(is.null(TargetGenes))
 	{
-		message("Reading in SNP data")
-		##SNP data in sp/bim/fam format. 
+		write.table(filtered.snp.list,paste0(outputDirectory,'SNPlist'),col.names=F,row.names=F,quote=F,sep='\t')
+		message("Extracting from dataset...")
+		run<-paste(ldak,'--make-sp',paste0(outputDirectory,TargetGenes),'--sp',data,'--extract',paste0(outputDirectory,'SNPlist'))
+		print(run)
+		system(run)
 		snp.sp<-read.table(paste0(rootODir,'gene_test_variants_out.sp'),header=F)
 		snp.bim<-read.table(paste0(rootODir,'gene_test_variants_out.bim'),header=F)
 		snp.fam<-read.table(paste0(rootODir,'gene_test_variants_out.fam'),header=F)
@@ -131,33 +166,41 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 	## these are teh snps that have been filterd by func and maf
 	unrelated<-read.table(paste0(dirname(rootODir),"/kinship/UCL-exome_unrelated.txt")) ## Keeping only unrelated individiuals
 	snp.sp<-snp.sp[,colnames(snp.sp)%in%unrelated[,1]]
+	print(paste('Read Depth filter set at:',min.depth ) ) 
+	if(min.depth>0)
+	{
+		message("Reading in Read Depth data")
+		read.depth<-read.table(paste0(rootODir,'Average.read.depth.by.gene.by.sample.tab'),header=T)
+		sample.means<-colMeans(read.depth[,5:ncol(read.depth)])
+		good.samples<-which(sample.means>=min.depth)
+		bad.samples<-names(which(sample.means<min.depth))
+		write.table(bad.samples,paste0(qc,'samples_removed_because_of_low_read_depth.tab'),col.names=F,row.names=F,quote=F,sep='\t')
 
+		gene.means<-rowMeans(read.depth[,5:ncol(read.depth)])
+		good.genes<-which(gene.means>=min.depth)
+		bad.genes<-read.depth$Gene[which(gene.means<min.depth)]
+		write.table(bad.genes,paste0(qc,'genes_removed_because_of_low_read_depth.tab'),col.names=F,row.names=F,quote=F,sep='\t')
 
+		good.genes.snps<-snp.gene$SNP[snp.gene$ENSEMBL %in% read.depth$Gene[good.genes]]
+		clean.snp.data<- snp.sp[rownames(snp.sp) %in% good.genes.snps ,  colnames(snp.sp) %in% colnames(read.depth)[good.samples] ]
+		snp.gene.clean<-snp.gene[snp.gene$SNP %in%rownames(clean.snp.data),]
+		write.table(snp.gene.clean,paste0(qc,'read.depth.ancestry.func.clean.snps.tab'),col.names=F,row.names=F,quote=F,sep='\t')
 
-	message("Reading in Read Depth data")
-
-	read.depth<-read.table(paste0(rootODir,'Average.read.depth.by.gene.by.sample.tab'),header=T)
-	sample.means<-colMeans(read.depth[,5:ncol(read.depth)])
-	good.samples<-which(sample.means>=min.depth)
-	bad.samples<-names(which(sample.means<min.depth))
-	write.table(bad.samples,paste0(qc,'samples_removed_because_of_low_read_depth.tab'),col.names=F,row.names=F,quote=F,sep='\t')
-
-	gene.means<-rowMeans(read.depth[,5:ncol(read.depth)])
-	good.genes<-which(gene.means>=min.depth)
-	bad.genes<-read.depth$Gene[which(gene.means<min.depth)]
-	write.table(bad.genes,paste0(qc,'genes_removed_because_of_low_read_depth.tab'),col.names=F,row.names=F,quote=F,sep='\t')
-
-	good.genes.snps<-snp.gene$SNP[snp.gene$ENSEMBL %in% read.depth$Gene[good.genes]]
-	clean.snp.data<- snp.sp[rownames(snp.sp) %in% good.genes.snps ,  colnames(snp.sp) %in% colnames(read.depth)[good.samples] ]
-	snp.gene.clean<-snp.gene[snp.gene$SNP %in%rownames(clean.snp.data),]
-	write.table(snp.gene.clean,paste0(qc,'read.depth.ancestry.func.clean.snps.tab'),col.names=F,row.names=F,quote=F,sep='\t')
-
-	good.genes.data<-snp.gene[snp.gene$ENSEMBL %in% read.depth$Gene[good.genes],]
-	uniq.genes<-unique(good.genes.data$ENSEMBL)
-	nb.genes<-length(uniq.genes)
+		good.genes.data<-snp.gene[snp.gene$ENSEMBL %in% read.depth$Gene[good.genes],]
+		uniq.genes<-unique(good.genes.data$ENSEMBL)
+		nb.genes<-length(uniq.genes)
+		rm(read.depth)
+	} else
+	{
+		message("No read depth filter specified. Skipping step.")
+		clean.snp.data<- snp.sp
+		good.genes.data<-snp.gene
+		uniq.genes<-unique(good.genes.data$ENSEMBL)
+		nb.genes<-length(uniq.genes)
+	}
 
 	###### clean
-	rm(read.depth,snp.sp,snp.gene.base)
+	rm(snp.sp,snp.gene.base)
 	######
 
 	current.pheno<-rep(NA,ncol(clean.snp.data))
@@ -171,20 +214,20 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 	write.table(my.cases,paste0(outputDirectory,'control.list'),col.names=FALSE,row.names=FALSE,quote=FALSE)
 	write.table(my.controls,paste0(outputDirectory,'case.list'),col.names=FALSE,row.names=FALSE,quote=FALSE)
 
-
+	## Make the outptu dataframe
 	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls','nb.variants.cases','nb.variants.ctrls','case.maf','ctrl.maf','total.maf','nb.case.homs',
-		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio','CompoundHetPvalue'
+		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio','CompoundHetPvalue','minCadd','maxExac'
 		)
-
-
-	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols))) ## will add more columns later. (maf, call rate, mean depth etc)
+	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols)))
 	colnames(results)<-cols
 	results$Gene<-uniq.genes
+	results$minCadd<-minCadd
+	results$maxExac<-maxExacc
 	results<-merge(gene.dict,results,by.y='Gene',by.x='ENSEMBL',all.y=T)
 	srt<-data.frame(1:length(uniq.genes),uniq.genes)
 	results<-merge(results,srt,by.y='uniq.genes',by.x='ENSEMBL')
 	results<-results[order(results[,(ncol(results))]),]
-	results<-results[,1:(ncol(results)-1)]
+	#results<-results[,1:(ncol(results)-1)]
 	uniq.genes<-unique(results[,1])
 	nb.genes<-length(uniq.genes)
 
@@ -197,10 +240,12 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 		nb.genes<-length(uniq.genes)
 	}
 
-	robj<-paste0(outputDirectory,'test_setup.RData')
-	message(paste('Saving workspace image to', robj))
-	save(list=ls(environment()),file=robj)
-
+	if(SavePrep)
+	{
+		robj<-paste0(outputDirectory,'test_setup.RData')
+		message(paste('Saving workspace image to', robj))
+		save(list=ls(environment()),file=robj)
+	}	
 	###################################
 	message(paste("Starting tests on", nb.genes, 'genes')) 
 	###################################
@@ -217,7 +262,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 
 		gene.snp.data<-clean.snp.data[ rownames(clean.snp.data) %in% gene.snps ,]
 		nb.snps.in.gene<-nrow(gene.snp.data)
-		print(paste(nb.snps.in.gene,'snps in 1', uniq.genes[gene]))
+		print(paste(nb.snps.in.gene,'snps in', uniq.genes[gene],'before full filtering complete')) 
 
 		results$Chr[gene]<-gene.chr
 		results$Start[gene]<-gene.start
@@ -240,10 +285,10 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 			damaging.snps<-names(which(maf.snp.cases>maf.snp.ctrls))
 			final.snp.set<-gene.snp.data[rownames(gene.snp.data) %in% damaging.snps, ]
 			nb.snps.in.gene2<-nrow(final.snp.set)
-
+			
+			print(paste(nb.snps.in.gene2,'snps in', uniq.genes[gene],'after filtering'))
 			if(nb.snps.in.gene2>0)
 			{
-				print(paste(nb.snps.in.gene2,'snps in', uniq.genes[gene]))
 				case.snps<-final.snp.set[,which(current.pheno==1)]
 				ctrl.snps<-final.snp.set[,which(current.pheno==0)]
 				results$nb.cases[gene]<-length(which(!is.na(unlist(case.snps))) )
@@ -394,7 +439,6 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 				}
 
 
-
 				print(results[gene,])
 			}
 		}
@@ -406,18 +450,21 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=20,releas
 		qqplot.out <- paste0(outputDirectory,'skat_QQplot.png')
 
 		write.table(results,results.out,col.names=T,row.names=F,quote=F,sep=',')
+	
+	if(is.null(TargetGenes))
+	{
 		png(qqplot.out)
 		qq.chisq(-2*log(results$SKATO), df=2, x.max=30, main='SKAT',cex.main=0.7)	
 		dev.off() 
+	}
 
-
-
+print("Finished testing.")
 } #doSKAT
 
 
 
 
 #### now run function.
-doSKAT(case.list=case.list,control.list=control.list,outputDirectory=outputDirectory,TargetGenes=TargetGenes)
+doSKAT(case.list=case.list,control.list=control.list,outputDirectory=outputDirectory,TargetGenes=TargetGenes,min.depth=min.depth,minCadd=minCadd,maxExac=maxExac)
 
 
