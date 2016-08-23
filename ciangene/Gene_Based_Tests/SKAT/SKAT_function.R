@@ -152,9 +152,12 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,release
 		message("Extracting from dataset...")
 		run<-paste(ldak,'--make-sp',ldak.subset.file,'--sp',data,'--extract',snplist.file)
 		system(run)
-		snp.sp<-read.table(paste0(rootODir,'gene_test_variants_out.sp'),header=F)
-		snp.bim<-read.table(paste0(rootODir,'gene_test_variants_out.bim'),header=F)
-		snp.fam<-read.table(paste0(rootODir,'gene_test_variants_out.fam'),header=F)
+		snp.sp<-read.table(paste0(rootODir,'allChr_snpStats.sp'),header=F)
+		snp.bim<-read.table(paste0(rootODir,'allChr_snpStats.bim'),header=F)
+		snp.fam<-read.table(paste0(rootODir,'allChr_snpStats.fam'),header=F)
+		#snp.sp<-read.table(paste0(rootODir,'gene_test_variants_out.sp'),header=F)
+		#snp.bim<-read.table(paste0(rootODir,'gene_test_variants_out.bim'),header=F)
+		#snp.fam<-read.table(paste0(rootODir,'gene_test_variants_out.fam'),header=F)
 		colnames(snp.sp)<-snp.fam[,1]
 		rownames(snp.sp)<-snp.bim[,2]
 	}
@@ -216,13 +219,14 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,release
 
 	## Make the outptu dataframe
 	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls','nb.variants.cases','nb.variants.ctrls','case.maf','ctrl.maf','total.maf','nb.case.homs',
-		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio','CompoundHetPvalue','minCadd','maxExac'
+		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio','CompoundHetPvalue','minCadd','maxExac','min.depth'
 		)
 	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols)))
 	colnames(results)<-cols
 	results$Gene<-uniq.genes
 	results$minCadd<-minCadd
 	results$maxExac<-maxExac
+	results$min.depth<-min.depth
 	results<-merge(gene.dict,results,by.y='Gene',by.x='ENSEMBL',all.y=T)
 	srt<-data.frame(1:length(uniq.genes),uniq.genes)
 	results<-merge(results,srt,by.y='uniq.genes',by.x='ENSEMBL')
@@ -349,7 +353,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,release
 				snp.out<-data.frame( rownames(final.snp.set),case.snp.hets,case.snp.homs, maf.snp.cases,ctrl.snp.hets,ctrl.snp.homs, maf.snp.ctrls,results[gene,]) 
 				write.table( snp.out, oFile, col.names=!file.exists(oFile),row.names=F,quote=F,sep='\t',append=T)
 
-				fixNames<-function(snps)
+				GetCarriers<-function(snps)
 				{
 					car<- rownames( data.frame(unlist(apply(snps,1,function(x) which(x>0 )))))
 					if(nrow(snps)==1)
@@ -382,25 +386,36 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,release
 				return(dat)
 				}
 
+				case.calls<-FALSE
+				ctrl.calls<-FALSE
+				if(sum(case.snps,na.rm=T)>0)
+				{
+					case.dat<-GetCarriers(case.snps)
+					case.dat<-data.frame(case.dat,uniq.genes[gene])
+					write.table(case.dat, caseFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
+					case.calls<-TRUE
+				}
 
-				case.dat<-fixNames(case.snps)
-				ctrl.dat<-fixNames(ctrl.snps)
-				case.dat<-data.frame(case.dat,uniq.genes[gene])
-				ctrl.dat<-data.frame(ctrl.dat,uniq.genes[gene])
-				write.table(case.dat, caseFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
-				write.table(ctrl.dat,ctrlFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
-
+				if(sum(ctrl.snps,na.rm=T)>0)
+				{
+					ctrl.dat<-GetCarriers(ctrl.snps)
+					ctrl.dat<-data.frame(ctrl.dat,uniq.genes[gene])
+					write.table(ctrl.dat,ctrlFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
+					ctrl.calls<-TRUE
+				}
+	
 				if(compoundHets=='Yes')
 				{
 
-					GetCompoundHets<-function(snp.dat,outFile)
+					GetCompoundHets<-function(snps,snp.dat,outFile)
 					{
-						compound.hets.names<-names(which(table(snp.dat$carriers.clean)>1))
+						compound.hets.names<-names(which(table(snp.dat[,grep("carriers",colnames(snp.dat))] )>1)) # who has more than one snp
 						nb.hets<-0
 						for(i in 1:length(compound.hets.names))
 						{
-							compound.snps<-t(snp.dat$variants[snp.dat$carriers.clean%in%compound.hets.names[i] ] )
-							tt<-data.frame(compound.hets.names[i],compound.snps,uniq.genes[gene]) 
+							compound.snps<-t( snp.dat$variants[ grep(compound.hets.names[i],snp.dat[,grep("carriers",colnames(snp.dat))]) ] ) ## get names of snps seen in same individual
+							compound.snp.calls<-snps[rownames(snps)%in%compound.snps,colnames(snps)%in%compound.hets.names[i]]
+							tt<-data.frame(uniq.genes[gene],compound.hets.names[i],compound.snps,compound.snp.calls) 
 							if(length(tt)>0)
 							{
 								write.table(tt,outFile,col.names=F,row.names=F,quote=F,sep='\t',append=T)
@@ -414,14 +429,14 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,release
 
 					caseTest<-FALSE
 					ctrlTest<-FALSE
-					if(length(unique(case.dat[,grep("carriers",colnames(case.dat))]))<nrow(case.dat) )
+					if(case.calls && length(unique(case.dat[,grep("carriers",colnames(case.dat))]))<nrow(case.dat) )
 					{
-						case.compound.hets<-GetCompoundHets(case.dat,compoundFileCases)
+						case.compound.hets<-GetCompoundHets(case.snps,case.dat,compoundFileCases)
 						caseTest<-TRUE
 					}
-					if(length(unique(ctrl.dat[,grep("carriers",colnames(ctrl.dat))]))<nrow(ctrl.dat) )
+					if(ctrl.calls && length(unique(ctrl.dat[,grep("carriers",colnames(ctrl.dat))]))<nrow(ctrl.dat) )
 					{
-						ctrl.compound.hets<-GetCompoundHets(ctrl.dat,compoundFileCtrls)
+						ctrl.compound.hets<-GetCompoundHets(ctrl.snps,ctrl.dat,compoundFileCtrls)
 						ctrlTest<-TRUE
 					}
 					if(caseTest && ctrlTest)
