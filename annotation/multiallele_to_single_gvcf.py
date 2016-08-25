@@ -5,20 +5,20 @@ import sys
 import argparse
 
 #these 9 column headers are standard to all VCF files
-STD_HEADERS=['CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT']
 #the samples headers depend on the number of samples in the file
 #which we find out once we read the #CHROM line
 SAMPLE_HEADERS=[]
 
-
 parser=argparse.ArgumentParser(description='Arguments to multiallele_to_single_gvcf.py')
 parser.add_argument('--GQ',default=None,type=int)
 parser.add_argument('--DP',default=None,type=int)
+parser.add_argument('--headers',default=','.join(['CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT']),type=str)
 
 args=parser.parse_args()
 #args.GQ
 #args.DP
-
+#STD_HEADERS=['CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT']
+STD_HEADERS=args.headers.strip().split(',')
 
 def print_line(s):
     if s['ID']=='.':
@@ -42,7 +42,9 @@ for line in sys.stdin:
         headers=s
         headers[0]=headers[0].strip('#')
         #the first 9 names in the header are standard (see above)
-        if (headers[0:len(STD_HEADERS)] != STD_HEADERS): raise 'hell'
+        if (headers[0:len(STD_HEADERS)] != STD_HEADERS):
+            print( headers[0:len(STD_HEADERS)],  STD_HEADERS )
+            raise 'hell'
         #everything else in the header is a sample name
         SAMPLE_HEADERS=headers[len(STD_HEADERS):]
         continue
@@ -63,8 +65,10 @@ for line in sys.stdin:
         d=dict(zip(s['FORMAT'].split(':'),s[h].split(':')))
         GT=d['GT'].replace('|','/')
         AD=d.get('AD',','.join(['0']*(len(alternative_alleles)+1)))
-        DP=d.get('DP','0')
-        DP=str(sum([int(x) if x!='.' else 0 for x in AD.split(',')]))
+        if 'DP' in d:
+            DP=(d['DP'])
+        else:
+            DP=str(sum([int(x) if x!='.' else 0 for x in AD.split(',')]))
         GQ=d.get('GQ','')
         # if GQ is '.' the must be missing
         if GQ == '.' and GT != './.': raise 'hell'
