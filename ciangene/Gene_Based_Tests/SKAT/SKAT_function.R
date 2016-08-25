@@ -36,8 +36,8 @@ option_list <- list(
  	make_option(c("--TargetGenes"), default=NULL, help="Gene File",type='character'),
  	make_option(c("--MinReadDepth"), default=0, help="Specify MinReadDepth",type='character'),
  	make_option(c("--SavePrep"), default=FALSE, help="Do you want to save an image of setup?",type='character'),
- 	make_option(c("--minCadd"), default=20, help="minimum CADD score for retained variants",type='character'),
- 	make_option(c("--maxExac"), default=0.01, help="Max EXAC maf for retained variants",type='character'),
+ 	make_option(c("--minCadd"), default=10, help="minimum CADD score for retained variants",type='character'),
+ 	make_option(c("--maxExac"), default=0.001, help="Max EXAC maf for retained variants",type='character'),
  	make_option(c("--oDir"),default='SKATtest',type='character')
  )
 
@@ -64,6 +64,7 @@ if(!is.null(opt$TargetGenes))
 	message(paste("Read",length(TargetGenes),'genes from file',paste0('--',opt$TargetGenes,'--')))
 } 
 
+print(paste('TargetGenes',TargetGenes))
 min.depth=as.numeric(opt$MinReadDepth) 
 SavePrep=opt$SavePrep
 maxExac=as.numeric(opt$maxExac)
@@ -372,8 +373,13 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,release
 					
 					if( ( identical(dat[,1],dat[,2])  | is.na(dat[,1])) && nrow(snps)>1)
 					{
-						carriers<-colnames(snps)[apply(snps,1,function(x) which(x>0 ))]
-						variants<-str_extract(rownames(snps),"[0-9]{1,2}_[0-9]+_[A-Z]_[A-Z]")
+						index<-which(snps>0, arr.ind=TRUE)
+						tt<-data.frame(matrix(nrow=nrow(index),ncol=2))
+						tt[,1]<- rownames(snps)[index[1:nrow(index)]]
+						tt[,2]<- colnames(snps)[index[nrow(index)+(1:nrow(index))]]
+
+						carriers<-tt[,2]
+						variants<-tt[,1]
 						dat<-data.frame(cbind(variants,carriers))
 					} 
 					if( ( identical(dat[,1],dat[,2])  | is.na(dat[,1]) ) && nrow(snps)==1)
@@ -385,7 +391,6 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,release
 					} 
 				return(dat)
 				}
-
 				case.calls<-FALSE
 				ctrl.calls<-FALSE
 				if(sum(case.snps,na.rm=T)>0)
