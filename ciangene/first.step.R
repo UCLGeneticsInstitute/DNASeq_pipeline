@@ -22,7 +22,7 @@ dir<-paste0('/SAN/vyplab/UCLex/mainset_',release,'/mainset_',release, '_snpStats
 
 files <- list.files(dir, pattern ="_snpStats.RData", full.names=T) 
 files <- files[order(as.numeric(gsub(gsub(basename(files), pattern ="chr", replacement =""), pattern = "_.*", replacement = "") ) )]
-
+print(files)
 
 ############################################## New - combined annovar with VEP 
 files.chr<-as.numeric( gsub(gsub(basename(files),pattern='chr',replacement=''),pattern='_.*',replacement=''))
