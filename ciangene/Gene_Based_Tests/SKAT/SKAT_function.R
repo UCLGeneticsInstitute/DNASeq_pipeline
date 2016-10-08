@@ -41,15 +41,17 @@ option_list <- list(
  	make_option(c("--TargetGenes"), default=NULL, help="Gene File",type='character'),
  	make_option(c("--MinReadDepth"), default=10, help="Specify MinReadDepth",type='character'),
  	make_option(c("--SavePrep"), default=FALSE, help="Do you want to save an image of setup?",type='character'),
- 	make_option(c("--minCadd"), default=10, help="minimum CADD score for retained variants",type='character'),
- 	make_option(c("--maxExac"), default=0.01, help="Max EXAC maf for retained variants",type='character'),
+ 	make_option(c("--minCadd"), default=20, help="minimum CADD score for retained variants",type='character'),
+ 	make_option(c("--maxExac"), default=0.001, help="Max EXAC maf for retained variants",type='character'),
  	make_option(c("--oDir"),default='SKATtest',type='character'),
  	make_option(c("--MinSNPs"),default=3,type='character'),
  	make_option(c("--PlotPCA"),default=TRUE,type='character'), 
  	make_option(c("--homozyg.mapping"),default=FALSE,type='character'),  
- 	make_option(c("--MaxMissRate"),default=20,type='character'), 
- 	make_option(c("--HWEp"),default=0 ,type='character'), 
- 	make_option(c("--compoundHets"),default=NULL,type='character') 
+ 	make_option(c("--MaxMissRate"),default=10,type='character'), 
+ 	make_option(c("--HWEp"),default=0.000001 ,type='character'), 
+ 	make_option(c("--compoundHets"),default=NULL,type='character'),
+ 	make_option(c("--Release"),default='July2016',type='character') 
+
  )
 
 
@@ -73,6 +75,7 @@ maxExac<-as.numeric(opt$maxExac)
 minCadd<-as.numeric(opt$minCadd)
 MinSNPs<-as.numeric(opt$MinSNPs)
 HWEp<-as.numeric(opt$HWEp)
+UCLex_Release<-opt$Release
 
 if( (!is.null(opt$SampleGene)) && ( !is.null(opt$TargetGenes)) ) stop("Please supply either a single gene to SampleGene or a file of gene names to TargetGenes. Not both.")
 if(!is.null(opt$SampleGene))
@@ -117,7 +120,8 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 {
 	outputDirectory<-paste0(outputDirectory,'/')
 	rootODir<-paste0('/SAN/vyplab/UCLex/mainset_',release,'/cian/') 
-	if(!file.exists(outputDirectory)) dir.create(outputDirectory)
+	if(file.exists(outputDirectory))file.remove(outputDirectory)
+	dir.create(outputDirectory)
 	qc<-paste0(outputDirectory,'/qc/')
 	if(!file.exists(qc))dir.create(qc)
 
@@ -127,6 +131,10 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 	if(file.exists(caseFile)) file.remove(caseFile)
 	ctrlFile<-paste0(outputDirectory,'ctrl_carriers')
 	if(file.exists(ctrlFile)) file.remove(ctrlFile)
+	compoundFileCases<-paste0(outputDirectory,'CompoundHets_cases')
+	compoundFileCtrls<-paste0(outputDirectory,'CompoundHets_ctrls')
+	if(file.exists(compoundFileCases)) file.remove(compoundFileCases)
+	if(file.exists(compoundFileCtrls)) file.remove(compoundFileCtrls)
 
 	message("Reading in snp/gene database")
 	snp.gene.base<-as.data.frame(fread(paste0(rootODir,'snp_gene_id'),header=F))
@@ -199,6 +207,10 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 		rownames(snp.sp)<-snp.bim[,2]
 	}
 
+		
+	current.pheno<-rep(NA,ncol(	snp.sp))
+	current.pheno[colnames(snp.sp)%in%case.list]<-1
+
 	## ancestry matching
 	ancestry<-read.table(paste0(rootODir,'UCLex_samples_ancestry'),header=T)
 	techPCs<-read.table(paste0(rootODir,'TechPCs.vect'),header=F)
@@ -208,28 +220,34 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 	#snps<-snp.sp[,colnames(snp.sp)%in%caucasians]
 	## these are teh snps that have been filterd by func and maf
 	unrelated<-read.table(paste0(dirname(rootODir),"/kinship/UCL-exome_unrelated.txt")) ## Keeping only unrelated individiuals
-	snp.sp<-snp.sp[,colnames(snp.sp)%in%unrelated[,1]]
+	#snp.sp<-snp.sp[,colnames(snp.sp)%in%unrelated[,1]]
 	message(paste('Read Depth filter set at:',min.depth ) ) 
+
 	if(min.depth>0)
 	{
 		message("Reading in Read Depth data")
 		read.depth<-as.data.frame(fread(paste0(rootODir,'Average.read.depth.by.gene.by.sample.tab'),header=T))
-		sample.means<-colMeans(read.depth[,5:ncol(read.depth)])
+		read.depth.vals<-read.depth[,5:ncol(read.depth)]
+		sample.means<-colMeans(read.depth.vals)
 		good.samples<-which(sample.means>=min.depth)
 		##################################################################
 		## should change this to only calculate mean based on genes in targetgenes/samplegenes. 
 		##################################################################
 		
 		bad.samples<-names(which(sample.means<min.depth))
+		bad.cases<-bad.samples[bad.samples %in% case.list]
+		if(length(bad.cases)>0)print(bad.cases)
 		write.table(bad.samples,paste0(qc,'samples_removed_because_of_low_read_depth.tab'),col.names=F,row.names=F,quote=F,sep='\t')
+		write.table(bad.cases,paste0(qc,'cases_removed_because_of_low_read_depth.tab'),col.names=F,row.names=F,quote=F,sep='\t')
 
-		gene.means<-rowMeans(read.depth[,5:ncol(read.depth)])
+		gene.means<-rowMeans(read.depth.vals)
 		good.genes<-which(gene.means>=min.depth)
 		bad.genes<-read.depth$Gene[which(gene.means<min.depth)]
 		write.table(bad.genes,paste0(qc,'genes_removed_because_of_low_read_depth.tab'),col.names=F,row.names=F,quote=F,sep='\t')
 
 		good.genes.snps<-snp.gene$SNP[snp.gene$ENSEMBL %in% read.depth$Gene[good.genes]]
-		clean.snp.data<- snp.sp[rownames(snp.sp) %in% good.genes.snps ,  colnames(snp.sp) %in% colnames(read.depth)[good.samples] ]
+		clean.snp.data<- snp.sp[rownames(snp.sp) %in% good.genes.snps ,  colnames(snp.sp) %in% colnames(read.depth)[colnames(read.depth) %in% names(good.samples) ] ]
+
 		snp.gene.clean<-snp.gene[snp.gene$SNP %in%rownames(clean.snp.data),]
 		write.table(snp.gene.clean,paste0(qc,'read.depth.ancestry.func.clean.snps.tab'),col.names=F,row.names=F,quote=F,sep='\t')
 
@@ -276,7 +294,10 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 
 	current.pheno<-rep(NA,ncol(clean.snp.data))
 	current.pheno[colnames(clean.snp.data)%in%case.list]<-1
+
 	my.cases<-colnames(clean.snp.data)[colnames(clean.snp.data)%in%case.list]
+	print(my.cases)
+	print(length(my.cases))
 	if(!is.null(control.list))
 	{
 		current.pheno[colnames(clean.snp.data)%in%control.list]<-0
@@ -294,6 +315,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 		{
 			pcaData$is.case<-FALSE
 			pcaData$is.case[pcaData[,1] %in% caseList]<-TRUE
+			pcaData$is.case<-as.factor(pcaData$is.case)
 			colnames(pcaData)[3:4]<-c('PC1','PC2')
 			pcaData
 		}
@@ -305,17 +327,17 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 		pdf(pca.plots) 
 
 		pca.plot<- ggplot(ancestry.plot, aes(x=PC1, y=PC2,  
-					color=as.factor(is.case)))+ geom_point(alpha=0.5) +ggtitle("Ancestry PCA")
+					color=is.case))+ geom_point(alpha=0.5) +ggtitle("Ancestry PCA")
 		pca.plot<- pca.plot +annotate("point",ancestry.plot$PC1[ancestry.plot$is.case], ancestry.plot$PC2[ancestry.plot$is.case])
   		print(pca.plot)
 
 		pca.plot<- ggplot(tech.plot, aes(x=PC1, y=PC2,  
-					color=as.factor(is.case)))+ geom_point(alpha=0.5) +ggtitle("SNP Missingness PCA")
+					color=is.case))+ geom_point(alpha=0.5) +ggtitle("SNP Missingness PCA")
 		pca.plot<- pca.plot +annotate("point",tech.plot$PC1[tech.plot$is.case], tech.plot$PC2[tech.plot$is.case])
   		print(pca.plot)
 
 		pca.plot<- ggplot(depth.plot, aes(x=PC1, y=PC2,  
-					color=as.factor(is.case)))+ geom_point(alpha=0.5) +ggtitle("Read Depth PCA")
+					color=is.case))+ geom_point(alpha=0.5) +ggtitle("Read Depth PCA")
 		pca.plot<- pca.plot +annotate("point",depth.plot$PC1[depth.plot$is.case], depth.plot$PC2[depth.plot$is.case])
   		print(pca.plot)
 
@@ -325,7 +347,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 	## Make the outptu dataframe
 	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls','nb.alleles.cases','nb.alleles.ctrls','case.maf','ctrl.maf','total.maf','nb.case.homs',
 		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio','CompoundHetPvalue','minCadd','maxExac','min.depth',
-		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','SNPs'
+		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','MinSNPs','SNPs'
 		)
 	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols)))
 	colnames(results)<-cols
@@ -334,6 +356,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 	results$maxExac<-maxExac
 	results$min.depth<-min.depth
 	results$HWEp<-HWEp
+	results$MinSNPs<-MinSNPs
 	results<-merge(gene.dict,results,by.y='Gene',by.x='ENSEMBL',all.y=T)
 	srt<-data.frame(1:length(uniq.genes),uniq.genes)
 	results<-merge(results,srt,by.y='uniq.genes',by.x='ENSEMBL')
@@ -390,7 +413,6 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 			case.snps<-gene.snp.data[,which(current.pheno==1)]
 			ctrl.snps<-gene.snp.data[,which(current.pheno==0)]
 
-
 			if(sum(case.snps,na.rm=T)>0)
 			{
 				case.snpStats<-invisible(new("SnpMatrix",t(case.snps+1)))
@@ -433,7 +455,8 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 
 					if(HWEp>0)
 					{
-						## Hardy weinberg filtering in ctonrols. 
+						## Hardy weinberg filtering in ctonrols.
+						ctrl.summary<-col.summary(ctrl.snpStats)
 						hwe.pvals<-pnorm(-abs(ctrl.summary$z.HWE))
 						hwe.pvals[is.na(hwe.pvals)]<-1
 						non.hwe.ctrl.snps<- rownames(ctrl.snps)[which(hwe.pvals <= HWEp) ]
@@ -458,8 +481,10 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 			maf.snp.cases<-apply(case.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
 			maf.snp.ctrls<-apply(ctrl.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
 			maf.snp.ctrls[is.na(maf.snp.ctrls)]<-0
-			damaging.snps<-names(which(maf.snp.cases>maf.snp.ctrls)) ## perhaps i want to include snps that are more common in cases
-			final.snp.set<-gene.snp.data[rownames(case.snps) %in% damaging.snps, ]
+		#	damaging.snps<-names(which(maf.snp.cases>maf.snp.ctrls)) ## perhaps i want to include snps that are more common in cases
+		#	final.snp.set<-gene.snp.data[rownames(case.snps) %in% damaging.snps, ]
+			final.snp.set<-gene.snp.data
+
 			nb.snps.in.gene2<-nrow(final.snp.set)
 			print(paste('nb.snps.in.gene2=',nb.snps.in.gene2))
 	
@@ -468,7 +493,6 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 				case.snps<-final.snp.set[,which(current.pheno==1)]
 				ctrl.snps<-final.snp.set[,which(current.pheno==0)]
 				ctrl.snps<-ctrl.snps[,colnames(ctrl.snps)%in%good.ctrls]
-
 				if(sum(ctrl.snps,na.rm=T)>0)
 				{
 					ctrl.snpStats<-invisible(new("SnpMatrix",t(ctrl.snps+1)))
@@ -614,13 +638,11 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 						{
 							compound.hets.names<-names(which(table(snp.dat[,grep("carriers",colnames(snp.dat))] )>1)) # who has more than one snp
 							nb.hets<-0
-						#	temp<-'tmp'
-						#	if(file.exists(temp)) file.remove(temp)
 							for(i in 1:length(compound.hets.names))
 							{
-								compound.snps<-t( snp.dat$variants[ grep(compound.hets.names[i],snp.dat[,grep("carriers",colnames(snp.dat))]) ] ) ## get names of snps seen in same individual
-								compound.snp.calls<-snps[rownames(snps)%in%compound.snps,colnames(snps)%in%compound.hets.names[i]]
-								tt<-data.frame(uniq.genes[gene],compound.hets.names[i],compound.snps,t(compound.snp.calls) )
+								compound.snps<-t( snp.dat$variants[ grep(compound.hets.names[i],snp.dat[,grep("carriers",colnames(snp.dat))]) ] )  ## get names of snps seen in same individual
+								compound.snp.calls<-paste(snps[rownames(snps)%in%compound.snps,colnames(snps)%in%compound.hets.names[i]],collapse=';')
+								tt<-data.frame(uniq.genes[gene],compound.hets.names[i],paste(compound.snps,collapse=';'),t(compound.snp.calls) )
 								if(length(tt)>0)
 								{
 							#		write.table(tt,temp,col.names=F,row.names=F,quote=F,sep='\t',append=T)
@@ -628,36 +650,20 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 									nb.hets<-nb.hets+1
 								}
 							}
-							#if(file.exists(temp))
-							#{
-							#	tt<-read.table(temp,header=F)
-							#	return(tt)
-							#} else return("No compound hets found. Check this.")
 							return(nb.hets)
-						}
-						compoundFileCases<-paste0(outputDirectory,'CompoundHets_cases')
-						compoundFileCtrls<-paste0(outputDirectory,'CompoundHets_ctrls')
+						} 
 
 						caseTest<-FALSE
 						ctrlTest<-FALSE
 
-						CheckHomozygosityRun<-function(compoundHetDat,snpDat,oFile)
-						{
-							homozyg.dir<- paste0(outputDirectory,'Homozyg_mapping') 
-							if(!file.exists(homozyg.dir)) dir.create(homozyg.dir)
-							pdf.out<-paste0(homozyg.dir,'Homozyg_mapping')
-
-						}
-
-
 						if(case.calls && length(unique(case.dat[,grep("carriers",colnames(case.dat))]))<nrow(case.dat) )
 						{
-							case.compound.hets<-GetCompoundHets(case.snps,case.dat,compoundFileCases)
+							case.compound.hets<-GetCompoundHets(snps=case.snps,snp.dat=case.dat,outFile=compoundFileCases)
 							caseTest<-TRUE
 						}
 						if(ctrl.calls && length(unique(ctrl.dat[,grep("carriers",colnames(ctrl.dat))]))<nrow(ctrl.dat) )
 						{
-							ctrl.compound.hets<-GetCompoundHets(ctrl.snps,ctrl.dat,compoundFileCtrls)
+							ctrl.compound.hets<-GetCompoundHets(snps=ctrl.snps,snp.dat=ctrl.dat,outFile=compoundFileCtrls)
 							ctrlTest<-TRUE
 						}
 						if(caseTest && ctrlTest)
@@ -674,6 +680,15 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 			       						, nrow = 2, ncol = 2)
 						results$CompoundHetPvalue[gene]<-fisher.test(mat,alternative='greater')$p.value
 						}
+
+						CheckHomozygosityRun<-function(compoundHetDat,snpDat,oFile)
+						{
+							homozyg.dir<- paste0(outputDirectory,'Homozyg_mapping') 
+							if(!file.exists(homozyg.dir)) dir.create(homozyg.dir)
+							pdf.out<-paste0(homozyg.dir,'Homozyg_mapping')
+
+						}
+
 			#		}
 				}
 				print(results[gene,])
@@ -702,6 +717,6 @@ print("Finished testing.")
 
 
 #### now run function.
-doSKAT(case.list=case.list,control.list=control.list,outputDirectory=outputDirectory,TargetGenes=TargetGenes,min.depth=min.depth,minCadd=minCadd,maxExac=maxExac,MinSNPs=MinSNPs,compoundHets=compoundHets,MaxMissRate=MaxMissRate)
+doSKAT(case.list=case.list,control.list=control.list,outputDirectory=outputDirectory,TargetGenes=TargetGenes,min.depth=min.depth,minCadd=minCadd,maxExac=maxExac,MinSNPs=MinSNPs,compoundHets=compoundHets,MaxMissRate=MaxMissRate,release=UCLex_Release)
 
 
