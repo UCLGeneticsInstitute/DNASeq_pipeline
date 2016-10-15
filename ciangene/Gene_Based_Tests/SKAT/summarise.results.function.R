@@ -167,10 +167,10 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 
 
 	## Now make a filtered list of more plausible results
-	percent.cases.carriers<-10
-	nb.cases.carriers.required<- round( as.numeric(file$nb.cases) / percent.cases.carriers ) 
-	pval<-0.00001
-	filt<-subset(file,file$Nb.Carriers>=nb.cases.carriers.required & file$SKATO<=pval & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8) 
+	percent.cases.carriers<-2
+	nb.cases.carriers.required<- round( as.numeric(file$nb.cases) * (percent.cases.carriers/100)  ) [1]
+	pval<-0.0001
+	filt<-subset(file,file$Nb.Carriers>=nb.cases.carriers.required&file$SKATO<=pval & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8) 
 	
 	if(nrow(filt)>0)
 	{
@@ -180,7 +180,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		rownames(filt)<-1:nrow(filt)
 
 		message("Making HTML table for top genes")
-		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",3),rep("E",26),rep("s",4)))
+		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",3),'E',rep("d",6),rep("E",19),rep("s",4),'d'))
 		htmlOut<-paste0(outputDirectory,Title,"_SKAT.html")
 		print(htmlOut)
 		print.xtable(filt.xtable, type="html",file=htmlOut,scalebox=.7)

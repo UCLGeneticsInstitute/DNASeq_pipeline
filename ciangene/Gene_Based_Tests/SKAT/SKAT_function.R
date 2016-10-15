@@ -7,7 +7,9 @@
 
 ### Changes ####
 # added hwe filter - specify pval for cut off from exact test in controls.
-## added top 2 techPCs as covariates.
+# Fixed bug with zero count matrices
+# Added HWE filter for variants - controls only
+# added top 2 techPCs as covariates.
 # Added CADD and ExAC maf filter. 
 # Added ability to specify minReadDepth for filtering - default zero is fastest. 
 # Added ability to specify genes you're interested in testing: --TargetGenes for a file with names or --SampleGene for a single gene name
@@ -17,7 +19,7 @@
 # changed nb.cases/ctrls to nb non NA calls (so nb.cases now is nb.patients*nb.variants)
 # changed case.count/ctlr.count to allele counts. 1 het and 1 hom is a count of 3 for nb.variants.cases 
 # now not removing non caucasians - adding top two PCs as covariates into SKATO instead. 
-# removing related individuals. 
+# removing related individuals. ReEdit: ## Turned off for now. 
 # Fixed snp/gene matching
 # Keeping only damaging variants
 ########
@@ -40,8 +42,8 @@ option_list <- list(
  	make_option(c("--SampleGene"), default=NULL, help="Gene Symbol",type='character'),
  	make_option(c("--TargetGenes"), default=NULL, help="Gene File",type='character'),
  	make_option(c("--MinReadDepth"), default=10, help="Specify MinReadDepth",type='character'),
- 	make_option(c("--SavePrep"), default=FALSE, help="Do you want to save an image of setup?",type='character'),
- 	make_option(c("--minCadd"), default=20, help="minimum CADD score for retained variants",type='character'),
+ 	make_option(c("--SavePrep"), default=TRUE, help="Do you want to save an image of setup?",type='character'),
+ 	make_option(c("--minCadd"), default=30, help="minimum CADD score for retained variants",type='character'),
  	make_option(c("--maxExac"), default=0.001, help="Max EXAC maf for retained variants",type='character'),
  	make_option(c("--oDir"),default='SKATtest',type='character'),
  	make_option(c("--MinSNPs"),default=3,type='character'),
@@ -50,8 +52,9 @@ option_list <- list(
  	make_option(c("--MaxMissRate"),default=10,type='character'), 
  	make_option(c("--HWEp"),default=0.000001 ,type='character'), 
  	make_option(c("--compoundHets"),default=NULL,type='character'),
- 	make_option(c("--Release"),default='July2016',type='character') 
-
+ 	make_option(c("--Release"),default='July2016',type='character') ,
+ 	make_option(c("--MaxCtrlMAF"),default=0.001,type='character') ,
+ 	make_option(c("--qcPREP"),default=FALSE,type='character') 
  )
 
 
@@ -60,7 +63,8 @@ if ( opt$verbose ) {
  write("Starting Argument checks...\n", stderr())
 }
 
-
+MaxCtrlMAF<-as.numeric(opt$MaxCtrlMAF) 
+qcPREP <- opt$qcPREP
 chrom <- opt$chrom
 case.list<-opt$case.list
 control.list<-opt$control.list
@@ -116,12 +120,15 @@ if(outputDirectory!='SKATtest')print(paste("Outputting Results to:",outputDirect
 message("Finished Argument checks.\n")
 message("Starting test setup.\n")
 
-doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs=2,release='July2016',compoundHets='Yes',TargetGenes=NULL, minCadd=20,maxExac=0.01,MaxMissRate=NULL)
+doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=outputDirectory,TargetGenes=TargetGenes,
+	min.depth=min.depth,minCadd=minCadd,maxExac=maxExac,MinSNPs=MinSNPs,compoundHets=compoundHets,MaxMissRate=MaxMissRate,
+	chrom=chrom,PlotPCA=PlotPCA,homozyg.mapping=homozyg.mapping,HWEp=HWEp,
+	MaxCtrlMAF=MaxCtrlMAF,SavePrep=SavePrep)
 {
 	outputDirectory<-paste0(outputDirectory,'/')
-	rootODir<-paste0('/SAN/vyplab/UCLex/mainset_',release,'/cian/') 
+	rootODir<-paste0('/SAN/vyplab/UCLex/mainset_',UCLex_Release,'/cian/') 
 	if(file.exists(outputDirectory))file.remove(outputDirectory)
-	dir.create(outputDirectory)
+	dir.create(outputDirectory,recursive=TRUE)
 	qc<-paste0(outputDirectory,'/qc/')
 	if(!file.exists(qc))dir.create(qc)
 
@@ -167,7 +174,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 	ldak.subset.file<-paste0(outputDirectory,'qc/SNPlist_ldak')
 	if(!is.null(TargetGenes)) ## if we're testing a couple genes only, Im subsetting SNPmatrix to make it faster to read in. 
 	{
-		data<-paste0(rootODir,'gene_test_variants_out') 
+		data<-paste0(rootODir,'allChr_snpStats_out') 
 		#data<-'/SAN/vyplab/UCLex/mainset_July2016/cian/UCLex_phased/UCLex_phased_out'
 		#data<-paste0(rootODir,'allChr_snpStats')
 
@@ -176,7 +183,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 		write.table(target.snps,snplist.file,col.names=F,row.names=F,quote=F,sep='\t')
 		message(paste(length(target.snps),'SNPs found in target genes'))
 		message("Extracting these from dataset...")
-		run<-paste(ldak,'--make-sp',ldak.subset.file,'--sp',data,'--extract',snplist.file)
+		run<-paste(ldak,'--make-sp',ldak.subset.file,'--bfile',data,'--extract',snplist.file)
 		system(run)
 		message("Reading in SNP data")
 		snp.data<-paste0(outputDirectory,TargetGenes[1],'_out')
@@ -303,7 +310,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 		current.pheno[colnames(clean.snp.data)%in%control.list]<-0
 	} else current.pheno[!colnames(clean.snp.data)%in%case.list]<-0
 	my.controls<-colnames(clean.snp.data)[current.pheno==0]
-
+	bk.pheno<-current.pheno
 	
 	write.table(data.frame(colnames(clean.snp.data),current.pheno),paste0(outputDirectory,'PhenotypeFile'),col.names=FALSE,row.names=FALSE,quote=FALSE)
 	write.table(my.cases,paste0(outputDirectory,'case.list'),col.names=FALSE,row.names=FALSE,quote=FALSE)
@@ -347,7 +354,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 	## Make the outptu dataframe
 	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls','nb.alleles.cases','nb.alleles.ctrls','case.maf','ctrl.maf','total.maf','nb.case.homs',
 		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio','CompoundHetPvalue','minCadd','maxExac','min.depth',
-		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','MinSNPs','SNPs'
+		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','MinSNPs','SNPs','MaxCtrlMAF'
 		)
 	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols)))
 	colnames(results)<-cols
@@ -357,6 +364,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 	results$min.depth<-min.depth
 	results$HWEp<-HWEp
 	results$MinSNPs<-MinSNPs
+	results$MaxCtrlMAF<-MaxCtrlMAF
 	results<-merge(gene.dict,results,by.y='Gene',by.x='ENSEMBL',all.y=T)
 	srt<-data.frame(1:length(uniq.genes),uniq.genes)
 	results<-merge(results,srt,by.y='uniq.genes',by.x='ENSEMBL')
@@ -386,7 +394,8 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 
 	for(gene in 1:nb.genes)
 	{
-		if(gene%%100==0) message(paste('Up to gene',gene)) 
+		current.pheno<-bk.pheno
+		print(paste('Gene xx',uniq.genes[gene], gene))
 		gene.snps<-good.genes.data$SNP[ grep(uniq.genes[gene],good.genes.data$ENSEMBL) ]
 
 		gene.data<- data.frame(t(data.frame(strsplit(gene.snps,'_')))) 
@@ -413,7 +422,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 			case.snps<-gene.snp.data[,which(current.pheno==1)]
 			ctrl.snps<-gene.snp.data[,which(current.pheno==0)]
 
-			if(sum(case.snps,na.rm=T)>0)
+			if(sum(as.matrix(case.snps),na.rm=T)>0)
 			{
 				case.snpStats<-invisible(new("SnpMatrix",t(case.snps+1)))
 				case.summary<-col.summary(case.snpStats)
@@ -428,7 +437,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 				}
 			}
 
-			if(sum(ctrl.snps,na.rm=T)>0)
+			if(sum(as.matrix(ctrl.snps),na.rm=T)>0)
 			{
 				ctrl.snpStats<-invisible(new("SnpMatrix",t(ctrl.snps+1)))
 				ctrl.summary.by.sample<-row.summary(ctrl.snpStats)
@@ -456,6 +465,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 					if(HWEp>0)
 					{
 						## Hardy weinberg filtering in ctonrols.
+						ctrl.snpStats<-invisible(new("SnpMatrix",t(ctrl.snps+1)))
 						ctrl.summary<-col.summary(ctrl.snpStats)
 						hwe.pvals<-pnorm(-abs(ctrl.summary$z.HWE))
 						hwe.pvals[is.na(hwe.pvals)]<-1
@@ -464,42 +474,50 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 						ctrl.snps<-data.frame(ctrl.snps[!rownames(ctrl.snps)%in%non.hwe.ctrl.snps,]) 
 						message(paste(length(non.hwe.ctrl.snps),'SNPs removed because they are out of HWE in controls'))
 					} else message('No HWE filter applied.')
-					
-					ctrl.snpStats<-invisible(new("SnpMatrix",t(ctrl.snps+1)))
-					ctrl.summary<-col.summary(ctrl.snpStats)
-					results$MeanCallRateCtrls[gene]<-signif(mean(ctrl.summary$Call.rate,na.rm=T),2) 
+					if(nrow(ctrl.snps) >=MinSNPs)
+					{ 			
+						ctrl.snpStats<-invisible(new("SnpMatrix",t(ctrl.snps+1)))
+						ctrl.summary<-col.summary(ctrl.snpStats)
+						results$MeanCallRateCtrls[gene]<-signif(mean(ctrl.summary$Call.rate,na.rm=T),2) 
+					} else return
 				}
 			} else results$MeanCallRateCtrls[gene]<-0
 
-			if(sum(case.snps,na.rm=T)>0)
+			if(sum(as.matrix(case.snps),na.rm=T)>0)
 			{
 				case.snpStats<-invisible(new("SnpMatrix",t(case.snps+1)))
 				case.summary<-col.summary(case.snpStats)
 				results$MeanCallRateCases[gene]<-signif(mean(case.summary$Call.rate,na.rm=T),2)
 			} else results$MeanCallRateCases[gene]<-0
 
-			maf.snp.cases<-apply(case.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
-			maf.snp.ctrls<-apply(ctrl.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
-			maf.snp.ctrls[is.na(maf.snp.ctrls)]<-0
-		#	damaging.snps<-names(which(maf.snp.cases>maf.snp.ctrls)) ## perhaps i want to include snps that are more common in cases
-		#	final.snp.set<-gene.snp.data[rownames(case.snps) %in% damaging.snps, ]
-			final.snp.set<-gene.snp.data
-
-			nb.snps.in.gene2<-nrow(final.snp.set)
+			if(nrow(case.snps)>=MinSNPs)
+			{ 
+				maf.ctrl.set<- colnames(sample(ctrl.snps, ncol(ctrl.snps)/10)) # Separate 10% of ctrls for MAf filter
+				maf.ctrls<- ctrl.snps[, colnames(ctrl.snps) %in% maf.ctrl.set ]
+				maf.snp.cases<-apply(case.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
+				maf.snp.ctrls<-apply(maf.ctrls,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
+				maf.snp.ctrls[is.na(maf.snp.ctrls)]<-0
+				case.snps<-case.snps[rownames(case.snps) %in% names(which(maf.snp.ctrls<=MaxCtrlMAF)) ,]
+				ctrl.snps<-ctrl.snps[rownames(ctrl.snps) %in% names(which(maf.snp.ctrls<=MaxCtrlMAF)),! colnames(ctrl.snps) %in% maf.ctrl.set]
+			}
+			
+			nb.snps.in.gene2<-nrow(case.snps)
 			print(paste('nb.snps.in.gene2=',nb.snps.in.gene2))
-	
 			if(nb.snps.in.gene2>=MinSNPs)
 			{ 
-				case.snps<-final.snp.set[,which(current.pheno==1)]
-				ctrl.snps<-final.snp.set[,which(current.pheno==0)]
+				#case.snps<-final.snp.set[,which(current.pheno==1)]
+				#ctrl.snps<-final.snp.set[,which(current.pheno==0)]
+
 				ctrl.snps<-ctrl.snps[,colnames(ctrl.snps)%in%good.ctrls]
-				if(sum(ctrl.snps,na.rm=T)>0)
+				final.snp.set<-as.matrix(cbind(case.snps,ctrl.snps))
+
+				if(sum(as.matrix(ctrl.snps),na.rm=T)>0)
 				{
 					ctrl.snpStats<-invisible(new("SnpMatrix",t(ctrl.snps+1)))
 					ctrl.summary<-col.summary(ctrl.snpStats)
 					results$MeanCallRateCtrls[gene]<-signif(mean(ctrl.summary$Call.rate,na.rm=T),2) 
 				} else results$MeanCallRateCtrls[gene]<-0
-				if(sum(case.snps,na.rm=T)>0)
+				if(sum(as.matrix(case.snps),na.rm=T)>0)
 				{
 					case.snpStats<-invisible(new("SnpMatrix",t(case.snps+1)))
 					case.summary<-col.summary(case.snpStats)
@@ -515,7 +533,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 				results$nb.alleles.ctrls[gene]<-(length(grep(1,unlist(ctrl.snps))))+ (length(grep(2,unlist(ctrl.snps)))*2)
 
 				##these counts are for gene total
-				if(sum(case.snps,na.rm=T)>0)results$case.maf[gene]<-signif(maf(as.numeric(unlist(table(unlist(case.snps))))),2) 
+				if(sum(as.matrix(case.snps),na.rm=T)>0)results$case.maf[gene]<-signif(maf(as.numeric(unlist(table(unlist(case.snps))))),2) 
 				
 				case.homs<-length(grep(2,case.snps))
 				if(case.homs>0) results$nb.case.homs[gene]<-case.homs
@@ -524,7 +542,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 				if(case.hets>0)results$nb.case.hets[gene]<-case.hets
 
 				### now do ctrls	
-				if(sum(ctrl.snps,na.rm=T)>0)results$ctrl.maf[gene]<-signif(maf(as.numeric(unlist(table(unlist(ctrl.snps))))),2) else results$ctrl.maf[gene]<-0
+				if(sum(as.matrix(ctrl.snps),na.rm=T)>0)results$ctrl.maf[gene]<-signif(maf(as.numeric(unlist(table(unlist(ctrl.snps))))),2) else results$ctrl.maf[gene]<-0
 
 			#	if(results$ctrl.maf[gene]>0)
 			#	{ 
@@ -535,7 +553,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 					if(ctrl.hets>0) results$nb.ctrl.hets[gene]<-ctrl.hets
 
 					total.snps<-data.frame(cbind(case.snps,ctrl.snps))
-					if(sum(total.snps,na.rm=T)>0)results$total.maf[gene]<-signif(maf(as.numeric(unlist(table(unlist(total.snps))))),2) 
+					if(sum(as.matrix(total.snps),na.rm=T)>0)results$total.maf[gene]<-signif(maf(as.numeric(unlist(table(unlist(total.snps))))),2) 
 
 					## these counts are for each snp in gene separately
 					case.snp.hets<-apply(case.snps,1,function(x) length(grep(1,x)))
@@ -546,15 +564,21 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 					ctrl.snp.homs<-apply(ctrl.snps,1,function(x) length(grep(2,x)))
 					maf.snp.ctrls<-apply(ctrl.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
 
+					current.pheno<-(c(rep(1,ncol(case.snps)),rep(0,ncol(ctrl.snps))))
 					ancestry.pcs<-ancestry[match(colnames(final.snp.set),ancestry$V1),]
 					techPCs<-techPCs[match(colnames(final.snp.set),techPCs$V1),]
 					depthPCs<-depthPCs[match(colnames(final.snp.set),depthPCs$V1),]
+
 					obj<-SKAT_Null_Model(current.pheno ~ 
 						ancestry.pcs$V3+ancestry.pcs$V4#+ancestry.pcs$V5++ancestry.pcs$V6+ancestry.pcs$V7
 						+techPCs$V3+techPCs$V4#+techPCs$V5+techPCs$V6+techPCs$V7
 						#+depthPCs$V3+depthPCs$V4#+depthPCs$V5+depthPCs$V6+depthPCs$V7
 						, out_type="D")
-					results$SKATO[gene] <- SKAT(t(as.matrix(final.snp.set)) , obj, missing_cutoff=0.2, estimate_MAF=2,method="optimal.adj",impute.method="bestguess")$p.value
+					if(sum(as.matrix(case.snps),na.rm=T)>0)
+					{
+						results$SKATO[gene] <- SKAT(t(as.matrix(final.snp.set)) , obj, missing_cutoff=.2, estimate_MAF=2,method="optimal.adj",impute.method="bestguess")$p.value
+					}else results$SKATO[gene]<-1
+
 					results$nb.snps[gene] <- nrow(case.snps)
 					results$SNPs[gene]<-paste(rownames(case.snps),collapse=';')
 
@@ -615,7 +639,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 					}
 					case.calls<-FALSE
 					ctrl.calls<-FALSE
-					if(sum(case.snps,na.rm=T)>0)
+					if(sum(as.matrix(case.snps),na.rm=T)>0)
 					{
 						case.dat<-GetCarriers(case.snps)
 						case.dat<-data.frame(case.dat,uniq.genes[gene])
@@ -623,7 +647,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 						case.calls<-TRUE
 					}
 
-					if(sum(ctrl.snps,na.rm=T)>0)
+					if(sum(as.matrix(ctrl.snps),na.rm=T)>0)
 					{
 						ctrl.dat<-GetCarriers(ctrl.snps)
 						ctrl.dat<-data.frame(ctrl.dat,uniq.genes[gene])
@@ -688,9 +712,7 @@ doSKAT<-function(case.list,control.list=NULL,outputDirectory,min.depth=0,MinSNPs
 							pdf.out<-paste0(homozyg.dir,'Homozyg_mapping')
 
 						}
-
-			#		}
-				}
+					}
 				print(results[gene,])
 			}
 		}
@@ -715,8 +737,8 @@ print("Finished testing.")
 
 
 
-
 #### now run function.
-doSKAT(case.list=case.list,control.list=control.list,outputDirectory=outputDirectory,TargetGenes=TargetGenes,min.depth=min.depth,minCadd=minCadd,maxExac=maxExac,MinSNPs=MinSNPs,compoundHets=compoundHets,MaxMissRate=MaxMissRate,release=UCLex_Release)
-
-
+doSKAT(case.list=case.list,control.list=control.list,outputDirectory=outputDirectory,TargetGenes=TargetGenes,
+	min.depth=min.depth,minCadd=minCadd,maxExac=maxExac,MinSNPs=MinSNPs,compoundHets=compoundHets,MaxMissRate=MaxMissRate,
+	chrom=chrom,PlotPCA=PlotPCA,homozyg.mapping=homozyg.mapping,HWEp=HWEp,
+	MaxCtrlMAF=MaxCtrlMAF,SavePrep=SavePrep)
