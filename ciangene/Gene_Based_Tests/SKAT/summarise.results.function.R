@@ -83,14 +83,24 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	colnames(by.snp)[1]<-'SNP'
 	message('Merging compound hets files cases')
 
+	cpd.ctrls<-FALSE
+	cpd.cases<-FALSE
 	CompoundHets_cases<-list.files(dir,pattern='CompoundHets_cases',full.names=T,recursive=T)
+	if(length(CompoundHets_cases)>0)
+	{
 	CompoundHets_cases.oFile<-paste0(outputDirectory,Title,'_CompoundHets_cases.csv') 
 	CompoundHets_cases<-MergeFiles(CompoundHets_cases,CompoundHets_cases.oFile)
 	message('Merging compound hets files ctrls')
+	cpd.cases<-TRUE
+	}
 
 	CompoundHets_ctrls<-list.files(dir,pattern='CompoundHets_ctrls',full.names=T,recursive=T)
+	if(length(CompoundHets_ctrls)>0)
+	{
 	CompoundHets_ctrls.oFile<-paste0(outputDirectory,Title,'_CompoundHets_ctrls.csv') 
 	CompoundHets_ctrls<-MergeFiles(CompoundHets_ctrls,CompoundHets_ctrls.oFile)
+	cpd.ctrls<-TRUE
+	}
 
 	SummariseCpdHets<-function(file)
 	{
@@ -104,10 +114,16 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		return(filt)
 	}
 	message('Processing cpd hets...')
-	cpd.hets.cases<-SummariseCpdHets(CompoundHets_cases)
-	cpd.hets.ctrls<-SummariseCpdHets(CompoundHets_ctrls)
-	if(nrow(cpd.hets.cases)>0)write.table(cpd.hets.cases,CompoundHets_cases.oFile,col.names=T,row.names=F,quote=F,sep='\t') else file.remove (CompoundHets_cases.oFile)
-	if(nrow(cpd.hets.ctrls)>0)write.table(cpd.hets.ctrls,CompoundHets_ctrls.oFile,col.names=T,row.names=F,quote=F,sep='\t') else file.remove (CompoundHets_ctrls.oFile)
+	if(cpd.cases)
+	{
+		cpd.hets.cases<-SummariseCpdHets(CompoundHets_cases)
+		if(nrow(cpd.hets.cases)>0)write.table(cpd.hets.cases,CompoundHets_cases.oFile,col.names=T,row.names=F,quote=F,sep='\t') else file.remove (CompoundHets_cases.oFile)
+	}
+	if(cpd.ctrls)
+	{
+		cpd.hets.ctrls<-SummariseCpdHets(CompoundHets_ctrls)
+		if(nrow(cpd.hets.ctrls)>0)write.table(cpd.hets.ctrls,CompoundHets_ctrls.oFile,col.names=T,row.names=F,quote=F,sep='\t') else file.remove (CompoundHets_ctrls.oFile)
+	}
 
 	if(plot)
 	{
@@ -180,7 +196,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		rownames(filt)<-1:nrow(filt)
 
 		message("Making HTML table for top genes")
-		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",3),'E',rep("d",6),rep("E",19),rep("s",4),'d'))
+		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",4),'E',rep("d",5),rep("E",6),rep('d',3),rep('E',11),rep("s",4),'d'))
 		htmlOut<-paste0(outputDirectory,Title,"_SKAT.html")
 		print(htmlOut)
 		print.xtable(filt.xtable, type="html",file=htmlOut,scalebox=.7)

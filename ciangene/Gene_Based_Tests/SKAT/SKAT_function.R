@@ -39,22 +39,22 @@ option_list <- list(
 	make_option(c("-v", "--verbose"), action="store_true", default=TRUE,help="Print extra output [default]"),
  	make_option(c("--case.list"),  help="one column file containing list of cases",type='character'),
  	make_option(c("--control.list"), default=NULL, help="one column file containing list of controls",type='character'),
- 	make_option(c("--SampleGene"), default=NULL, help="Gene Symbol",type='character'),
+ 	make_option(c("--SampleGene"), default=NULL, help="Gene Symbol eg ABCA4",type='character'),
  	make_option(c("--TargetGenes"), default=NULL, help="Gene File",type='character'),
  	make_option(c("--MinReadDepth"), default=10, help="Specify MinReadDepth",type='character'),
  	make_option(c("--SavePrep"), default=TRUE, help="Do you want to save an image of setup?",type='character'),
  	make_option(c("--minCadd"), default=30, help="minimum CADD score for retained variants",type='character'),
  	make_option(c("--maxExac"), default=0.001, help="Max EXAC maf for retained variants",type='character'),
- 	make_option(c("--oDir"),default='SKATtest',type='character'),
- 	make_option(c("--MinSNPs"),default=3,type='character'),
- 	make_option(c("--PlotPCA"),default=TRUE,type='character'), 
- 	make_option(c("--homozyg.mapping"),default=FALSE,type='character'),  
- 	make_option(c("--MaxMissRate"),default=10,type='character'), 
- 	make_option(c("--HWEp"),default=0.000001 ,type='character'), 
- 	make_option(c("--compoundHets"),default=NULL,type='character'),
- 	make_option(c("--Release"),default='July2016',type='character') ,
- 	make_option(c("--MaxCtrlMAF"),default=0.001,type='character') ,
- 	make_option(c("--qcPREP"),default=FALSE,type='character') 
+ 	make_option(c("--oDir"),default='SKATtest',type='character', help='Before per gene testing save of environment'),
+ 	make_option(c("--MinSNPs"),default=2,type='character',help='Minimum number of SNPs needed in gene.'),
+ 	make_option(c("--PlotPCA"),default=TRUE,type='character',help='If yes, the PCA graphs highlighting cases will be included'), 
+ 	make_option(c("--homozyg.mapping"),default=FALSE,type='character',help='Right now, homozygous mapping does not work...'),  
+ 	make_option(c("--MaxMissRate"),default=10,type='character',help='maximum per snp missingess rate'), 
+ 	make_option(c("--HWEp"),default=0 ,type='character',help='what hardy weinberg pvalue cut off for control disequilibrium to use to remove SNPs '), 
+ 	make_option(c("--compoundHets"),default=NULL,type='character',help='added function to look for compound Heterozygotes'),
+ 	make_option(c("--Release"),default='July2016',type='character',help='what release of UCLex do you want to use') ,
+ 	make_option(c("--MaxCtrlMAF"),default=0.1,type='character',help='Remove snps with maf above this in controls.') ,
+ 	make_option(c("--qcPREP"),default=FALSE,type='character',help='not used much, but handy for troubleshooting to save environment later on in function') 
  )
 
 
@@ -493,6 +493,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 			if(nrow(case.snps)>=MinSNPs)
 			{ 
 				maf.ctrl.set<- colnames(sample(ctrl.snps, ncol(ctrl.snps)/10)) # Separate 10% of ctrls for MAf filter
+				maf.ctrl.set<-ctrl.snps
 				maf.ctrls<- ctrl.snps[, colnames(ctrl.snps) %in% maf.ctrl.set ]
 				maf.snp.cases<-apply(case.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
 				maf.snp.ctrls<-apply(maf.ctrls,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
@@ -565,6 +566,10 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					maf.snp.ctrls<-apply(ctrl.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
 
 					current.pheno<-(c(rep(1,ncol(case.snps)),rep(0,ncol(ctrl.snps))))
+					ancestry<-read.table(paste0(rootODir,'UCLex_samples_ancestry'),header=T)
+					techPCs<-read.table(paste0(rootODir,'TechPCs.vect'),header=F)
+					depthPCs<-read.table(paste0(rootODir,'DepthPCs.vect'),header=F)
+
 					ancestry.pcs<-ancestry[match(colnames(final.snp.set),ancestry$V1),]
 					techPCs<-techPCs[match(colnames(final.snp.set),techPCs$V1),]
 					depthPCs<-depthPCs[match(colnames(final.snp.set),depthPCs$V1),]
@@ -714,6 +719,12 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 						}
 					}
 				print(results[gene,])
+				if(qcPREP)
+				{
+					robj<-paste0(outputDirectory,'qc/test_setup.RData')
+					message(paste('Saving workspace image to', robj))
+					save(list=ls(environment()),file=robj)
+				}	
 			}
 		}
 	}
