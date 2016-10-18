@@ -4,7 +4,7 @@ function error() { >&2 echo -e "\033[31m$*\033[0m"; }
 function stop() { error "$*"; exit 1; }
 try() { "$@" || stop "cannot $*"; }
 
-scratchFolder=/SAN/vyplab/UCLex
+mainFolder=/SAN/vyplab/UCLex
 referenceFolder=/cluster/scratch3/vyp-scratch2
 
 fasta=${referenceFolder}/reference_datasets/human_reference_sequence/human_g1k_v37.fasta
@@ -37,7 +37,6 @@ numBad=1000
 numBadIndels=1000
 GQ=20
 
-#output=${scratchFolder}/vincent/GATK/cardioset_${currentUCLex}/cardioset_${currentUCLex} 
 until [ -z "$1" ]
 do
     # use a case statement to test vars. we always test $1 and shift at the end of the for block.
@@ -48,9 +47,6 @@ do
     --target )
        shift
        target=$1;;
-    --tmpDir )
-        shift
-        tmpDir=$1;;
     --mode )
         shift
         mode=$1;;
@@ -70,7 +66,14 @@ done
 
 
 ############## Now options are all set
-output=${scratchFolder}/mainset_${currentUCLex}/mainset_${currentUCLex}
+scripts_folder=${mainFolder}/mainset_${currentUCLex}/scripts/
+stdout_folder=${mainFolder}/mainset_${currentUCLex}/out/
+stderr_folder=${mainFolder}/mainset_${currentUCLex}/err/
+mkdir -p ${scripts_folder}
+mkdir -p ${stdout_folder}
+mkdir -p ${stderr_folder}
+
+output=${mainFolder}/mainset_${currentUCLex}/mainset_${currentUCLex}
 
 ### Check format of support file.
 ##should accept tab or space as delimiters
@@ -86,14 +89,17 @@ memoSmall=10
 memo=15
 if [[ "$convertToR" == "yes" || "$annovar" == "yes" ]]; then memo=21.9; fi
 
-mainScript=cluster/submission/calling.sh
+mainScript=${scripts_folder}/calling.sh
 ## individual scripts of the form cluster/submission/subscript_chr${chr}.sh
 
-mkdir -p cluster/submission/
 ######## first clean up the individual files
 for chr in `seq 1 22` X
 do
-    if [ -e cluster/submission/subscript_chr${chr}.sh ]; then rm cluster/submission/subscript_chr${chr}.sh; fi
+    f=${scripts_folder}/subscript_chr${chr}.sh
+    if [ -e $f ]
+    then
+        rm $f
+    fi
 done
 
 #rm cluster/error/*
@@ -102,20 +108,21 @@ done
 ##################################################
 function genotype() {
     echo "Running the genotype module"
-    mkdir -p cluster/submission/
     for chr in `seq 1 22` X
     do
-    script=cluster/submission/subscript_chr${chr}.sh
-    if [ ! -e ${output}_chr${chr}.vcf.gz.tbi ]
+    script=${scripts_folder}/subscript_chr${chr}.sh
+    f=${output}_chr${chr}.vcf.gz.tbi
+    if [[ ! -e $f || "$force"=="yes" ]]
     then 
 echo "
+############### genotype chr${chr}
 $java -Djava.io.tmpdir=/scratch0/ -Xmx${memoSmall}g -jar $GATK \\
    -R $fasta \\
    -T GenotypeGVCFs \\
    -L $chr -L $target --interval_set_rule INTERSECTION --interval_padding 100  \\
    --annotation InbreedingCoeff --annotation QualByDepth --annotation HaplotypeScore \\
    --annotation MappingQualityRankSumTest --annotation ReadPosRankSumTest --annotation FisherStrand \\
-   --dbsnp ${bundle}/dbsnp_137.b37.vcf \\" >> cluster/submission/subscript_chr${chr}.sh
+   --dbsnp ${bundle}/dbsnp_137.b37.vcf \\" >> $script
     while read path id format
         do
             if [[ "$format" == "v1" ]]; then gVCF=${path}/chr${chr}/${id}.gvcf.gz; fi
@@ -128,6 +135,8 @@ $java -Djava.io.tmpdir=/scratch0/ -Xmx${memoSmall}g -jar $GATK \\
             echo "   --variant $gVCF \\" >> $script
         done < <(tail -n +2 $gVCFlist)
 echo "   -o ${output}_chr${chr}.vcf.gz" >> $script
+    else
+        echo $f exists
     fi
     done 
 }
@@ -138,7 +147,8 @@ echo "   -o ${output}_chr${chr}.vcf.gz" >> $script
 function recal() {
     for chr in `seq 1 22` X
     do
-        if [[ ! -s ${output}_chr${chr}_filtered.vcf || "$force" == "yes" ]]
+        f=${output}_chr${chr}_filtered.vcf
+        if [[ ! -s $f || "$force" == "yes" ]]
         then 
             #### creates the tmpDir if needed
             tmpDir=/scratch0/GATK_chr${chr}
@@ -149,9 +159,9 @@ function recal() {
                 maxGaussiansIndels=4
             fi
             echo "
+############### recal chr${chr}
 set +x
 mkdir -p $tmpDir
-
 ####### first SNPs
 #### extract the SNPs: SelectVariants 
 $java  -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $chr \
@@ -179,7 +189,6 @@ $java -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $chr \
    --recal_file ${output}_chr${chr}_SNPs_combrec.recal \
    --tranches_file ${output}_chr${chr}_SNPs_combtranch --mode SNP \
    --input ${output}_chr${chr}_SNPs.vcf.gz --out ${output}_chr${chr}_SNPs_filtered.vcf.gz 
-
 ####### now indels
 #### extract the indels
 $java  -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK}  -R $fasta  -L $chr \
@@ -213,7 +222,6 @@ $java -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $chr \
    --recal_file ${output}_chr${chr}_indels_combrec.recal \
    --tranches_file ${output}_chr${chr}_indels_combtranch --mode INDEL \
    --input ${output}_chr${chr}_indels.vcf.gz --out ${output}_chr${chr}_indels_filtered.vcf.gz
-
 #### Now we merge SNPs and indels
 $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $chr \
    -T CombineVariants --assumeIdenticalSamples \
@@ -222,7 +230,6 @@ $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $ch
    -genotypeMergeOptions PRIORITIZE  \
    -priority SNPs,indels \
    --out ${output}_chr${chr}_filtered.vcf.gz
-
 rm -rf $tmpDir
 rm ${output}_chr${chr}_SNPs.vcf.gz*
 rm ${output}_chr${chr}_SNPs_filtered.vcf.gz*
@@ -230,13 +237,15 @@ rm ${output}_chr${chr}_indels.vcf.gz*
 # keep indels for Costin
 # rm ${output}_chr${chr}_indels_filtered.vcf.gz*
 # rm ${output}_chr${chr}_indels_hard_filtered.vcf.gz*
-" >> cluster/submission/subscript_chr${chr}.sh
+" >> ${scripts_folder}/subscript_chr${chr}.sh
+    else
+        echo $f exists
 	fi
     done
 }
 
 function file_exists() {
-    if [[ ! -e $1 ]]
+    if [[ ! -s $1 ]]
     then
         error "$1 does not exist"
     fi
@@ -274,34 +283,29 @@ function annovar() {
     memo=15
     for chr in `seq 1 22` X
     do
-        if [[ ! -e ${output}_chr${chr}_exome_table.csv || "$force" == "yes" ]]
+        if [[ ! -s ${output}_snpStats/annotations_chr${chr}.csv  || "$force" == "yes" ]]
         then
             echo "
+############### annovar chr${chr}
 # creates ${output}_chr${chr}_recal_filtered2.vcf 
 zcat ${output}_chr${chr}_filtered.vcf.gz | perl ${baseFolder}/UCLex/custom_filtering.pl ${output}_chr${chr}_filtered2.vcf ${GQ}
-
 cut -f1-8 ${output}_chr${chr}_filtered2.vcf > ${output}_chr${chr}_for_annovar.vcf
-
 /cluster/project8/vyp/vincent/Software_heavy/annovar_Feb2013/convert2annovar.pl --allallele -format vcf4 --includeinfo ${output}_chr${chr}_for_annovar.vcf > ${output}_chr${chr}_db
-
 /cluster/project8/vyp/vincent/Software_heavy/annovar_Feb2013/summarize_annovar_VP.pl -ver1000g 1000g2012apr -verdbsnp 137 -veresp 6500si -alltranscript -buildver hg19 --genetype ensgene --remove ${output}_chr${chr}_db /cluster/project8/vyp/vincent/Software_heavy/annovar_Feb2013/humandb_hg19/ 
-
 python ${baseFolder}/UCLex/annovar_vcf_combine_VP.py ${output}_chr${chr}_filtered2.vcf ${output}_chr${chr}_db.exome_summary.csv ${output}_chr${chr}_exome_table.csv
-
 perl ${baseFolder}/UCLex/make_matrix_calls.pl ${output}_chr${chr}_exome_table.csv ${output} $chr
-
 # compress ${output}_chr${chr}_filtered2.vcf 
 /share/apps/genomics/htslib-1.1/bin/bgzip -f -c ${output}_chr${chr}_filtered2.vcf > ${output}_chr${chr}_filtered2.vcf.gz
 /share/apps/genomics/htslib-1.1/bin/tabix -f -p vcf ${output}_chr${chr}_filtered2.vcf.gz
 rm ${output}_chr${chr}_filtered2.vcf
-
 # compress ${output}_chr${chr}_for_annovar.vcf
 /share/apps/genomics/htslib-1.1/bin/bgzip -f -c ${output}_chr${chr}_for_annovar.vcf > ${output}_chr${chr}_for_annovar.vcf.gz
 /share/apps/genomics/htslib-1.1/bin/tabix -f -p vcf ${output}_chr${chr}_for_annovar.vcf.gz
 rm ${output}_chr${chr}_for_annovar.vcf
-
-" >> cluster/submission/subscript_chr${chr}.sh
-      fi
+" >> ${scripts_folder}/subscript_chr${chr}.sh
+    else
+        echo ${output}_snpStats/annotations_chr${chr}.csv exists
+    fi
     done
 }
 
@@ -325,6 +329,7 @@ function VEP_mongo() {
         #echo ${output}_VEP/VEP_${chr}.json.gz output lines: $output_lines
         #if [[ $lines -gt 0 ]]; then echo ${output}_VEP/VEP_${chr}.json.gz $lines gt than 0, skipping; continue; fi
         echo "
+############### VEP_mongo chr${chr}
 # split single lines
 zcat ${output}_chr${chr}_for_annovar.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_gvcf.py --headers CHROM,POS,ID,REF,ALT,QUAL,FILTER,INFO > ${output}_VEP/chr${chr}_for_VEP.vcf
 ####CONFIGURE SOFTWARE SHORTCUTS AND PATHS
@@ -362,7 +367,7 @@ export PATH=$PATH:/cluster/project8/vyp/vincent/Software/tabix-0.2.5/
 /share/apps/genomics/htslib-1.1/bin/bgzip -f -c ${output}_VEP/chr${chr}_for_VEP.vcf > ${output}_VEP/chr${chr}_for_VEP.vcf.gz
 /share/apps/genomics/htslib-1.1/bin/tabix -f -p vcf ${output}_VEP/chr${chr}_for_VEP.vcf.gz
 rm ${output}_VEP/chr${chr}_for_VEP.vcf
-" >> cluster/submission/subscript_chr${chr}.sh
+" >> ${scripts_folder}/subscript_chr${chr}.sh
 #--output_file STDOUT | python ${baseFolder}/annotation/postprocess_VEP_json.py | grep '^JSON:' | sed 's/^JSON://' | mongoimport --db uclex --collection variants --host phenotips
   done
 }
@@ -386,17 +391,18 @@ function VEP() {
         #echo ${output}_VEP/VEP_${chr}.json.gz output lines: $output_lines
         #if [[ $lines -gt 0 ]]; then echo ${output}_VEP/VEP_${chr}.json.gz $lines gt than 0, skipping; continue; fi
         echo "
+############### VEP chr${chr}
 # split single lines
-#zcat ${output}_chr${chr}_for_annovar.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_gvcf.py --headers CHROM,POS,ID,REF,ALT,QUAL,FILTER,INFO > ${output}_VEP/chr${chr}_for_VEP.vcf
 zcat ${output}_chr${chr}_filtered.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_gvcf.py | gzip > ${output}_chr${chr}_filtered3.vcf.gz 
 # make genotype matrix
-
+#mainset_July2016_chr${chr}_filtered3-genotypes.csv
+#mainset_July2016_chr${chr}_filtered3-annotations.csv
+#mainset_July2016_chr${chr}_filtered3-genotypes_depth.csv
 /share/apps/python/bin/python ${baseFolder}/annotation/postprocess_VEP_vcf.py --file ${output}_chr${chr}_filtered3.vcf.gz --genotypes --depth
-
-#zcat ${output}_chr${chr}_filtered3.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_gvcf.py --headers CHROM,POS,ID,REF,ALT,QUAL,FILTER,INFO > ${output}_VEP/chr${chr}_for_VEP.vcf
-
+rm ${output}_chr${chr}_filtered3-annotations.csv
+gzip -f ${output}_chr${chr}_filtered3-genotypes.csv
+gzip -f ${output}_chr${chr}_filtered3-genotypes_depth.csv
 zcat ${output}_chr${chr}_filtered3.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_gvcf.py --headers CHROM,POS,ID,REF,ALT,QUAL,FILTER,INFO,FORMAT | cut -f1-9 | gzip > ${output}_VEP/chr${chr}_for_VEP.vcf.gz
-
 ####CONFIGURE SOFTWARE SHORTCUTS AND PATHS
 reference=1kg
 export PERL5LIB=${PERL5LIB}:${ensembl}/src/bioperl-1.6.1::${ensembl}/src/ensembl/modules:${ensembl}/src/ensembl-compara/modules:${ensembl}/src/ensembl-variation/modules:${ensembl}/src/ensembl-funcgen/modules:${ensembl}/Plugins
@@ -419,29 +425,39 @@ export PATH=$PATH:/cluster/project8/vyp/vincent/Software/tabix-0.2.5/
 --hgvs \
 --plugin HGVSshift \
 --plugin SameCodon \
---input_file ${output}_VEP/chr${chr}_for_VEP.vcf \
+--input_file ${output}_VEP/chr${chr}_for_VEP.vcf.gz \
 --pick \
 --everything \
 --tab \
 --fields Uploaded_variation,Location,Allele,Gene,Feature,Feature_type,Consequence,cDNA_position,CDS_position,Protein_position,Amino_acids,Codons,Existing_variation,IMPACT,DISTANCE,STRAND,FLAGSVARIANT_CLASS,SYMBOL,SYMBOL_SOURCE,HGNC_ID,BIOTYPE,CANONICAL,TSL,APPRIS,CCDS,ENSP,SWISSPROT,TREMBL,UNIPARC,GENE_PHENO,SIFT,PolyPhen,EXON,INTRON,DOMAINS,HGVSc,HGVSp,HGVS_OFFSET,GMAF,AFR_MAF,AMR_MAF,EAS_MAF,EUR_MAF,SAS_MAF,AA_MAF,EA_MAF,ExAC_MAF,ExAC_Adj_MAF,ExAC_AFR_MAF,ExAC_AMR_MAF,ExAC_EAS_MAF,ExAC_FIN_MAF,ExAC_NFE_MAF,ExAC_OTH_MAF,ExAC_SAS_MAF,CLIN_SIG,SOMATIC,PHENO,PUBMED,MOTIF_NAME,MOTIF_POS,HIGH_INF_POS,MOTIF_SCORE_CHANGE,CAROL,HGVSc_unshifted,HGVSp_unshifted,SameCodon,Kaviar,CADD \
 --output_file STDOUT > ${output}_VEP/VEP_chr${chr}.tab
 /share/apps/R/bin/Rscript ${baseFolder}/annotation/postprocess_VEP_tab.R --input ${output}_VEP/VEP_chr${chr}.tab --output ${output}_VEP/VEP_chr${chr}.csv
-" >> cluster/submission/subscript_chr${chr}.sh
+gzip -f ${output}_VEP/VEP_chr${chr}.csv
+gzip -f ${output}_VEP/VEP_chr${chr}.tab
+" >> ${scripts_folder}/subscript_chr${chr}.sh
   done
 }
 
 
+function check_annovar() {
+    for chr in `seq 1 22` X
+    do
+        file_exists ${output}_snpStats/annotations_chr${chr}.csv
+    done
+}
 
 ##################################################
 function convertToR() {
+    check_annovar
     mkdir -p ${output}_snpStats
     for chr in `seq 1 22` X
     do
         if [[ ! -s ${output}_snpStats/chr${chr}_snpStats.RData || "$force" == "yes" ]]
         then
             echo "
+############### convertToR chr${chr}
 /share/apps/R/bin/Rscript ${baseFolder}/UCLex/convert_to_R.R --chromosome ${chr} --root ${output} > cluster/R/convert_to_R_chr${chr}.out
-" >> cluster/submission/subscript_chr${chr}.sh
+" >> ${scripts_folder}/subscript_chr${chr}.sh
         fi
     done
 }
@@ -467,16 +483,22 @@ function all() {
     genotype
     recal
     annovar
+    convertToR
     h_vmem=20
     t_mem=20
 }
 
-echo mode ${mode}
-${mode}
+
+for m in `echo ${mode} | tr ',' '\n'`
+do
+    echo mode ${m}
+    ${m}
+done
+
 
 echo "
-#$ -o cluster/out
-#$ -e cluster/error
+#$ -o ${stdout_folder}
+#$ -e ${stderr_folder}
 #$ -S /bin/bash
 #$ -l h_vmem=${memo}G,tmem=${memo}G
 #$ -l h_rt=240:0:0
@@ -491,7 +513,7 @@ echo \$HOSTNAME
 hostname
 date
 
-sh cluster/submission/subscript_chr\${CHR}.sh
+sh ${scripts_folder}/subscript_chr\${CHR}.sh
 
 date
 
@@ -503,7 +525,7 @@ date
 ##############################
 for chr in `seq 1 22` X
 do
-    ls -ltrh cluster/submission/subscript_chr${chr}.sh
+    ls -ltrh ${scripts_folder}/subscript_chr${chr}.sh
 done
 wc -l $mainScript
 
