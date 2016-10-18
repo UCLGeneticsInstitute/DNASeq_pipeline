@@ -3,11 +3,15 @@ from __future__ import print_function
 import sys
 import json
 import pysam
+import exac
 
+
+def eprint(*args, **kwargs): print(*args, file=sys.stderr, **kwargs)
 
 # Takes the output of VEP and reformats
 
 headers=['CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO']
+
 
 # VCF query
 def vcf_query(chrom=None, pos=None, ref=None, alt=None, variant_str=None, individual=None, verbose=False, limit=100, release='mainset_July2016'):
@@ -59,8 +63,8 @@ def vcf_query(chrom=None, pos=None, ref=None, alt=None, variant_str=None, indivi
         POS=geno['POS']
         REF=geno['REF']
         if verbose:
-            print('POS', POS)
-            print('REF', REF)
+            print('ERROR:', 'POS', POS)
+            print('ERROR:', 'REF', REF)
         for i, ALT, in enumerate(geno['ALT'].split(',')):
             if verbose: print('ALT', ALT)
             # insertion
@@ -75,16 +79,29 @@ def vcf_query(chrom=None, pos=None, ref=None, alt=None, variant_str=None, indivi
             elif alt=='0' and ALT=='*' and ref==REF: return response(POS=int(POS), REF=REF, ALT=ALT, index=i+1, geno=geno, chrom=chrom, pos=pos)
             elif alt==ALT and ref==REF: return response(POS=int(POS), REF=REF, ALT=ALT, index=i+1, geno=geno, chrom=chrom, pos=pos)
             continue
+    return []
 
 
 def clean(d,field):
     for cons in d['transcript_consequences']:
         if field not in cons: continue
         for x in cons[field].split(','):
+            if len(x.split(':'))!=2:
+                sys.stderr.write(x)
+                sys.stderr.write('\n')
+                continue
             id,num,=x.split(':') 
+            if len(id.split('>'))!=2:
+                sys.stderr.write(id)
+                sys.stderr.write('\n')
+                continue
             ref,alt,=id.split('>')
             if alt!=d['ALT']: continue
-            cons[field]=float(num)
+            try:
+                cons[field]=float(num)
+            except:
+                #eprint(num)
+                print('ERROR:', 'not a number', num, id)
 
 def freq_cleanup(d):
     for cons in d['transcript_consequences']:
@@ -102,11 +119,13 @@ def go_cleanup(d):
 def canonical(d):
     for cons in d['transcript_consequences']:
         if 'canonical' not in cons: continue
-        #grab the cadd
-        d['canonical_cadd']=cons.get('cadd','')
+        d['canonical_cadd']=d.get('canonical_cadd',[])+[cons.get('cadd','')]
+        d['canonical_hgvsc']=d.get('canonical_hgvsc',[])+[cons.get('hgvsc','')]
+        d['canonical_hgvsp']=d.get('canonical_hgvsp',[])+[cons.get('hgvsp','')]
         #grab the transript
-        d['canonical_transcript']=cons['transcript_id']
-        d['gene_name_upper']=cons['gene_symbol'].upper()
+        d['canonical_transcript']=d.get('canonical_transcript',[])+[cons['transcript_id']]
+        d['canonical_gene_name_upper']=d.get('gene_name_upper',[])+[cons['gene_symbol'].upper()]
+        d['canonical_gene_name_upper']=d['canonical_gene_name_upper'][0]
 
 for l in sys.stdin:
     d=json.loads(l.strip())
@@ -116,10 +135,12 @@ for l in sys.stdin:
     del d['input']
     d['variant_id']='-'.join([d['CHROM'],d['POS'],d['REF'],d['ALT']])
     if ',' in d['ALT']:
-        print('ERROR', d['variant_id'], 'MULTIALLELIC')
+        #eprint(d['variant_id']+' MULTIALLELIC')
+        print('ERROR:', d['variant_id']+' MULTIALLELIC')
         continue
     if 'transcript_consequences' not in d:
-        print('ERROR', d['variant_id'], 'NOT CODING')
+        #eprint(d['variant_id']+' NOT CODING')
+        print('ERROR:',d['variant_id']+' NOT CODING')
         continue
     clean(d,'cadd')
     clean(d,'kaviar')
@@ -131,11 +152,22 @@ for l in sys.stdin:
     clean(d,'exac_afr')
     clean(d,'exac_oth')
     clean(d,'exac_adj')
+    clean(d,'1kg_eur')
+    clean(d,'1kg_asn')
+    clean(d,'1kg_amr')
+    clean(d,'1kg_afr')
     d['genes']=list(set([cons['gene_id'] for cons in d['transcript_consequences']]))
     freq_cleanup(d)
     go_cleanup(d)
     canonical(d)
     d.update(vcf_query(variant_str=d['variant_id']))
+    d['EXAC']=exac.exac_query(variant_str=d['variant_id'])
+    # try convert str which have a decimal point to number
+    for k in d:
+        try:
+            d[k] = float(d[k])
+        except:
+            continue
     print('JSON:', json.dumps(d))
 
 
