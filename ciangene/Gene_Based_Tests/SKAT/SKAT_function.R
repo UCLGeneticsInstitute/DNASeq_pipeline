@@ -6,6 +6,7 @@
 #  $Rscript $SKAT --case.list $CaseFile --oDir outputDirectory --control.list $ControlFile
 
 ### Changes ####
+# fixed bug with SKAT covariates
 # added hwe filter - specify pval for cut off from exact test in controls.
 # Fixed bug with zero count matrices
 # Added HWE filter for variants - controls only

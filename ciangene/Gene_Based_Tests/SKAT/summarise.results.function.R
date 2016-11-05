@@ -17,7 +17,7 @@ snps.filt<-snps.filt[!duplicated(snps.filt$SNP),]
 data<-'/SAN/vyplab/UCLex/mainset_July2016/cian/allChr_snpStats_out'
 
 
-summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=basename(outputDirectory))
+summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=basename(outputDirectory),percent=NULL)
 {
 	dir<-paste0(dir,'/')
 	outputDirectory<-paste0(outputDirectory,'/')
@@ -183,10 +183,14 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 
 
 	## Now make a filtered list of more plausible results
-	percent.cases.carriers<-2
-	nb.cases.carriers.required<- round( as.numeric(file$nb.cases) * (percent.cases.carriers/100)  ) [1]
-	pval<-0.0001
-	filt<-subset(file,file$Nb.Carriers>=nb.cases.carriers.required&file$SKATO<=pval & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8) 
+	if(!is.null(percent))
+	{
+		percent.cases.carriers<-percent
+		nb.cases.carriers.required<- round( as.numeric(file$nb.cases) * (percent.cases.carriers/100)  ) [1]
+	} else nb.cases.carriers.required<-2
+	pval<-0.00001
+	filt<-subset(file,file$Nb.Carriers>=nb.cases.carriers.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8) 
+	filt<-subset(filt, filt$CompoundHetPvalue<=pval | filt$SKATO<=pval )
 	
 	if(nrow(filt)>0)
 	{
