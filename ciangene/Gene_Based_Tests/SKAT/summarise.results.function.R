@@ -3,6 +3,7 @@ suppressPackageStartupMessages(library(ggplot2))
 suppressPackageStartupMessages(library(xtable))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(rentrez))
 
 ldak='/cluster/project8/vyp/cian/support/ldak/ldak'
 source('/cluster/project8/vyp/cian/scripts/r/annotate_qqplot.R') ## Modified qqplot so I can label specific genes. 
@@ -17,12 +18,13 @@ snps.filt<-snps.filt[!duplicated(snps.filt$SNP),]
 data<-'/SAN/vyplab/UCLex/mainset_July2016/cian/allChr_snpStats_out'
 
 
-summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=basename(outputDirectory),percent=NULL)
+
+summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=basename(outputDirectory),percent=NULL,disease='heart')
 {
 	dir<-paste0(dir,'/')
 	outputDirectory<-paste0(outputDirectory,'/')
 #	if(file.exists(outputDirectory)) file.remove(outputDirectory)
-	if(!file.exists(outputDirectory)) dir.create(outputDirectory)
+	if(!file.exists(outputDirectory)) dir.create(outputDirectory,recursive=TRUE)
 
 	file.copy('/SAN/vyplab/UCLex/support/SKAT/README.docx',paste0(outputDirectory,'README.docx')) 
 	system(paste('chmod 777',paste0(outputDirectory,'README.docx')))
@@ -40,9 +42,12 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	for(i in 1:length(files))
 	{
 		print(files[i])
-		file<-read.csv(files[i],header=T)
-		names<-colnames(file)
-		write.table(file,oFile,col.names=!file.exists(oFile),row.names=F,quote=T,sep=',',append=T)
+		if(file.size(files[i])>0)
+		{
+			file<-read.csv(files[i],header=T)
+			names<-colnames(file)
+			write.table(file,oFile,col.names=!file.exists(oFile),row.names=F,quote=T,sep=',',append=T)
+		}
 	}
 
 	file<-read.csv(oFile,header=F)
@@ -58,8 +63,11 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		if(file.exists(out))file.remove(out)
 		for(carry in 1:length(files))
 		{
-			c.file<-unique(read.csv(files[carry],header=F,sep='\t'))
-			write.table(c.file, out,col.names=F,row.names=F,quote=T,sep=',',append=T)
+			if(file.size(files[carry])>0)
+			{
+				c.file<-unique(read.csv(files[carry],header=F,sep='\t'))
+				write.table(c.file, out,col.names=F,row.names=F,quote=T,sep=',',append=T)
+			}
 		}
 		outFile<-read.csv(out,header=FALSE)
 		return(outFile)
@@ -181,7 +189,8 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	#carriers.summary<-data.frame(Gene=file$Symbol,)
 	write.table(file,paste0(outputDirectory,Title,'_SKAT_processed.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 
-
+############################################################################################################
+############################################################################################################
 	## Now make a filtered list of more plausible results
 	if(!is.null(percent))
 	{
@@ -192,6 +201,13 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	filt<-subset(file,file$Nb.Carriers>=nb.cases.carriers.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8) 
 	filt<-subset(filt, filt$CompoundHetPvalue<=pval | filt$SKATO<=pval )
 	
+	filt$Nb.relevant.papers<-0
+	for(ro in 1:nrow(filt))
+	{
+		ff<- entrez_search(db="pubmed", term= paste('(',filt$Symbol[ro],')AND(',disease,')'))
+		filt$Nb.relevant.papers[ro]<-ff$count
+	}
+
 	if(nrow(filt)>0)
 	{
 		write.table(filt,paste0(outputDirectory,Title,'_SKAT_processed_filtered.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
@@ -200,7 +216,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		rownames(filt)<-1:nrow(filt)
 
 		message("Making HTML table for top genes")
-		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",4),'E',rep("d",5),rep("E",6),rep('d',3),rep('E',11),rep("s",4),'d'))
+		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",4),'E',rep("d",5),rep("E",6),rep('d',3),rep('E',11),rep("s",7),'d'))
 		htmlOut<-paste0(outputDirectory,Title,"_SKAT.html")
 		print(htmlOut)
 		print.xtable(filt.xtable, type="html",file=htmlOut,scalebox=.7)

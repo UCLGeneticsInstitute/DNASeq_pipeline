@@ -46,11 +46,11 @@ option_list <- list(
  	make_option(c("--SavePrep"), default=TRUE, help="Do you want to save an image of setup?",type='character'),
  	make_option(c("--minCadd"), default=30, help="minimum CADD score for retained variants",type='character'),
  	make_option(c("--maxExac"), default=0.001, help="Max EXAC maf for retained variants",type='character'),
- 	make_option(c("--oDir"),default='SKATtest',type='character', help='Before per gene testing save of environment'),
+ 	make_option(c("--oDir"),default='SKATtest',type='character', help='Specify output directory'),
  	make_option(c("--MinSNPs"),default=2,type='character',help='Minimum number of SNPs needed in gene.'),
  	make_option(c("--PlotPCA"),default=TRUE,type='character',help='If yes, the PCA graphs highlighting cases will be included'), 
  	make_option(c("--homozyg.mapping"),default=FALSE,type='character',help='Right now, homozygous mapping does not work...'),  
- 	make_option(c("--MaxMissRate"),default=10,type='character',help='maximum per snp missingess rate'), 
+ 	make_option(c("--MaxMissRate"),default=20,type='character',help='maximum per snp missingess rate'), 
  	make_option(c("--HWEp"),default=0 ,type='character',help='what hardy weinberg pvalue cut off for control disequilibrium to use to remove SNPs '), 
  	make_option(c("--compoundHets"),default=NULL,type='character',help='added function to look for compound Heterozygotes'),
  	make_option(c("--Release"),default='July2016',type='character',help='what release of UCLex do you want to use') ,
@@ -235,12 +235,11 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	{
 		message("Reading in Read Depth data")
 		read.depth<-as.data.frame(fread(paste0(rootODir,'Average.read.depth.by.gene.by.sample.tab'),header=T))
-		read.depth.vals<-read.depth[,5:ncol(read.depth)]
+		read.depth.genes<-read.depth[,1]
+		read.depth.all<-read.depth[read.depth$Gene%in%gene.dict$ENSEMBL[gene.dict$Symbol %in% TargetGenes],5:ncol(read.depth)] # Take TargetGenes and calculate mean RD
+		read.depth.vals<-read.depth.all[,colnames(read.depth.all)%in%c(case.list,control.list)]
 		sample.means<-colMeans(read.depth.vals)
 		good.samples<-which(sample.means>=min.depth)
-		##################################################################
-		## should change this to only calculate mean based on genes in targetgenes/samplegenes. 
-		##################################################################
 		
 		bad.samples<-names(which(sample.means<min.depth))
 		bad.cases<-bad.samples[bad.samples %in% case.list]
@@ -295,7 +294,6 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	    positions<-data.frame(t(data.frame(strsplit(snp.annotations$SNP,'_'))))
       	snp.annotations$Start<-positions[,2]
       	snp.annotations$Chr<-positions[,1]
-#      	snp.sp<-snp.sp[rownames(snp.sp) %in% snp.annotations$SNP,colnames(snp.sp)%in%colnames(clean.snp.data)]
 		snp.read.depth<-rowMeans(snp.sp,na.rm=T)
 	}
 
@@ -355,7 +353,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	## Make the outptu dataframe
 	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls','nb.alleles.cases','nb.alleles.ctrls','case.maf','ctrl.maf','total.maf','nb.case.homs',
 		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio','CompoundHetPvalue','minCadd','maxExac','min.depth',
-		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','MinSNPs','SNPs','MaxCtrlMAF'
+		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','MinSNPs','MaxCtrlMAF','SNPs','GeneRD','CaseSNPs'
 		)
 	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols)))
 	colnames(results)<-cols
@@ -412,6 +410,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 		results$Start[gene]<-gene.start
 		results$End[gene]<-gene.end
 		results$MaxMissRate<-MaxMissRate
+		results$GeneRD[gene]<-gene.means[read.depth.genes  %in% results$ENSEMBL[gene]]
 		print(paste('nb.snps.in.gene=',nb.snps.in.gene))
 		if(nb.snps.in.gene>=MinSNPs)
 		{
@@ -493,23 +492,27 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 
 			if(nrow(case.snps)>=MinSNPs)
 			{ 
-				maf.ctrl.set<- colnames(sample(ctrl.snps, ncol(ctrl.snps)/10)) # Separate 10% of ctrls for MAf filter
-				maf.ctrl.set<-ctrl.snps
-				maf.ctrls<- ctrl.snps[, colnames(ctrl.snps) %in% maf.ctrl.set ]
+				ctrl.list<-paste0(dirname(outputDirectory),'/Controls')
+				if(file.exists(ctrl.list))
+				{
+					maf.ctrl.names<-read.table(ctrl.list,header=F,sep='\t') [,1]
+				} else
+				{
+					maf.ctrl.names<- colnames(sample(ctrl.snps, ncol(ctrl.snps)/10)) # Separate 10% of ctrls for MAf filter
+					write.table(maf.ctrl.names,ctrl.list,col.names=F,row.names=F,quote=F,sep='\t')
+				}
+				maf.ctrls<- ctrl.snps[, colnames(ctrl.snps) %in% maf.ctrl.names ]
 				maf.snp.cases<-apply(case.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
 				maf.snp.ctrls<-apply(maf.ctrls,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
 				maf.snp.ctrls[is.na(maf.snp.ctrls)]<-0
 				case.snps<-case.snps[rownames(case.snps) %in% names(which(maf.snp.ctrls<=MaxCtrlMAF)) ,]
-				ctrl.snps<-ctrl.snps[rownames(ctrl.snps) %in% names(which(maf.snp.ctrls<=MaxCtrlMAF)),! colnames(ctrl.snps) %in% maf.ctrl.set]
+				ctrl.snps<-ctrl.snps[rownames(ctrl.snps) %in% names(which(maf.snp.ctrls<=MaxCtrlMAF)),! colnames(ctrl.snps) %in% maf.ctrl.names]
 			}
 			
 			nb.snps.in.gene2<-nrow(case.snps)
 			print(paste('nb.snps.in.gene2=',nb.snps.in.gene2))
 			if(nb.snps.in.gene2>=MinSNPs)
 			{ 
-				#case.snps<-final.snp.set[,which(current.pheno==1)]
-				#ctrl.snps<-final.snp.set[,which(current.pheno==0)]
-
 				ctrl.snps<-ctrl.snps[,colnames(ctrl.snps)%in%good.ctrls]
 				final.snp.set<-as.matrix(cbind(case.snps,ctrl.snps))
 
@@ -528,8 +531,6 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 
 				results$nb.cases[gene]<-ncol(case.snps)
 				results$nb.ctrls[gene]<-ncol(ctrl.snps)
-		#		results$nb.cases[gene]<-length(which(!is.na(unlist(case.snps))) )
-		#		results$nb.ctrls[gene]<-length(which(!is.na(unlist(ctrl.snps))) )
 
 				results$nb.alleles.cases[gene]<-(length(grep(1,unlist(case.snps))))+ (length(grep(2,unlist(case.snps)))*2)
 				results$nb.alleles.ctrls[gene]<-(length(grep(1,unlist(ctrl.snps))))+ (length(grep(2,unlist(ctrl.snps)))*2)
@@ -715,17 +716,24 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 						{
 							homozyg.dir<- paste0(outputDirectory,'Homozyg_mapping') 
 							if(!file.exists(homozyg.dir)) dir.create(homozyg.dir)
-							pdf.out<-paste0(homozyg.dir,'Homozyg_mapping')
+							pdf.out<-paste0(homozyg.dir,'Homozyg_mapping.pdf')
 
 						}
 					}
+
+					case.sums<-rowSums(case.snps,na.rm=T)
+					case.sums[is.na(case.sums)]<-0
+					results$CaseSNPs[gene]<-paste(names(case.sums[case.sums>0]),collapse=';') 
+
 				print(results[gene,])
-				if(qcPREP)
+				if(!is.na(results$Symbol[gene]))
+				{
+				if(results$Symbol[gene]=='SLC9A9')
 				{
 					robj<-paste0(outputDirectory,'qc/test_setup.RData')
 					message(paste('Saving workspace image to', robj))
 					save(list=ls(environment()),file=robj)
-				}	
+				}	}	
 			}
 		}
 	}

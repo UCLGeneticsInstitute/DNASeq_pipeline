@@ -1,5 +1,5 @@
 git pull origin master
 git add -u
-git commit -m "Added ability to just plot certain Chromosome(s) in ExomeDepth. Useful when you perhaps dont have candidate genes but just a region"
+git commit -m "Improved SKAT script, and added pubmed API query step to find relevant papers for top genes in summary script"
 git push -u origin master
 
