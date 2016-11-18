@@ -147,26 +147,22 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	message("Reading in snp/gene database")
 	snp.gene.base<-as.data.frame(fread(paste0(rootODir,'snp_gene_id'),header=F))
 	colnames(snp.gene.base)<-c("SNP",'ENSEMBL')
-    print(dim(snp.gene.base))
     if (!is.null(chrom)) {
         snp.gene.base <- snp.gene.base[grep(sprintf('^%s_',chrom),snp.gene.base[,'SNP']),]
 
     }
-    print(dim(snp.gene.base))
 	gene.dict<-as.data.frame(fread(paste0(rootODir,'gene_dict_skat')))
 	gene.dict$ENST<-NULL
 	gene.dict<-unique(gene.dict)
-	print(dim(snp.gene<-merge(gene.dict,snp.gene.base,by="ENSEMBL",all.y=T)))
+	snp.gene<-merge(gene.dict,snp.gene.base,by="ENSEMBL",all.y=T)
 	
 	## This anno file contains Exac mafs, CADD scores etc. Filter SNP list based on user input. 
 	snp.annotations<-as.data.frame(fread(paste0(rootODir,'Annotations/func.tab')))
 
-    print(dim(snp.annotations))
     if (!is.null(chrom)) {
         snp.annotations <- snp.annotations[grep(sprintf('^%s_',chrom),snp.annotations[,'SNP']),]
 
     }
-    print(dim(snp.annotations))
 
 	filtered.snp.list<-subset(snp.annotations,snp.annotations$CADD>=minCadd & snp.annotations$ExAC_MAF<=maxExac)$SNP
 	message(paste(length(filtered.snp.list),'SNPs kept after CADD and Exac filters of',minCadd,'and',maxExac,'respectively.')) 
@@ -236,8 +232,10 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 		message("Reading in Read Depth data")
 		read.depth<-as.data.frame(fread(paste0(rootODir,'Average.read.depth.by.gene.by.sample.tab'),header=T))
 		read.depth.genes<-read.depth[,1]
-		read.depth.all<-read.depth[read.depth$Gene%in%gene.dict$ENSEMBL[gene.dict$Symbol %in% TargetGenes],5:ncol(read.depth)] # Take TargetGenes and calculate mean RD
+		read.depth.all<-read.depth[which(read.depth$Gene%in%gene.dict$ENSEMBL[gene.dict$Symbol %in% TargetGenes]),] # Take TargetGenes and calculate mean RD
+		rownames(read.depth.all)<-read.depth.all[,1]
 		read.depth.vals<-read.depth.all[,colnames(read.depth.all)%in%c(case.list,control.list)]
+
 		sample.means<-colMeans(read.depth.vals)
 		good.samples<-which(sample.means>=min.depth)
 		
@@ -252,13 +250,13 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 		bad.genes<-read.depth$Gene[which(gene.means<min.depth)]
 		write.table(bad.genes,paste0(qc,'genes_removed_because_of_low_read_depth.tab'),col.names=F,row.names=F,quote=F,sep='\t')
 
-		good.genes.snps<-snp.gene$SNP[snp.gene$ENSEMBL %in% read.depth$Gene[good.genes]]
+		good.genes.snps<-snp.gene$SNP[snp.gene$ENSEMBL %in% rownames(read.depth.vals)[good.genes]]
 		clean.snp.data<- snp.sp[rownames(snp.sp) %in% good.genes.snps ,  colnames(snp.sp) %in% colnames(read.depth)[colnames(read.depth) %in% names(good.samples) ] ]
 
 		snp.gene.clean<-snp.gene[snp.gene$SNP %in%rownames(clean.snp.data),]
 		write.table(snp.gene.clean,paste0(qc,'read.depth.ancestry.func.clean.snps.tab'),col.names=F,row.names=F,quote=F,sep='\t')
 
-		good.genes.data<-snp.gene[snp.gene$ENSEMBL %in% read.depth$Gene[good.genes],]
+		good.genes.data<-snp.gene[snp.gene$ENSEMBL %in% rownames(read.depth.vals)[good.genes],]
 		uniq.genes<-unique(good.genes.data$ENSEMBL)
 		nb.genes<-length(uniq.genes)
 		rm(read.depth)
@@ -699,15 +697,14 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 						}
 						if(caseTest && ctrlTest)
 						{
-							nb.clean.cases<-ncol(case.snps)-case.compound.hets
-							nb.clean.ctrls<-ncol(ctrl.snps)-ctrl.compound.hets
+						
+						nb.clean.cases<-ncol(case.snps)-case.compound.hets
+						nb.clean.ctrls<-ncol(ctrl.snps)-ctrl.compound.hets
 
-						fisher.nb.cases<-length(which(!is.na(unlist(case.snps))) )
-						fisher.nb.ctrls<-length(which(!is.na(unlist(ctrl.snps))) )
-			       		mat<-matrix(c(fisher.nb.ctrls*2 - results$nb.alleles.ctrls[gene],
-			       						results$nb.alleles.ctrls[gene],
-			       						fisher.nb.cases*2 - results$nb.alleles.cases[gene],
-			       						results$nb.alleles.cases[gene])
+			       		mat<-matrix(c( case.compound.hets, 
+			       						nb.clean.cases,
+			       						ctrl.compound.hets,
+			       						nb.clean.ctrls)
 			       						, nrow = 2, ncol = 2)
 						results$CompoundHetPvalue[gene]<-fisher.test(mat,alternative='greater')$p.value
 						}
@@ -726,14 +723,13 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					results$CaseSNPs[gene]<-paste(names(case.sums[case.sums>0]),collapse=';') 
 
 				print(results[gene,])
-				if(!is.na(results$Symbol[gene]))
+				if(qcPREP)
 				{
-				if(results$Symbol[gene]=='SLC9A9')
-				{
+
 					robj<-paste0(outputDirectory,'qc/test_setup.RData')
 					message(paste('Saving workspace image to', robj))
 					save(list=ls(environment()),file=robj)
-				}	}	
+				}	
 			}
 		}
 	}
