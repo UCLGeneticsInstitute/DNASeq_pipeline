@@ -5,7 +5,9 @@
 
 library(snpStats)
 library(SKAT)
+#install.packages('/cluster/project8/vyp/vincent/libraries/R/current/VPlib_1.0.tar.gz')
 library(VPlib)
+library(optparse)
 
 
 case.control.analysis <- function(choice.cases = NULL, output = 'processed/support/case_control', known.genes = c(), SKAT = FALSE, fix.names = NULL, annotations.file = '/cluster/project8/vyp/vincent/Software/RNASeq_pipeline/bundle/human/biomart/biomart_extra_annotations_human.tab') {
@@ -368,11 +370,16 @@ for (folder in c(oFolder, chrX.folder, all.variants.folder, hom.variants.folder,
 ################# build the matrix of calls
 ####### get the sample names
   excess.message <- paste('More than', nb.IDs.to.show)
+  print(nb.IDs.to.show)
   cases.names <- dimnames(calls)[[1]]
   calls.num <- as(calls, 'numeric')
 annotations$Samples <- sapply(1:ncol(calls),
-                         FUN = function(x) { if (annotations$ncarriers.cases[x] > nb.IDs.to.show) {return(excess.message)}
-                         else  {paste(cases.names[ which(calls.num[,x] > 0) ], collapse = ';')}},
+                         function(x) {
+                             print(x)
+                             print(nb.IDs.to.show)
+                             if (annotations$ncarriers.cases[x] > nb.IDs.to.show) {return(excess.message)}
+                             else  {paste(cases.names[ which(calls.num[,x] > 0) ], collapse = ';')}
+                         },
                          simplify = TRUE) 
 ############## Now the case control step
   if (case.control) {
@@ -490,8 +497,7 @@ summary.frame$n.func.rare.calls[ sample ] <- sum(annotations.loc$rare & (annotat
     write.csv(x = chrX, file = output.X, row.names = FALSE)
     message('Outputting all rare X linked variants ', output.X, ', ncalls: ', nrow(chrX))
 ##### now the variants in known genes, keep the wrong transcripts in this folder for now
-    known.genes.calls <- subset(annotations.loc, somewhat.rare & calls.loc >= 1 & (non.syn | splicing | lof) 
-                                & (Gene %in% known.genes | gsub(pattern = '\\(.*', replacement = '', annotations.loc$HUGO) %in% known.genes | HUGO %in% known.genes))
+    known.genes.calls <- subset(annotations.loc, somewhat.rare & calls.loc >= 1 & (non.syn | splicing | lof) & (Gene %in% known.genes | gsub(pattern = '\\(.*', replacement = '', annotations.loc$HUGO) %in% known.genes | HUGO %in% known.genes))
     known.genes.calls <- known.genes.calls[, my.names2]
     output.known <- paste(known.genes.folder, '/', id, '.csv', sep = '')
     write.csv(x = known.genes.calls, file = output.known, row.names = FALSE)
@@ -660,14 +666,19 @@ getArgs <- function() {
 }
 
 #### default arguments
-Prion.setup <- FALSE
-missing.depth.threshold <- 0
-root <- '/scratch2/vyp-scratch2/vincent/GATK/mainset_October2014/mainset_October2014' 
-myArgs <- getArgs() 
-if ('Prion.setup' %in% names(myArgs)) Prion.setup <- as.logical(myArgs[[ 'Prion.setup' ]])
-if ('minDepth' %in% names(myArgs)) missing.depth.threshold <- as.numeric(myArgs[[ 'minDepth' ]])
-if ('root' %in% names(myArgs)) root <- as.character(myArgs[[ 'root' ]]) 
 
+option_list <- list(
+    make_option(c('--minDepth'), default=0, help='min depth'),
+    make_option(c('--root'), help='Path to UCLex snp stats dir.'),
+    make_option(c('--Prion.setup'), default=0.05, help='Prion setup')
+)
+
+option.parser <- OptionParser(option_list=option_list)
+opt <- parse_args(option.parser)
+
+Prion.setup <- opt$Prion.setup
+missing.depth.threshold <- opt$minDepth
+root <- opt$root
 
 threshold.somewhat.rare <- 0.005
 threshold.rare <- 0.001 
@@ -675,12 +686,13 @@ case.names <- scan('data/caseKeywords.tab', what = character())
 control.names <- scan('data/controlKeywords.tab', what = character()) 
 first <- TRUE 
 
-#main()
+main()
 
 load('data/poly_in_cases_snpStats.RData')
 known.genes <- scan('/cluster/project8/vyp/IoO_exome_sequencing/support/retinal_disease_genes.txt', what = 'character')
 my.names <- dimnames(combined.snpStats)[[1]]
-my.cases <- grep(pattern = '^IRDC', my.names, value = TRUE)
+print(my.names)
+print(my.cases <- grep(pattern = case.names, my.names, value = TRUE))
 
 res <- process.multiVCF (calls = combined.snpStats,
                          depth = combined.matrix.depth,
@@ -690,3 +702,5 @@ res <- process.multiVCF (calls = combined.snpStats,
                          my.cases = my.cases,
                          known.genes = known.genes,
                          oFolder = 'processed')
+
+
