@@ -182,10 +182,13 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	}
 
 	file$Nb.Carriers<-0 ## I dont want signal to be driven by a small number of cases which would prob be an artefact
+	file$Nb.case.snps<-0 ## I dont want signal to be driven by a small number of cases which would prob be an artefact
 	for(car in 1:nrow(file))
 	{
 		file$Nb.Carriers[car]<-length(unique(unlist(strsplit(as.character(file$Carriers[car]),';')) ))
+		file$Nb.case.snps[car]<-length(unique(unlist(strsplit(as.character(file$CaseSNPs[car]),';')) ))
 	}
+
 	#carriers.summary<-data.frame(Gene=file$Symbol,)
 	write.table(file,paste0(outputDirectory,Title,'_SKAT_processed.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 
@@ -216,7 +219,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		rownames(filt)<-1:nrow(filt)
 
 		message("Making HTML table for top genes")
-		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",4),'E',rep("d",5),rep("E",6),rep('d',3),rep('E',11),rep("s",7),'d'))
+		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",4),'E',rep("d",5),rep("E",6),rep('d',3),rep('E',11),rep("s",7),rep('d',2)))
 		htmlOut<-paste0(outputDirectory,Title,"_SKAT.html")
 		print(htmlOut)
 		print.xtable(filt.xtable, type="html",file=htmlOut,scalebox=.7)
