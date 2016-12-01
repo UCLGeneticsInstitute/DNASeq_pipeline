@@ -3,6 +3,7 @@ import sys
 import os
 import csv
 import re
+from gzip import GzipFile
 
 vcf_file = sys.argv[1]
 annovar_file = sys.argv[2]
@@ -56,17 +57,24 @@ with open(annovar_file) as f:
     f.close()
 
 # get names
-with file(vcf_file,'r') as read_vcf:
-    for ll in read_vcf:
-        if ll.startswith('#CHROM'):
-            names=ll.strip().split('\t')[9:]
-            break
-    read_vcf.close()
+if vcf_file.endswith('.gz'):
+    read_vcf=GzipFile(vcf_file,'r')
+else:
+    read_vcf=file(vcf_file,'r')
+for ll in read_vcf:
+    if ll.startswith('#CHROM'):
+        names=ll.strip().split('\t')[9:]
+        print names
+        break
+read_vcf.close()
 
 with open(outfile,"w") as f:
     write_csv = csv.writer(f, delimiter=',',quotechar='"', quoting=csv.QUOTE_ALL)
     write_csv.writerow(header+['QUAL', 'FILTER'] + names)
-    read_vcf = file(vcf_file,'rb')
+    if vcf_file.endswith('.gz'):
+        read_vcf = GzipFile(vcf_file,mode='r')
+    else:
+        read_vcf = file(vcf_file,'rb')
     ##now read the VCF file and find the matching data in the annovar one
     for ll in read_vcf:
         if ll.startswith("#"): continue
