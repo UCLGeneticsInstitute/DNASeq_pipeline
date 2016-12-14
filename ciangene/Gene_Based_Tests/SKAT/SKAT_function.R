@@ -53,9 +53,10 @@ option_list <- list(
  	make_option(c("--MaxMissRate"),default=20,type='character',help='maximum per snp missingess rate'), 
  	make_option(c("--HWEp"),default=0 ,type='character',help='what hardy weinberg pvalue cut off for control disequilibrium to use to remove SNPs '), 
  	make_option(c("--compoundHets"),default=NULL,type='character',help='added function to look for compound Heterozygotes'),
- 	make_option(c("--Release"),default='July2016',type='character',help='what release of UCLex do you want to use') ,
+ 	make_option(c("--Release"),default='September2016',type='character',help='what release of UCLex do you want to use') ,
  	make_option(c("--MaxCtrlMAF"),default=0.1,type='character',help='Remove snps with maf above this in controls.') ,
- 	make_option(c("--qcPREP"),default=FALSE,type='character',help='not used much, but handy for troubleshooting to save environment later on in function') 
+ 	make_option(c("--qcPREP"),default=FALSE,type='character',help='not used much, but handy for troubleshooting to save environment later on in function') ,
+ 	make_option(c("--MAFcontrolList"),default=NULL,type='character',help='I take 10% of controls for maf. This param specifies where this ctrl list will be stored to reuse for other tests for consistency') 
  )
 
 
@@ -81,7 +82,9 @@ minCadd<-as.numeric(opt$minCadd)
 MinSNPs<-as.numeric(opt$MinSNPs)
 HWEp<-as.numeric(opt$HWEp)
 UCLex_Release<-opt$Release
+MAFcontrolList<-opt$MAFcontrolList
 
+if(	is.null(opt$MAFcontrolList)) MAFcontrolList<-paste0(outputDirectory,'/MAFcontrolList')
 if( (!is.null(opt$SampleGene)) && ( !is.null(opt$TargetGenes)) ) stop("Please supply either a single gene to SampleGene or a file of gene names to TargetGenes. Not both.")
 if(!is.null(opt$SampleGene))
 {
@@ -489,15 +492,14 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 			} else results$MeanCallRateCases[gene]<-0
 
 			if(nrow(case.snps)>=MinSNPs)
-			{ 
-				ctrl.list<-paste0(dirname(outputDirectory),'/Controls')
-				if(file.exists(ctrl.list))
+			{ 			
+				if(file.exists(MAFcontrolList))
 				{
-					maf.ctrl.names<-read.table(ctrl.list,header=F,sep='\t') [,1]
+					maf.ctrl.names<-read.table(MAFcontrolList,header=F,sep='\t') [,1]
 				} else
 				{
 					maf.ctrl.names<- colnames(sample(ctrl.snps, ncol(ctrl.snps)/10)) # Separate 10% of ctrls for MAf filter
-					write.table(maf.ctrl.names,ctrl.list,col.names=F,row.names=F,quote=F,sep='\t')
+					write.table(maf.ctrl.names,MAFcontrolList,col.names=F,row.names=F,quote=F,sep='\t')
 				}
 				maf.ctrls<- ctrl.snps[, colnames(ctrl.snps) %in% maf.ctrl.names ]
 				maf.snp.cases<-apply(case.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
