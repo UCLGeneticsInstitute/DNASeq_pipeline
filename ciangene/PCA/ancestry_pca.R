@@ -52,3 +52,6 @@ write.table(one.fam,paste0(oDir,"onekg_calls_for_uclex_snps.fam"),col.names=F,ro
 
 
 
+write.table('4-Ancestry_PCA',paste0(oDir,'Check'), col.names=F,row.names=F,quote=F,sep='\t',append=TRUE) 
+
+

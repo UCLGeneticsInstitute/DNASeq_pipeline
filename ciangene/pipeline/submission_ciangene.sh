@@ -1,4 +1,4 @@
-release=August2016
+release=September2016
 
 repo=/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/
 export repo
@@ -10,11 +10,11 @@ script=cluster/submission/cian.sh
 rootODir=/SAN/vyplab/UCLex/mainset_${release}/cian/
 #rootODir=/cluster/scratch3/vyp-scratch2/cian
 
-step1=yes
+step1=no
 step2=yes
-step3=yes
-step4=yes
-step5=yes
+step3=no
+step4=no
+step5=no
 
 mkdir -p $rootODir
 

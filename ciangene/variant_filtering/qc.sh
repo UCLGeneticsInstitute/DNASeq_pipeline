@@ -6,7 +6,7 @@ plink=/home/sejjcmu/bin/plink/plink
 rootODir=${1-$rootODir}
 release=${2-$release}
 
-iData=${rootODir}allChr_snpStats
+iData=${rootODir}/allChr_snpStats
 ln -s ${rootODir}UCLex_${release}.bim $iData".bim"
 ln -s ${rootODir}UCLex_${release}.fam $iData".fam"
 
@@ -19,25 +19,27 @@ sed 's/,/\t/g' $HPOpheno | sed 's/ //g' | awk '{print $3,$3}' > $keep
 
 
 ## keeping only unrelated samples
-kinshipFile=/SAN/vyplab/UCLex/mainset_{release}/kinship/UCL-exome_unrelated.txt
-unrelated=kinshipFile=/SAN/vyplab/UCLex/mainset_{release}/cian/unrelated_samples
-awk '{print $1,$1}' $kinshipFile > $unrelated
-$plink --bfile $data --keep $unrelated --make-bed --out $data
+#kinshipFile=/SAN/vyplab/UCLex/mainset_${release}/kinship/UCL-exome_unrelated.txt
+#unrelated=kinshipFile=/SAN/vyplab/UCLex/mainset_${release}/cian/unrelated_samples
+#awk '{print $1,$1}' $kinshipFile > $unrelated
+#$plink --bfile $data --keep $unrelated --make-bed --out $data
 
 
 data=${rootODir}allChr_snpStats_out
-$plink --noweb --allow-no-sex --bfile $data --freq --out $bDir/gstats
-$plink --noweb --allow-no-sex --bfile $data --missing --out $bDir/gstats
-$plink --noweb --allow-no-sex --bfile $data --hardy --out $bDir/gstats
-$plink --noweb --bfile $data  --impute-sex --out $bDir/gstats
+
+echo $plink --noweb --allow-no-sex --bfile $data --freq --out ${rootODir}/gstats
+$plink --noweb --allow-no-sex --bfile $data --freq --out ${rootODir}/gstats
+$plink --noweb --allow-no-sex --bfile $data --missing --out ${rootODir}/gstats
+$plink --noweb --allow-no-sex --bfile $data --hardy --out ${rootODir}/gstats
+$plink --noweb --bfile $data  --impute-sex --out ${rootODir}/gstats
 
 
  
-sed -i 's/ \+ /\t/g' $bDir/gstats.imiss
-tr -s " " < ${bDir}gstats.imiss > ${bDir}gstats.imiss_clean
+sed -i 's/ \+ /\t/g' ${rootODir}/gstats.imiss
+tr -s " " < ${bDir}gstats.imiss > ${rootODir}/gstats.imiss_clean
 
 oFile=${rootODir}plot.qc.R
-echo "dir<-'"$bDir"'" > $oFile
+echo "dir<-'"${rootODir}"'" > $oFile
 echo '
 	library(plyr) 
 	library(ggplot2)
@@ -66,3 +68,4 @@ echo '
 $Rbin CMD BATCH --no-save --no-restore $oFile
 
 		
+echo '2-QC' >> ${rootODir}/Check

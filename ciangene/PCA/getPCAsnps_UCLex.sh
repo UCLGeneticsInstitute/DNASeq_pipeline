@@ -19,3 +19,7 @@ $ldak --make-bed $OneKG_bed --sp $OneKG_sp
 $plink --noweb --bfile ${UCLex_bed}_out --bmerge ${OneKG_bed}_out.bed ${OneKG_bed}_out.bim ${OneKG_bed}_out.fam --make-bed --out ${bDir}UCLex_OneKG_merged --remove ${bDir}onekg.samples.in.ucl
 $ldak --calc-kins-direct ${bDir}UCLex_OneKG_merged_kin --bfile ${bDir}UCLex_OneKG_merged --ignore-weights YES
 $ldak --pca ${bDir}UCLex${release}_OneKG_merged_pca --bfile ${bDir}UCLex_OneKG_merged --grm ${bDir}UCLex_OneKG_merged_kin
+
+
+
+echo '5-getPCAsnps' >> $bDir/Check

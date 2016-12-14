@@ -56,3 +56,6 @@ clean.variants.rare <- subset(extCtrl.var[,1] , extCtrl.var$Call.rate >= missing
 clean.funky <- clean.variants.rare[clean.variants.rare %in% funky.rare]
 message(nrow(clean.funky))
 write.table(clean.funky, file = paste0(oDir, "Clean_variants_func_rare" ), col.names=F, row.names=F, quote=F, sep="\t") 
+
+
+write.table('3-Variant_filtering',paste0(oDir,'Check'), col.names=F,row.names=F,quote=F,sep='\t',append=TRUE) 

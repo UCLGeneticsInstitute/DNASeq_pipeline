@@ -124,7 +124,6 @@ novelCNVs<-novelCNVs[with(novelCNVs, order(chromosome,start,end)), ]
 
 
 allCNVsPDF<-paste0(dirname(outPDF),'/AllCNVs.pdf')
-message(paste(nrow(chr.cnvs),'CNVs on target chromosomes... plotting in',allCNVsPDF)) 
 pdf(allCNVsPDF)
 	loopPlot(novelCNVs) 
 dev.off()

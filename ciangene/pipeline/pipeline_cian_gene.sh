@@ -8,10 +8,6 @@ pca_extract=${repo}/PCA/getPCAsnps_UCLex.sh
 plot_pca=${repo}/PCA/plot_pca.R
 
 
-## second step
-pheno=${repo}/MakePhenotypes/prepare_all_phenos.R ## step 2.1
-MissingNess=${repo}/CaseControlMissingness.R ##step 2.2
-
 ## Third step - creating and validating the technical Kinship
 VariantLists=${repo}/Gene_Based_Tests/make_list_of_variants_for_gene_tests.R # step 3.1
 secondStep=${repo}/convert_genotype_to_missingNonMissing.sh  ## step3.2
@@ -64,8 +60,7 @@ until [ -z "$1" ]; do
 	    step3=$1;;
 	--step4)
 	    shift
-	    step4=$1;;
-	--step5)
+	    step4=$1;;	--step5)
 	    shift
 	    step5=$1;;
 	-* )
@@ -97,11 +92,11 @@ if [[ "$step1" == "yes" ]]; then
 #$ -cwd
 
 $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/first.step.R cluster/R/step1.1_first_step.Rout
-#sh $clean $rootODir $release
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $filter cluster/R/step1.3.filter_snps.Rout
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $pca cluster/R/step1.4.pca.Rout
-#sh $pca_extract $rootODir $release
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $plot_pca cluster/R/step1.4.Plotpca.Rout
+sh $clean $rootODir $release
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $filter cluster/R/step1.3.filter_snps.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $pca cluster/R/step1.4.pca.Rout
+sh $pca_extract $rootODir $release
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $plot_pca cluster/R/step1.4.Plotpca.Rout
 
 
 " > $script
@@ -127,12 +122,12 @@ if [[ "$step2" == "yes" ]]; then
 #$ -l h_rt=24:00:00
 #$ -cwd
 
-
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/checkSteps.R cluster/R/checkSteps.Rout
 $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/make_phenotype_file.R cluster/R/make_phenotype_file.Rout
 $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/CaseControl_support.R cluster/R/CaseControl_support.Rout
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $pheno cluster/R/step2.1.pheno.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} pheno=${repo}/MakePhenotypes/prepare_all_phenos.R cluster/R/step2.1.pheno.Rout
 $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/MakeGoodPhenotypeFile.R cluster/R/MakeGoodPhenotypeFile.Rout
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $MissingNess cluster/R/step2.2.CaseControlMissingness.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} MissingNess=${repo}/CaseControlMissingness.R  cluster/R/step2.2.CaseControlMissingness.Rout
 $Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/getReadDepthByGene.R cluster/R/getReadDepthByGene.Rout
 
 

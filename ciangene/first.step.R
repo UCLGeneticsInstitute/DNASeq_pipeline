@@ -16,7 +16,7 @@ if ('release' %in% names(myArgs))  release <- myArgs[[ "release" ]]
 library(snpStats)
 
 params<-read.table('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Support/params',header=FALSE)
-percent.ext.ctrls <-params[grep('min.maf',params[,1]),2] /100
+percent.ext.ctrls <-params[grep('percent.ext.ctrls',params[,1]),2] /100
 
 dir<-paste0('/SAN/vyplab/UCLex/mainset_',release,'/mainset_',release, '_snpStats/') 
 
@@ -35,7 +35,7 @@ lof <-  c("frameshift deletion", "frameshift substitution", "frameshift insertio
 		)
 
 dir<-paste0('/SAN/vyplab/UCLex/mainset_',release,'/mainset_',release, '_VEP/') 
-vep.list <- list.files(dir, pattern ="csv$", full.names=T) 
+vep.list <- list.files(dir, pattern ="csv.gz", full.names=T) 
 vep.chr<-as.numeric( gsub(gsub(basename(vep.list),pattern='.*chr',replacement=''),pattern='\\..*',replacement=''))
 
 params<-read.table('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Support/params',header=FALSE)
@@ -53,8 +53,6 @@ if(file.exists(lof.file))file.remove(lof.file)
 ############################################
 
 
-
-
 print(files)
 
 oDir <- rootODir
@@ -67,7 +65,7 @@ readDepthoFile <- "Depth_Matrix.sp"
 full <- file.path(oDir, "allChr_snpStats.sp") ## added '.sp' suffix
 annotations.dir<-file.path(oDir, "Annotations") 
 if(!file.exists(annotations.dir) ) dir.create(annotations.dir)
-annotations.out <- paste0(annotations.dir,"annotations.snpStat")
+annotations.out <- paste0(annotations.dir,"/annotations.snpStat")
 
 oMap <- paste0(oDir, "/UCLex_", release, ".map")
 oBim <- paste0(oDir, "/UCLex_", release, ".bim")
@@ -78,13 +76,19 @@ for(i in 1:length(files)){
 #for (i in c(22)) {
 	message("Now loading file ", files[i])
 	load(files[i])
-
+	message("Finished loading file ", files[i])
 ##      Extract clean variants. 
+
+	robj<-paste0(oDir,'/test_setup.RData')
+		if(i==2)message(paste('Saving workspace image to', robj))
+		if(i==2)message(paste('Finished saving workspace image to', robj))
+
 	pass.snps <- annotations.snpStats$clean.signature[which(annotations.snpStats$FILTER == "PASS")] #
 	matrix.calls.snpStats <- matrix.calls.snpStats[, which( colnames(matrix.calls.snpStats) %in% pass.snps ) ]#
 	annotations.snpStats <- subset(annotations.snpStats, annotations.snpStats$FILTER == "PASS")
 	matrix.depth <-  matrix.depth[which( rownames(matrix.depth) %in% pass.snps) ,]
 	matrix.depth <- apply(matrix.depth, 2, as.numeric)
+	if(i==2)save(list=ls(environment()),file=robj)
 
 	# Make map file 
 	map <- data.frame(matrix(nrow=nrow(annotations.snpStats), ncol = 4) ) 
@@ -97,6 +101,7 @@ for(i in 1:length(files)){
 	annotations.snpStats<-annotations.snpStats[order(map[,4]),]
 	matrix.depth<-matrix.depth[order(map[,4]),]
 	map<-map[order(map[,4]),]
+
 	if(FIRST) 
 	{	
 		samples <- rownames(matrix.calls.snpStats)
@@ -121,25 +126,25 @@ for(i in 1:length(files)){
 		write.table(data.frame(cbind(map,annotations.snpStats$Obs,annotations.snpStats$Ref ) ) , oBim, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t", append=FALSE)
         FIRST <- FALSE
   	} else {
-  		if(percent.ext.ctrls>0)
-		{
-	  		ext.samples <- matrix.calls.snpStats[ext.ctrls ,]
-			ext.samples.sum <- data.frame(colnames(matrix.calls.snpStats), col.summary(ext.samples) ) 
-			ext.samples.names <- data.frame(rownames(ext.samples) , row.summary(ext.samples) ) 
-	   		write.table(ext.samples.sum, file = paste0(oDir, "Ext_ctrl_variant_summary") , col.names=F, row.names=F, quote=F, sep="\t", append=T) 
-			write.table(ext.samples.names, file = paste0(oDir, "Ext_ctrl_sample_summary") , col.names=F, row.names=F, quote=F, sep="\t", append=T) 
-		}
-		write.SnpMatrix(t(matrix.calls.snpStats), full, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t", append=TRUE)  
-   		write.table(annotations.snpStats, annotations.out, col.names=FALSE, row.names=TRUE, quote=FALSE, sep="\t", append=TRUE) 
-		write.table(matrix.depth,  file = file.path(readDepthDir, readDepthoFile) , col.names=FALSE, row.names=FALSE, quote = FALSE, sep="\t" , append = TRUE) 
-		write.table(data.frame('SNP'=colnames(matrix.calls.snpStats), col.summary(matrix.calls.snpStats)),paste0(oDir,"UCLex_",release,"_all_samples_variant_summary"),col.names=F,row.names=F,quote=F,sep="\t",append=T) 
-
-		write.table(map, oMap, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t", append=TRUE)  
-		write.table(data.frame(cbind(map, annotations.snpStats$Obs,annotations.snpStats$Ref ) ) , oBim, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t", append=TRUE) 
+  	if(percent.ext.ctrls>0)
+	{
+		ext.samples <- matrix.calls.snpStats[ext.ctrls ,]
+		ext.samples.sum <- data.frame(colnames(matrix.calls.snpStats), col.summary(ext.samples) ) 
+		ext.samples.names <- data.frame(rownames(ext.samples) , row.summary(ext.samples) ) 
+		write.table(ext.samples.sum, file = paste0(oDir, "Ext_ctrl_variant_summary") , col.names=F, row.names=F, quote=F, sep="\t", append=T) 
+		write.table(ext.samples.names, file = paste0(oDir, "Ext_ctrl_sample_summary") , col.names=F, row.names=F, quote=F, sep="\t", append=T) 
+	}
+	write.SnpMatrix(t(matrix.calls.snpStats), full, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t", append=TRUE)  
+   	write.table(annotations.snpStats, annotations.out, col.names=FALSE, row.names=TRUE, quote=FALSE, sep="\t", append=TRUE) 
+	write.table(matrix.depth,  file = file.path(readDepthDir, readDepthoFile) , col.names=FALSE, row.names=FALSE, quote = FALSE, sep="\t" , append = TRUE) 
+	write.table(data.frame('SNP'=colnames(matrix.calls.snpStats), col.summary(matrix.calls.snpStats)),paste0(oDir,"UCLex_",release,"_all_samples_variant_summary"),col.names=F,row.names=F,quote=F,sep="\t",append=T) 
+	write.table(map, oMap, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t", append=TRUE)  
+	write.table(data.frame(cbind(map, annotations.snpStats$Obs,annotations.snpStats$Ref ) ) , oBim, col.names=FALSE, row.names=FALSE, quote=FALSE, sep="\t", append=TRUE) 
 	}
 
 ############################################ New
-	vep<-read.csv(vep.list[vep.chr %in% files.chr[i]],header=T)
+	#vep<-read.csv(vep.list[vep.chr %in% files.chr[i]],header=T)
+	vep<-read.csv(gzfile(vep.list[vep.chr %in% files.chr[i]],'rt'),header=T)
 	vep$ExAC_MAF[is.na(vep$ExAC_MAF)]<-0
 	snplist<-data.frame(rownames(annotations.snpStats),annotations.snpStats$ExonicFunc)
 	colnames(snplist)<-c('SNP','ExonicFunc')
@@ -180,3 +185,6 @@ write.table(fam, paste0(oDir, "/UCLex_", release, ".fam") , col.names=FALSE, row
 #bim <- read.table(oBim, header=FALSE, sep="\t") 
 #bim <- bim[with(bim, order(V1, V4)), ]
 #write.table(bim, oBim, col.names=FALSE, row.names=FALSE, quote=FALSE ,sep="\t") 
+message('Finished ok')
+
+write.table('1-first.step',paste0(oDir,'Check'), col.names=F,row.names=F,quote=F,sep='\t',append=FALSE) 

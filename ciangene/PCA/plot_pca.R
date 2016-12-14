@@ -35,7 +35,9 @@ onekg.data[,1]<-populations
 plot.oneKG<-TRUE
 plot.uclex<-TRUE
 
-png(paste0(oDir,"plots/Ancestry_pca.png"))
+plotDir<-paste0(oDir,"plots/") 
+if(!file.exists(plotDir)) dir.create(plotDir,recursive=TRUE) 
+pdf(paste0(plotDir, "Ancestry_pca.pdf"))
 
 for(i in 1:length(populations))
 {
@@ -131,8 +133,8 @@ pca.plot+annotate("text", x = labels[,2], y = labels[,3], label = labels[,1])
 g<-ggplotly(pca.plot)
 p <- plotly_build(g) 
 p$filename <- 'UCLex_ancestry_pca'
-r <- plotly_POST(p)
-knit_print.plotly(r, options=list())
+#r <- plotly_POST(p)
+#knit_print.plotly(r, options=list())
 
 
 ##  batches<-t(data.frame(strsplit(pcs[,1],'_')) ) - maybe finish this to have different research groups represented on graph as separate shapes. 
@@ -141,11 +143,11 @@ knit_print.plotly(r, options=list())
 pcs$Group<-NA
 colnames(pcs)[3:4]<-c('PC1','PC2')
 pca.plot<-plot_ly(pcs, x = PC1, y = PC2, text = V1, mode="markers",color=Population, main='UCLex 1000G PCA')#+geom_point(shape=1) #+  ggtitle(paste(date(),'UCLex ancestry PCA'))
-g<-ggplotly(pca.plot)
+#g<-ggplotly(pca.plot)
 p <- plotly_build(pca.plot) 
 p$filename <- 'UCLex_ancestry_pca_names'
 r <- plotly_POST(p)
-knit_print.plotly(r, options=list())
+#knit_print.plotly(r, options=list())
 
 htmlwidgets::saveWidget(as.widget(p), paste0(oDir,"graph.html")) 
 htmlwidgets::saveWidget(as.widget(p), "graph2.html")
@@ -168,5 +170,7 @@ p <- layout(p,
                  x0 = cauc.pc1.min, x1 = cauc.pc1.max, xref = "x",
                  y0 = cauc.pc2.min, y1 = cauc.pc2.max, yref = "y")))
 
-htmlwidgets::saveWidget(as.widget(p), "UCLex_ancestry_pca.html")
+htmlwidgets::saveWidget(as.widget(p), paste0(oDir,"plots/UCLex_ancestry_pca.html")) 
 
+
+write.table('6-plotPCA',paste0(oDir,'Check'), col.names=F,row.names=F,quote=F,sep='\t',append=TRUE) 
