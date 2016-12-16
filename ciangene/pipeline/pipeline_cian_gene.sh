@@ -122,13 +122,13 @@ if [[ "$step2" == "yes" ]]; then
 #$ -l h_rt=24:00:00
 #$ -cwd
 
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/checkSteps.R cluster/R/checkSteps.Rout
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/make_phenotype_file.R cluster/R/make_phenotype_file.Rout
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/CaseControl_support.R cluster/R/CaseControl_support.Rout
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} pheno=${repo}/MakePhenotypes/prepare_all_phenos.R cluster/R/step2.1.pheno.Rout
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/MakeGoodPhenotypeFile.R cluster/R/MakeGoodPhenotypeFile.Rout
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} MissingNess=${repo}/CaseControlMissingness.R  cluster/R/step2.2.CaseControlMissingness.Rout
-$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/getReadDepthByGene.R cluster/R/getReadDepthByGene.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/checkSteps.R                             cluster/R/checkSteps.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/make_phenotype_file.R     cluster/R/make_phenotype_file.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/CaseControl_support.R     cluster/R/CaseControl_support.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/prepare_all_phenos.R      cluster/R/step2.1.pheno.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/MakePhenotypes/MakeGoodPhenotypeFile.R   cluster/R/MakeGoodPhenotypeFile.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/CaseControlMissingness.R                 cluster/R/step2.2.CaseControlMissingness.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} ${repo}/getReadDepthByGene.R                     cluster/R/getReadDepthByGene.Rout
 
 
 " > $script
@@ -154,11 +154,11 @@ if [[ "$step3" == "yes" ]]; then
 #$ -l h_rt=24:00:00
 #$ -cwd
 
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $VariantLists cluster/R/step3.1.variant.lists.Rout
-#sh $secondStep $rootODir $release ## convert geno to missingNonMissing
-#sh $makeKin $rootODir $release ### make kinship matrices
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $VariantLists cluster/R/step3.1.variant.lists.Rout
+sh $secondStep $rootODir $release ## convert geno to missingNonMissing
+sh $makeKin $rootODir $release ### make kinship matrices
 sh $checkKin $rootODir $release # check how much variance the kinships explained. 
-#$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $convertKin cluster/R/step3.2.Rout
+$Rbin CMD BATCH --no-save --no-restore --release=${release} --rootODir=${rootODir} $convertKin cluster/R/step3.2.Rout
 " > $script
 
     qsub $hold $script

@@ -34,7 +34,7 @@ percent.removed <- paste0("(", round(( nrow(extCtrl.var) - nrow(clean.variants))
 message(paste(nrow(extCtrl.var) - nrow(clean.variants) , percent.removed, "variants are removed because of call rate") ) 
 clean.variants <- clean.variants[clean.variants$SNP %in% hwe2, ]
 
-annotations <- read.csv(file = paste0(oDir, "annotations.snpStat"), header=T, sep="\t") 
+annotations <- read.csv(file = paste0(oDir, "Annotations/annotations.snpStat"), header=T, sep="\t") 
 pass.snps <- annotations$clean.signature[which(annotations$FILTER == "PASS") ] 
 qual<-data.frame(snp=rownames(annotations),qual=annotations$FILTER)
 clean.out <- clean.variants$SNP[clean.variants$SNP %in% pass.snps]

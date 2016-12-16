@@ -25,10 +25,10 @@ minVar=0.0000001			## SNP with variance >= this are retained?
 
 
 ######### Tech Kin
-#$ldak --calc-kins-direct $techOut --bfile $missingNonMissing --ignore-weights YES --kinship-raw YES \
- #--minmaf $minMaf --maxmaf $maxMaf --minvar $minVar --minobs $minObs --extract $extract 
+$ldak --calc-kins-direct $techOut --bfile $missingNonMissing --ignore-weights YES --kinship-raw YES \
+ --minmaf $minMaf --maxmaf $maxMaf --minvar $minVar --minobs $minObs --extract $extract 
 
-#$ldak --pca ${rootODir}TechPCs --grm $techOut 
+$ldak --pca ${rootODir}TechPCs --grm $techOut 
 
 
 oFile=${rootODir}plot.techpca.R
@@ -88,9 +88,9 @@ $R CMD BATCH --no-save --no-restore $oFile
 missingNonMissing=${rootODir}allChr_snpStats_out
 techOut=${rootODir}PopKin
 
-#$ldak --calc-kins-direct $techOut --bfile $missingNonMissing --ignore-weights YES --kinship-raw YES \
-#--minmaf $minMaf --maxmaf $maxMaf --minvar $minVar --minobs $minObs  --extract $extract 
-#$ldak --pca ${rootODir}popPCs --grm $techOut  
+$ldak --calc-kins-direct $techOut --bfile $missingNonMissing --ignore-weights YES --kinship-raw YES \
+--minmaf $minMaf --maxmaf $maxMaf --minvar $minVar --minobs $minObs  --extract $extract 
+$ldak --pca ${rootODir}popPCs --grm $techOut  
 
 
 oFile=${rootODir}plot.popPca.R

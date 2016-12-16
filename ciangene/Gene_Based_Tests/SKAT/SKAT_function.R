@@ -6,6 +6,8 @@
 #  $Rscript $SKAT --case.list $CaseFile --oDir outputDirectory --control.list $ControlFile
 
 ### Changes ####
+# added adaptive combination of P-values (ADA) method to pinpoint causal variants (Lin, 2016)
+# added option to specify maf controls to be output as file. useful to ensure same control subset used for all analyses. 
 # fixed bug with SKAT covariates
 # added hwe filter - specify pval for cut off from exact test in controls.
 # Fixed bug with zero count matrices
@@ -24,6 +26,14 @@
 # Fixed snp/gene matching
 # Keeping only damaging variants
 ########
+
+latest.change<-'Added adaptive combination of P-values (ADA) method to pinpoint causal variants (Lin, 2016)'
+print('---latest change----')
+message(latest.change)
+print('--------------------')
+
+
+source('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Gene_Based_Tests/ADA/ADA.R')
 
 ldak='/cluster/project8/vyp/cian/support/ldak/ldak'
 
@@ -146,25 +156,12 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	compoundFileCtrls<-paste0(outputDirectory,'CompoundHets_ctrls')
 	if(file.exists(compoundFileCases)) file.remove(compoundFileCases)
 	if(file.exists(compoundFileCtrls)) file.remove(compoundFileCtrls)
-
-	message("Reading in snp/gene database")
-	snp.gene.base<-as.data.frame(fread(paste0(rootODir,'snp_gene_id'),header=F))
-	colnames(snp.gene.base)<-c("SNP",'ENSEMBL')
-    if (!is.null(chrom)) {
-        snp.gene.base <- snp.gene.base[grep(sprintf('^%s_',chrom),snp.gene.base[,'SNP']),]
-
-    }
-	gene.dict<-as.data.frame(fread(paste0(rootODir,'gene_dict_skat')))
-	gene.dict$ENST<-NULL
-	gene.dict<-unique(gene.dict)
-	snp.gene<-merge(gene.dict,snp.gene.base,by="ENSEMBL",all.y=T)
 	
 	## This anno file contains Exac mafs, CADD scores etc. Filter SNP list based on user input. 
 	snp.annotations<-as.data.frame(fread(paste0(rootODir,'Annotations/func.tab')))
 
     if (!is.null(chrom)) {
         snp.annotations <- snp.annotations[grep(sprintf('^%s_',chrom),snp.annotations[,'SNP']),]
-
     }
 
 	filtered.snp.list<-subset(snp.annotations,snp.annotations$CADD>=minCadd & snp.annotations$ExAC_MAF<=maxExac)$SNP
@@ -175,10 +172,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	if(!is.null(TargetGenes)) ## if we're testing a couple genes only, Im subsetting SNPmatrix to make it faster to read in. 
 	{
 		data<-paste0(rootODir,'allChr_snpStats_out') 
-		#data<-'/SAN/vyplab/UCLex/mainset_July2016/cian/UCLex_phased/UCLex_phased_out'
-		#data<-paste0(rootODir,'allChr_snpStats')
-
-		target.snp.info<- snp.gene[ snp.gene$Symbol %in% TargetGenes,]
+		target.snp.info<-snp.annotations[ snp.annotations$SYMBOL %in% TargetGenes,]
 		target.snps<- target.snp.info$SNP[target.snp.info$SNP %in% filtered.snp.list]
 		write.table(target.snps,snplist.file,col.names=F,row.names=F,quote=F,sep='\t')
 		message(paste(length(target.snps),'SNPs found in target genes'))
@@ -226,7 +220,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	#caucasians<-ancestry$V1[ancestry$Caucasian]
 	#snps<-snp.sp[,colnames(snp.sp)%in%caucasians]
 	## these are teh snps that have been filterd by func and maf
-	unrelated<-read.table(paste0(dirname(rootODir),"/kinship/UCL-exome_unrelated.txt")) ## Keeping only unrelated individiuals
+	#unrelated<-read.table(paste0(dirname(rootODir),"/kinship/UCL-exome_unrelated.txt")) ## Keeping only unrelated individiuals
 	#snp.sp<-snp.sp[,colnames(snp.sp)%in%unrelated[,1]]
 	message(paste('Read Depth filter set at:',min.depth ) ) 
 
@@ -234,8 +228,8 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	{
 		message("Reading in Read Depth data")
 		read.depth<-as.data.frame(fread(paste0(rootODir,'Average.read.depth.by.gene.by.sample.tab'),header=T))
-		read.depth.genes<-read.depth[,1]
-		read.depth.all<-read.depth[which(read.depth$Gene%in%gene.dict$ENSEMBL[gene.dict$Symbol %in% TargetGenes]),] # Take TargetGenes and calculate mean RD
+		read.depth.all<-read.depth[which(read.depth$Gene%in%target.snp.info$Gene[target.snp.info$SYMBOL %in% TargetGenes]),] # Take TargetGenes and calculate mean RD
+		read.depth.genes<-read.depth.all[,1]
 		rownames(read.depth.all)<-read.depth.all[,1]
 		read.depth.vals<-read.depth.all[,colnames(read.depth.all)%in%c(case.list,control.list)]
 
@@ -253,14 +247,14 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 		bad.genes<-read.depth$Gene[which(gene.means<min.depth)]
 		write.table(bad.genes,paste0(qc,'genes_removed_because_of_low_read_depth.tab'),col.names=F,row.names=F,quote=F,sep='\t')
 
-		good.genes.snps<-snp.gene$SNP[snp.gene$ENSEMBL %in% rownames(read.depth.vals)[good.genes]]
+		good.genes.snps<-snp.annotations$SNP[snp.annotations$Gene %in% rownames(read.depth.vals)[good.genes]]
 		clean.snp.data<- snp.sp[rownames(snp.sp) %in% good.genes.snps ,  colnames(snp.sp) %in% colnames(read.depth)[colnames(read.depth) %in% names(good.samples) ] ]
 
-		snp.gene.clean<-snp.gene[snp.gene$SNP %in%rownames(clean.snp.data),]
+		snp.gene.clean<-snp.annotations[snp.annotations$SNP %in%rownames(clean.snp.data),]
 		write.table(snp.gene.clean,paste0(qc,'read.depth.ancestry.func.clean.snps.tab'),col.names=F,row.names=F,quote=F,sep='\t')
 
-		good.genes.data<-snp.gene[snp.gene$ENSEMBL %in% rownames(read.depth.vals)[good.genes],]
-		uniq.genes<-unique(good.genes.data$ENSEMBL)
+		good.genes.data<-snp.annotations[snp.annotations$Gene %in% rownames(read.depth.vals)[good.genes],]
+		uniq.genes<-unique(good.genes.data$Gene)
 		nb.genes<-length(uniq.genes)
 		rm(read.depth)
 		message("Finished dealing with read depth")
@@ -268,13 +262,13 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	{
 		message("No read depth filter specified. Skipping step.")
 		clean.snp.data<- snp.sp
-		good.genes.data<-snp.gene
-		uniq.genes<-unique(good.genes.data$ENSEMBL)
+		good.genes.data<-snp.annotations
+		uniq.genes<-unique(good.genes.data$Gene)
 		nb.genes<-length(uniq.genes)
 	}
 
 	###### clean
-	rm(snp.sp,snp.gene.base)
+	rm(snp.sp)
 	######
 
 	if(homozyg.mapping)
@@ -351,10 +345,10 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 		dev.off()
 	}
 
-	## Make the outptu dataframe
+	## Make the output dataframe
 	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls','nb.alleles.cases','nb.alleles.ctrls','case.maf','ctrl.maf','total.maf','nb.case.homs',
 		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio','CompoundHetPvalue','minCadd','maxExac','min.depth',
-		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','MinSNPs','MaxCtrlMAF','SNPs','GeneRD','CaseSNPs'
+		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','MinSNPs','MaxCtrlMAF','SNPs','GeneRD','CaseSNPs','ADA'
 		)
 	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols)))
 	colnames(results)<-cols
@@ -365,6 +359,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	results$HWEp<-HWEp
 	results$MinSNPs<-MinSNPs
 	results$MaxCtrlMAF<-MaxCtrlMAF
+	gene.dict<-unique(data.frame(ENSEMBL=snp.annotations$Gene,Symbol=snp.annotations$SYMBOL)) 
 	results<-merge(gene.dict,results,by.y='Gene',by.x='ENSEMBL',all.y=T)
 	srt<-data.frame(1:length(uniq.genes),uniq.genes)
 	results<-merge(results,srt,by.y='uniq.genes',by.x='ENSEMBL')
@@ -396,7 +391,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	{
 		current.pheno<-bk.pheno
 		print(paste('Gene xx',uniq.genes[gene], gene))
-		gene.snps<-good.genes.data$SNP[ grep(uniq.genes[gene],good.genes.data$ENSEMBL) ]
+		gene.snps<-good.genes.data$SNP[ grep(uniq.genes[gene],good.genes.data$Gene) ]
 
 		gene.data<- data.frame(t(data.frame(strsplit(gene.snps,'_')))) 
 		gene.chr<-as.numeric(unique(gene.data[,1]))
@@ -415,7 +410,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 		print(paste('nb.snps.in.gene=',nb.snps.in.gene))
 		if(nb.snps.in.gene>=MinSNPs)
 		{
-			test.gene<-unique(snp.gene$ENSEMBL[snp.gene$SNP %in% rownames(gene.snp.data)])  ## match to uniq. genes as a check, 
+			test.gene<-unique(snp.annotations$Gene[snp.annotations$SNP %in% rownames(gene.snp.data)])  ## match to uniq. genes as a check, 
 			if(length(unique(test.gene))>1) message ("SNPs span multiple genes")
 			if(test.gene!=uniq.genes[gene]) stop ("Genes not sorted correctly")
 			if(results$ENSEMBL[gene]!=uniq.genes[gene]) stop ("Genes not sorted correctly")
@@ -498,6 +493,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					maf.ctrl.names<-read.table(MAFcontrolList,header=F,sep='\t') [,1]
 				} else
 				{
+					if(!file.exists(dirname(MAFcontrolList)))dir.create(dirname(MAFcontrolList),recursive=T)
 					maf.ctrl.names<- colnames(sample(ctrl.snps, ncol(ctrl.snps)/10)) # Separate 10% of ctrls for MAf filter
 					write.table(maf.ctrl.names,MAFcontrolList,col.names=F,row.names=F,quote=F,sep='\t')
 				}
@@ -578,7 +574,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 
 					obj<-SKAT_Null_Model(current.pheno ~ 
 						ancestry.pcs$V3+ancestry.pcs$V4#+ancestry.pcs$V5++ancestry.pcs$V6+ancestry.pcs$V7
-						+techPCs$V3+techPCs$V4#+techPCs$V5+techPCs$V6+techPCs$V7
+					#	+techPCs$V3+techPCs$V4#+techPCs$V5+techPCs$V6+techPCs$V7
 						#+depthPCs$V3+depthPCs$V4#+depthPCs$V5+depthPCs$V6+depthPCs$V7
 						, out_type="D")
 					if(sum(as.matrix(case.snps),na.rm=T)>0)
@@ -716,13 +712,25 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 							homozyg.dir<- paste0(outputDirectory,'Homozyg_mapping') 
 							if(!file.exists(homozyg.dir)) dir.create(homozyg.dir)
 							pdf.out<-paste0(homozyg.dir,'Homozyg_mapping.pdf')
-
+							# hopefully ill get around to finishing this one day
 						}
 					}
 
 					case.sums<-rowSums(case.snps,na.rm=T)
 					case.sums[is.na(case.sums)]<-0
 					results$CaseSNPs[gene]<-paste(names(case.sums[case.sums>0]),collapse=';') 
+				if(qcPREP)
+				{
+
+					robj<-paste0(outputDirectory,'qc/test_setup.RData')
+					message(paste('Saving workspace image to', robj))
+					save(list=ls(environment()),file=robj)
+				}	
+					##### ADA
+					gene.ada.dat<-cbind(current.pheno,t(final.snp.set)) 
+					write.table(gene.ada.dat,paste0(outputDirectory,'ada.test'),col.names=F,row.names=F,quote=F,sep='\t')
+					tt<-ADATest(paste0(outputDirectory,'ada.test'), 0.05, 1000, 1, 'additive', TRUE) 
+					results$ADA<-paste(tt$pval,tt$optimal.t,tt$posit,sep=';')
 
 				print(results[gene,])
 				if(qcPREP)

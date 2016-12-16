@@ -202,7 +202,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	} else nb.cases.carriers.required<-2
 	pval<-0.00001
 	filt<-subset(file,file$Nb.Carriers>=nb.cases.carriers.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8) 
-	filt<-subset(filt, filt$CompoundHetPvalue<=pval | filt$SKATO<=pval )
+	filt<-subset(filt, filt$CompoundHetPvalue<=pval | ( file$SKATO<=pval | file$FisherPvalue<=pval))
 	
 	filt$Nb.relevant.papers<-0
 	for(ro in 1:nrow(filt))
@@ -219,7 +219,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		rownames(filt)<-1:nrow(filt)
 
 		message("Making HTML table for top genes")
-		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",4),'E',rep("d",5),rep("E",6),rep('d',3),rep('E',11),rep("s",7),rep('d',2)))
+		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",4),'E',rep("d",5),rep("E",6),rep('d',3),rep('E',11),rep("s",7),rep('d',2),'s'))
 		htmlOut<-paste0(outputDirectory,Title,"_SKAT.html")
 		print(htmlOut)
 		print.xtable(filt.xtable, type="html",file=htmlOut,scalebox=.7)
