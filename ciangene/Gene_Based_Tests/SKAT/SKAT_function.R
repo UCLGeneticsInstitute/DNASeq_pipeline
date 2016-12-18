@@ -6,6 +6,7 @@
 #  $Rscript $SKAT --case.list $CaseFile --oDir outputDirectory --control.list $ControlFile
 
 ### Changes ####
+# added skat backward eliminaiton
 # added adaptive combination of P-values (ADA) method to pinpoint causal variants (Lin, 2016)
 # added option to specify maf controls to be output as file. useful to ensure same control subset used for all analyses. 
 # fixed bug with SKAT covariates
@@ -27,7 +28,7 @@
 # Keeping only damaging variants
 ########
 
-latest.change<-'Added adaptive combination of P-values (ADA) method to pinpoint causal variants (Lin, 2016)'
+latest.change<-'added skat backward elimination'
 print('---latest change----')
 message(latest.change)
 print('--------------------')
@@ -39,6 +40,7 @@ ldak='/cluster/project8/vyp/cian/support/ldak/ldak'
 
 suppressPackageStartupMessages(library("ggplot2"))
 suppressPackageStartupMessages(library("SKAT"))
+suppressPackageStartupMessages(library("SKATbe"))
 suppressPackageStartupMessages(library("snpStats"))
 suppressPackageStartupMessages(library("optparse"))
 suppressPackageStartupMessages(library("HardyWeinberg"))
@@ -66,7 +68,8 @@ option_list <- list(
  	make_option(c("--Release"),default='September2016',type='character',help='what release of UCLex do you want to use') ,
  	make_option(c("--MaxCtrlMAF"),default=0.1,type='character',help='Remove snps with maf above this in controls.') ,
  	make_option(c("--qcPREP"),default=FALSE,type='character',help='not used much, but handy for troubleshooting to save environment later on in function') ,
- 	make_option(c("--MAFcontrolList"),default=NULL,type='character',help='I take 10% of controls for maf. This param specifies where this ctrl list will be stored to reuse for other tests for consistency') 
+ 	make_option(c("--MAFcontrolList"),default=NULL,type='character',help='I take 10% of controls for maf. This param specifies where this ctrl list will be stored to reuse for other tests for consistency'),
+ 	make_option(c("--SKATbePval"),default=0.00000001,type='character',help='How signif do you want the gene to be for skatbe to run. its slow...')
  )
 
 
@@ -93,6 +96,7 @@ MinSNPs<-as.numeric(opt$MinSNPs)
 HWEp<-as.numeric(opt$HWEp)
 UCLex_Release<-opt$Release
 MAFcontrolList<-opt$MAFcontrolList
+SKATbePval<-as.numeric(opt$SKATbePval) 
 
 if(	is.null(opt$MAFcontrolList)) MAFcontrolList<-paste0(outputDirectory,'/MAFcontrolList')
 if( (!is.null(opt$SampleGene)) && ( !is.null(opt$TargetGenes)) ) stop("Please supply either a single gene to SampleGene or a file of gene names to TargetGenes. Not both.")
@@ -348,7 +352,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	## Make the output dataframe
 	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls','nb.alleles.cases','nb.alleles.ctrls','case.maf','ctrl.maf','total.maf','nb.case.homs',
 		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio','CompoundHetPvalue','minCadd','maxExac','min.depth',
-		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','MinSNPs','MaxCtrlMAF','SNPs','GeneRD','CaseSNPs','ADA'
+		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','MinSNPs','MaxCtrlMAF','SNPs','GeneRD','CaseSNPs','ADA','SKATbeSNPs'
 		)
 	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols)))
 	colnames(results)<-cols
@@ -507,6 +511,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 			
 			nb.snps.in.gene2<-nrow(case.snps)
 			print(paste('nb.snps.in.gene2=',nb.snps.in.gene2))
+
 			if(nb.snps.in.gene2>=MinSNPs)
 			{ 
 				ctrl.snps<-ctrl.snps[,colnames(ctrl.snps)%in%good.ctrls]
@@ -642,6 +647,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					}
 					case.calls<-FALSE
 					ctrl.calls<-FALSE
+
 					if(sum(as.matrix(case.snps),na.rm=T)>0)
 					{
 						case.dat<-GetCarriers(case.snps)
@@ -729,8 +735,21 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					##### ADA
 					gene.ada.dat<-cbind(current.pheno,t(final.snp.set)) 
 					write.table(gene.ada.dat,paste0(outputDirectory,'ada.test'),col.names=F,row.names=F,quote=F,sep='\t')
-					tt<-ADATest(paste0(outputDirectory,'ada.test'), 0.05, 1000, 1, 'additive', TRUE) 
-					results$ADA<-paste(tt$pval,tt$optimal.t,tt$posit,sep=';')
+					if(results$nb.alleles.cases[gene]>0)
+					{ 
+						tt<-ADATest(paste0(outputDirectory,'ada.test'), 0.05, 1000, 1, 'additive', TRUE) 
+						results$ADA<-paste(tt$pval,tt$optimal.t,tt$posit,sep=';')
+					}	
+
+					### SKATbe
+					if(results$SKATO[gene] <= SKATbePval) 
+					{
+						message(paste('Gene',results$Symbol[gene],'is significant enough for SKATbe'))
+						skat.be(Z=t(final.snp.set),y=current.pheno,w=rep(1,nrow(final.snp.set)),File.Out='skatbe',basedir=outputDirectory,N.SIMR=100) 
+						be<-read.table(paste0(outputDirectory,'skatbe','/skatbe_BIG.ro0.curr_set.ro0')) 
+						results$SKATbeSNPs[gene]<-paste(rownames(final.snp.set)[be[,1]],collapse=';')
+					}
+
 
 				print(results[gene,])
 				if(qcPREP)
@@ -760,7 +779,6 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 
 print("Finished testing.")
 } #doSKAT
-
 
 
 #### now run function.
