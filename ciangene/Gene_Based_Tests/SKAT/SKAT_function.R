@@ -20,7 +20,6 @@
 # Added basic compoundHeterozygote Function and pvalue.  
 # changed missingess to missing_cutoff=0.2. So variants with missingess >20% will be removed. 
 # added fisher test and odds ratio. 
-# changed nb.cases/ctrls to nb non NA calls (so nb.cases now is nb.patients*nb.variants)
 # changed case.count/ctlr.count to allele counts. 1 het and 1 hom is a count of 3 for nb.variants.cases 
 # now not removing non caucasians - adding top two PCs as covariates into SKATO instead. 
 # removing related individuals. ReEdit: ## Turned off for now. 
@@ -71,7 +70,6 @@ option_list <- list(
  	make_option(c("--MAFcontrolList"),default=NULL,type='character',help='I take 10% of controls for maf. This param specifies where this ctrl list will be stored to reuse for other tests for consistency'),
  	make_option(c("--SKATbePval"),default=0.00000001,type='character',help='How signif do you want the gene to be for skatbe to run. its slow...')
  )
-
 
 opt <- parse_args(OptionParser(option_list=option_list))
 if ( opt$verbose ) {
@@ -202,12 +200,6 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 		snp.sp<-read.table(paste0(rgh,'UCLex_phased_out.sp'),header=F)
 		snp.bim<-read.table(paste0(rgh,'UCLex_phased_out.bim'),header=F)
 		snp.fam<-read.table(paste0(rgh,'UCLex_phased_out.fam'),header=F)
-		#snp.sp<-read.table(paste0(rootODir,'allChr_snpStats.sp'),header=F)
-		#snp.bim<-read.table(paste0(rootODir,'allChr_snpStats.bim'),header=F)
-		#snp.fam<-read.table(paste0(rootODir,'allChr_snpStats.fam'),header=F)
-		#snp.sp<-read.table(paste0(rootODir,'gene_test_variants_out.sp'),header=F)
-		#snp.bim<-read.table(paste0(rootODir,'gene_test_variants_out.bim'),header=F)
-		#snp.fam<-read.table(paste0(rootODir,'gene_test_variants_out.fam'),header=F)
 		colnames(snp.sp)<-snp.fam[,1]
 		rownames(snp.sp)<-snp.bim[,2]
 	}
@@ -296,7 +288,6 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 		snp.read.depth<-rowMeans(snp.sp,na.rm=T)
 	}
 
-
 	current.pheno<-rep(NA,ncol(clean.snp.data))
 	current.pheno[colnames(clean.snp.data)%in%case.list]<-1
 
@@ -368,7 +359,6 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	srt<-data.frame(1:length(uniq.genes),uniq.genes)
 	results<-merge(results,srt,by.y='uniq.genes',by.x='ENSEMBL')
 	results<-results[order(results[,(ncol(results))]),]
-	#results<-results[,1:(ncol(results)-1)]
 	uniq.genes<-unique(results[,1])
 	nb.genes<-length(uniq.genes)
 
@@ -548,10 +538,8 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 				### now do ctrls	
 				if(sum(as.matrix(ctrl.snps),na.rm=T)>0)results$ctrl.maf[gene]<-signif(maf(as.numeric(unlist(table(unlist(ctrl.snps))))),2) else results$ctrl.maf[gene]<-0
 
-			#	if(results$ctrl.maf[gene]>0)
-			#	{ 
-					ctrl.homs<-length(grep(2,ctrl.snps))
-					if(ctrl.homs>0)results$nb.ctrl.homs[gene]<-ctrl.homs
+				ctrl.homs<-length(grep(2,ctrl.snps))
+				if(ctrl.homs>0)results$nb.ctrl.homs[gene]<-ctrl.homs
 				
 					ctrl.hets<-length(grep(1,ctrl.snps)) 
 					if(ctrl.hets>0) results$nb.ctrl.hets[gene]<-ctrl.hets
@@ -745,9 +733,12 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					if(results$SKATO[gene] <= SKATbePval) 
 					{
 						message(paste('Gene',results$Symbol[gene],'is significant enough for SKATbe'))
-						skat.be(Z=t(final.snp.set),y=current.pheno,w=rep(1,nrow(final.snp.set)),File.Out='skatbe',basedir=outputDirectory,N.SIMR=100) 
+						if(ncol(case.snps)>10)
+						{
+						skat.be(Z=t(final.snp.set),y=current.pheno,w=rep(1,nrow(final.snp.set)),File.Out='skatbe',basedir=outputDirectory,N.SIMR=150 ) 
 						be<-read.table(paste0(outputDirectory,'skatbe','/skatbe_BIG.ro0.curr_set.ro0')) 
 						results$SKATbeSNPs[gene]<-paste(rownames(final.snp.set)[be[,1]],collapse=';')
+						} else message('However there are too few cases to get a sensible result. skipping.')
 					}
 
 
@@ -769,13 +760,6 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 		qqplot.out <- paste0(outputDirectory,'skat_QQplot.png')
 
 		write.table(results,results.out,col.names=T,row.names=F,quote=F,sep=',')
-	
-	#if(is.null(TargetGenes))
-	#{
-#		png(qqplot.out)
-#		qq.chisq(-2*log(results$SKATO), df=2, x.max=30, main='SKAT',cex.main=0.7)	
-#		dev.off() 
-#	}
 
 print("Finished testing.")
 } #doSKAT
