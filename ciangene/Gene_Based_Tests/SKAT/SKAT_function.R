@@ -6,7 +6,7 @@
 #  $Rscript $SKAT --case.list $CaseFile --oDir outputDirectory --control.list $ControlFile
 
 ### Changes ####
-# added skat backward eliminaiton
+# added skat backward eliminaiton Ionita-Laza 2014
 # added adaptive combination of P-values (ADA) method to pinpoint causal variants (Lin, 2016)
 # added option to specify maf controls to be output as file. useful to ensure same control subset used for all analyses. 
 # fixed bug with SKAT covariates
@@ -68,7 +68,7 @@ option_list <- list(
  	make_option(c("--MaxCtrlMAF"),default=0.1,type='character',help='Remove snps with maf above this in controls.') ,
  	make_option(c("--qcPREP"),default=FALSE,type='character',help='not used much, but handy for troubleshooting to save environment later on in function') ,
  	make_option(c("--MAFcontrolList"),default=NULL,type='character',help='I take 10% of controls for maf. This param specifies where this ctrl list will be stored to reuse for other tests for consistency'),
- 	make_option(c("--SKATbePval"),default=0.00000001,type='character',help='How signif do you want the gene to be for skatbe to run. its slow...')
+ 	make_option(c("--SKATbePval"),default=0.00001,type='character',help='How signif do you want the gene to be for skatbe to run. its slow...')
  )
 
 opt <- parse_args(OptionParser(option_list=option_list))
@@ -713,6 +713,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					case.sums<-rowSums(case.snps,na.rm=T)
 					case.sums[is.na(case.sums)]<-0
 					results$CaseSNPs[gene]<-paste(names(case.sums[case.sums>0]),collapse=';') 
+			
 				if(qcPREP)
 				{
 
@@ -725,31 +726,26 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					write.table(gene.ada.dat,paste0(outputDirectory,'ada.test'),col.names=F,row.names=F,quote=F,sep='\t')
 					if(results$nb.alleles.cases[gene]>0)
 					{ 
-						tt<-ADATest(paste0(outputDirectory,'ada.test'), 0.05, 1000, 1, 'additive', TRUE) 
-						results$ADA<-paste(tt$pval,tt$optimal.t,tt$posit,sep=';')
+						tt<-ADATest(paste0(outputDirectory,'ada.test'),midp =  1) 
+						if(tt=='Dud')
+						{
+							results$ADA[gene]<-'NA'
+						} else results$ADA[gene]<-paste(tt$pval,tt$optimal.t,tt$posit,sep=';')
 					}	
 
 					### SKATbe
 					if(results$SKATO[gene] <= SKATbePval) 
 					{
 						message(paste('Gene',results$Symbol[gene],'is significant enough for SKATbe'))
-						if(ncol(case.snps)>10)
+						if(nrow(final.snp.set)>=10)
 						{
-						skat.be(Z=t(final.snp.set),y=current.pheno,w=rep(1,nrow(final.snp.set)),File.Out='skatbe',basedir=outputDirectory,N.SIMR=150 ) 
-						be<-read.table(paste0(outputDirectory,'skatbe','/skatbe_BIG.ro0.curr_set.ro0')) 
-						results$SKATbeSNPs[gene]<-paste(rownames(final.snp.set)[be[,1]],collapse=';')
-						} else message('However there are too few cases to get a sensible result. skipping.')
+							skat.be(Z=t(final.snp.set),y=current.pheno,w=rep(1,nrow(final.snp.set)),File.Out='skatbe',basedir=outputDirectory,N.SIMR=150 ) 
+							be<-read.table(paste0(outputDirectory,'skatbe','/skatbe_BIG.ro0.curr_set.ro0')) 
+							results$SKATbeSNPs[gene]<-paste(rownames(final.snp.set)[be[,1]],collapse=';')
+						} else message('However there are too few SNPs to bother. skipping.')
 					}
-
-
 				print(results[gene,])
-				if(qcPREP)
-				{
 
-					robj<-paste0(outputDirectory,'qc/test_setup.RData')
-					message(paste('Saving workspace image to', robj))
-					save(list=ls(environment()),file=robj)
-				}	
 			}
 		}
 	}
