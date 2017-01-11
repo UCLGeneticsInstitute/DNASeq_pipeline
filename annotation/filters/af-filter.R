@@ -10,19 +10,28 @@ suppressPackageStartupMessages(library(xtable))
 ### Series of filters suggested by Adam.
 # Filtering of variants based on annotation
 message('*** AF FILTERING ***')
-d <- as.data.frame(fread('file:///dev/stdin'))
+d <- as.data.frame(fread('file:///dev/stdin',showProgress=FALSE))
 
 option_list <- list(
+    make_option(c('--kaviar.thresh'), default=0.01, help='pop freq threshold'),
     make_option(c('--exac.thresh'), default=0.01, help='pop freq threshold'),
     make_option(c('--onekg.thresh'), default=0.05, help='pop freq threshold'),
     make_option(c('--esp.thresh'), default=0.05, help='pop freq threshold'),
     make_option(c('--ajcontrols.thresh'), default=NULL, type='numeric', help='pop freq threshold'),
     make_option(c('--uclex.thresh'), default=NULL, type='numeric', help='pop freq threshold'),
-    make_option(c('--out'), help='out file')
-)
-
+    make_option(c('--thresholds'), default='thresholds.txt', type='character', help='thresholds file'),
+    make_option(c('--out'), default='', help='out file')
+) 
 option.parser <- OptionParser(option_list=option_list)
 opt <- parse_args(option.parser)
+
+if (file.exists(opt$thresholds)) {
+    message('*** thresholds.txt ***')
+    thresh <- read.table(opt$thresholds,sep=' ',header=TRUE)
+    for (i in 1:nrow(thresh)) {
+        opt[[thresh[i,'name']]] <- as.numeric(thresh[i,'threshold'])
+    }
+}
 
 #
 af.filter <- function(xx,xx.thresh) {
@@ -36,6 +45,7 @@ af.filter <- function(xx,xx.thresh) {
         err.cat(table(xx.filter <- (d[,pop.af] < xx.thresh & (d$HOM>=1|d$HET>=1)), useNA='always'))
         return(xx.filter)
     })
+    #if (nrow(xx.filter)==0)
     colnames(xx.filter) <- xx$pop
     i <- rowSums(xx.filter) 
     d <- d[which(is.na(i) | i==ncol(xx.filter)),]
@@ -75,6 +85,16 @@ if (!is.null(opt$uclex.thresh)) {
     d <- af.filter(uclex,uclex.thresh)
 }
 
+#Kaviar
+if (!is.null(opt$kaviar.thresh)) {
+    kaviar.thresh <- opt$kaviar.thresh
+    message('*** KAVIAR FILTERING ***')
+    kaviar <- data.frame(
+    pop=c('Kaviar'),
+    description=c('Kaviar')
+    )
+    d <- af.filter(kaviar,kaviar.thresh)
+}
 
 #EXAC
 if (!is.null(opt$exac.thresh)) {

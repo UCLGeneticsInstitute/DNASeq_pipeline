@@ -6,14 +6,11 @@ suppressPackageStartupMessages(library(optparse))
 suppressPackageStartupMessages(library(tools))
 suppressPackageStartupMessages(library(xtable))
 
-### Series of filters suggested by Adam.
-message('*** coding FILTERING ***')
-
-d <- as.data.frame(fread('file:///dev/stdin'))
+d <- as.data.frame(fread('file:///dev/stdin',showProgress=FALSE))
 
 option_list <- list(
     make_option(c('--gene.list'), help='list of genes to keep'),
-    make_option(c('--out'), help='out file')
+    make_option(c('--out'), default='', help='out file')
 ) 
 option.parser <- OptionParser(option_list=option_list)
 opt <- parse_args(option.parser)

@@ -10,17 +10,11 @@ d <- as.data.frame(fread('file:///dev/stdin',showProgress=FALSE))
 
 option_list <- list(
     make_option(c('--out'), default='', help='out file')
-)
-
+) 
 option.parser <- OptionParser(option_list=option_list)
 opt <- parse_args(option.parser)
 
-d <- d[which(!is.na(d$SYMBOL)),]
-
-d <- d[which(d$CANONICAL=='YES'),]
-
-d <- d[grep('transcript_ablation|splice_acceptor_variant|splice_donor_variant|stop_gained|frameshift_variant|stop_lost|start_lost|transcript_amplification|inframe_insertion|inframe_deletion|missense_variant|protein_altering_variant|splice_region_variant|incomplete_terminal_codon_variant|stop_retained_variant|synonymous_variant|coding_sequence_variant', d$Consequence),]
+d <- d[which( d$HOM==1  ),]
 
 write.csv(d, file=opt$out, quote=FALSE, row.names=FALSE)
-
 
