@@ -4,6 +4,7 @@ import sys
 import json
 import pysam
 import exac
+import argparse
 
 
 def eprint(*args, **kwargs): print(*args, file=sys.stderr, **kwargs)
@@ -39,13 +40,17 @@ def vcf_query(chrom=None, pos=None, ref=None, alt=None, variant_str=None, indivi
         variant['synonym_variant_id']='{}-{}-{}-{}'.format(str(chrom), str(pos), ref, alt,)
         variant['hgvs']='chr%s:g.%s%s>%s' % (str(chrom), str(POS), REF, ALT,)
         #print [geno[h].split(':')[0].split('/') for h in geno]
-        variant['hom_samples']=[h for h in geno if geno[h].split(':')[0]==homozygous_genotype][0:limit]
+        hom_samples=[h for h in geno if geno[h].split(':')[0]==homozygous_genotype]
+        variant['hom_samples']=hom_samples[0:limit]
         variant['HOM_COUNT']=len(variant['hom_samples'])
-        variant['het_samples']=[h for h in geno if geno[h].split(':')[0]==heterozygous_genotype][0:limit]
-        variant['HET_COUNT']=len(variant['het_samples'])
-        variant['wt_samples']=[h for h in geno if geno[h].split(':')[0]=='0/0'][1:100]
+        het_samples=[h for h in geno if geno[h].split(':')[0]==heterozygous_genotype]
+        variant['het_samples']=het_samples[0:limit]
+        variant['HET_COUNT']=len(het_samples)
+        wt_samples=[h for h in geno if geno[h].split(':')[0]=='0/0']
+        variant['wt_samples']=wt_samples[1:100]
         variant['WT_COUNT']=len([h for h in geno if geno[h].split(':')[0]=='0/0'])
-        variant['MISS_COUNT']=len([h for h in geno if geno[h].split(':')[0]=='./.'])
+        miss_count=[h for h in geno if geno[h].split(':')[0]=='./.']
+        variant['MISS_COUNT']=len(miss_count)
         variant['allele_num']= 2*(variant['HOM_COUNT'] + variant['HET_COUNT']+variant['WT_COUNT'])
         variant['allele_count']=2*variant['HOM_COUNT'] + variant['HET_COUNT']
         if individual: variant['individual']=geno[individual]
@@ -127,6 +132,13 @@ def canonical(d):
         d['canonical_gene_name_upper']=d.get('gene_name_upper',[])+[cons['gene_symbol'].upper()]
         d['canonical_gene_name_upper']=d['canonical_gene_name_upper'][0]
 
+
+parser=argparse.ArgumentParser(description='Arguments to postprocess_VEP_vcf2.py')
+parser.add_argument('--release', required=True)
+
+args=parser.parse_args()
+release=args.release
+
 for l in sys.stdin:
     d=json.loads(l.strip())
     d.update(dict(zip(headers,d['input'].split('\t'))))
@@ -160,7 +172,7 @@ for l in sys.stdin:
     freq_cleanup(d)
     go_cleanup(d)
     canonical(d)
-    d.update(vcf_query(variant_str=d['variant_id']))
+    d.update(vcf_query(variant_str=d['variant_id'],release=release))
     d['EXAC']=exac.exac_query(variant_str=d['variant_id'])
     # try convert str which have a decimal point to number
     for k in d:
