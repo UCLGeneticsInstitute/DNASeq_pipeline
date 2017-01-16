@@ -174,6 +174,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	if(!is.null(TargetGenes)) ## if we're testing a couple genes only, Im subsetting SNPmatrix to make it faster to read in. 
 	{
 		data<-paste0(rootODir,'allChr_snpStats_out') 
+#		data<-paste0(rootODir,'filtered_out') 
 		target.snp.info<-snp.annotations[ snp.annotations$SYMBOL %in% TargetGenes,]
 		target.snps<- target.snp.info$SNP[target.snp.info$SNP %in% filtered.snp.list]
 		write.table(target.snps,snplist.file,col.names=F,row.names=F,quote=F,sep='\t')
@@ -343,7 +344,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	## Make the output dataframe
 	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls','nb.alleles.cases','nb.alleles.ctrls','case.maf','ctrl.maf','total.maf','nb.case.homs',
 		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio','CompoundHetPvalue','minCadd','maxExac','min.depth',
-		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','MinSNPs','MaxCtrlMAF','SNPs','GeneRD','CaseSNPs','ADA','SKATbeSNPs'
+		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','MinSNPs','MaxCtrlMAF','SNPs','GeneRD','CaseSNPs','SKATbeSNPs'
 		)
 	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols)))
 	colnames(results)<-cols
@@ -492,6 +493,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					write.table(maf.ctrl.names,MAFcontrolList,col.names=F,row.names=F,quote=F,sep='\t')
 				}
 				maf.ctrls<- ctrl.snps[, colnames(ctrl.snps) %in% maf.ctrl.names ]
+				case.snps[is.na(case.snps)]<-0
 				maf.snp.cases<-apply(case.snps,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
 				maf.snp.ctrls<-apply(maf.ctrls,1, function(x) signif(maf(as.numeric(unlist(table(unlist(x))))),2)  )
 				maf.snp.ctrls[is.na(maf.snp.ctrls)]<-0
@@ -639,7 +641,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					if(sum(as.matrix(case.snps),na.rm=T)>0)
 					{
 						case.dat<-GetCarriers(case.snps)
-						case.dat<-data.frame(case.dat,uniq.genes[gene])
+						case.dat<-data.frame(case.dat,results[gene,1:2])
 						write.table(case.dat, caseFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
 						case.calls<-TRUE
 					}
@@ -647,7 +649,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					if(sum(as.matrix(ctrl.snps),na.rm=T)>0)
 					{
 						ctrl.dat<-GetCarriers(ctrl.snps)
-						ctrl.dat<-data.frame(ctrl.dat,uniq.genes[gene])
+						ctrl.dat<-data.frame(ctrl.dat,results[gene,1:2])
 						write.table(ctrl.dat,ctrlFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
 						ctrl.calls<-TRUE
 					}
@@ -722,17 +724,20 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					save(list=ls(environment()),file=robj)
 				}	
 					##### ADA
-					gene.ada.dat<-cbind(current.pheno,t(final.snp.set)) 
-					write.table(gene.ada.dat,paste0(outputDirectory,'ada.test'),col.names=F,row.names=F,quote=F,sep='\t')
-					if(results$nb.alleles.cases[gene]>0)
-					{ 
-						tt<-ADATest(paste0(outputDirectory,'ada.test'),midp =  1) 
-						if(tt=='Dud')
-						{
-							results$ADA[gene]<-'NA'
-						} else results$ADA[gene]<-paste(tt$pval,tt$optimal.t,tt$posit,sep=';')
-					}	
-
+					ada<-FALSE
+					if(ada)
+					{
+						gene.ada.dat<-cbind(current.pheno,t(final.snp.set)) 
+						write.table(gene.ada.dat,paste0(outputDirectory,'ada.test'),col.names=F,row.names=F,quote=F,sep='\t')
+						if(results$nb.alleles.cases[gene]>0)
+						{ 
+							tt<-ADATest(file=paste0(outputDirectory,'ada.test'),midp =  1) 
+							if(tt=='Dud')
+							{
+								results$ADA[gene]<-'NA'
+							} else results$ADA[gene]<-paste(tt$pval,tt$optimal.t,tt$posit,sep=';')
+						}	
+					} # ADA
 					### SKATbe
 					if(results$SKATO[gene] <= SKATbePval) 
 					{

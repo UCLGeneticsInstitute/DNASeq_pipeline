@@ -30,6 +30,8 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	system(paste('chmod 777',paste0(outputDirectory,'README.docx')))
 	files<-list.files(dir,pattern='csv',full.names=T,recursive=T)
 	files<-files[grep("chr",files)]
+	dirName<-paste(basename(dirname(dirname(dir))),basename(dirname(dir)),basename(dir))
+	if(length(files)!=23)message( paste('Problem-',dirName,'might be missing a few chromosomes...' ) )
 	file.copy(paste0( dirname(files)[1],'/qc/case_pca.plot.pdf'),paste0(outputDirectory,'Case_PCA_plots.pdf')) 
 	file.copy(paste0( dirname(files)[1],'/qc/cases_removed_because_of_low_read_depth.tab'),paste0(outputDirectory,'cases_removed_because_of_low_read_depth.tab')) 
 
@@ -75,14 +77,14 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	message('Merging case carriers')
 	carriers<-list.files(dir,pattern='case_carriers',full.names=T,recursive=T)
 	carry.oFile<-paste0(outputDirectory,Title,'_case_carriers.csv') 
-	carriers<-MergeFiles(carriers,carry.oFile)
 	file.remove(carry.oFile)
+	carriers<-MergeFiles(carriers,carry.oFile)
 	message('Merging ctrl carriers')
 
 	ctrl.carriers<-list.files(dir,pattern='ctrl_carriers',full.names=T,recursive=T)
 	ctrl.carry.oFile<-paste0(outputDirectory,Title,'_control_carriers.csv') 
-	ctrl.carriers<-MergeFiles(ctrl.carriers,ctrl.carry.oFile)
 	file.remove(ctrl.carry.oFile)
+	ctrl.carriers<-MergeFiles(ctrl.carriers,ctrl.carry.oFile)
 	message('Merging results by SNP')
 
 	by.snp<-list.files(dir,pattern='SKAT_results_by_SNP',full.names=T,recursive=T)
@@ -147,7 +149,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		{
 			if( file.exists(file.path(genes))) genes<-read.table(genes,header=FALSE)[,1]
 			file$Candidate<-FALSE
-			file$Candidate[file$Symbol %in% genes]<-TRUE
+			file$Candidate[file$Symbol %in% genes[,1]]<-TRUE
 			file<-data.frame(cbind(file[,ncol(file)],file[,1:(ncol(file)-1)]))
 			colnames(file)[1]<-'Candidate'
 			tst <- qq.chisq(-2*log(file$SKATO), df=2, x.max=50,pvals=TRUE,main=Title)
@@ -161,7 +163,8 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	}
 
 	message("Saving workspace to ",paste0(outputDirectory,Title,'_prep.RData'))
-	save.image(file=paste0(outputDirectory,Title,'_prep.RData'))
+	save(list=ls(environment()),file=paste0(outputDirectory,Title,'_prep.RData'))
+
 	message("Making list of samples that are carriers per variant")
 
 	file$Carriers<-0
@@ -189,7 +192,9 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		file$Nb.case.snps[car]<-length(unique(unlist(strsplit(as.character(file$CaseSNPs[car]),';')) ))
 	}
 
+	prion<-FALSE
 	#carriers.summary<-data.frame(Gene=file$Symbol,)
+	if(!prion)if(grep('ADA',colnames(file))) file$ADA<-NULL
 	write.table(file,paste0(outputDirectory,Title,'_SKAT_processed.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 
 ############################################################################################################
@@ -199,27 +204,50 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	{
 		percent.cases.carriers<-percent
 		nb.cases.carriers.required<- round( as.numeric(file$nb.cases) * (percent.cases.carriers/100)  ) [1]
-	} else nb.cases.carriers.required<-2
+	} else nb.cases.carriers.required<-5
 	pval<-0.000001
 	filt<-subset(file,file$Nb.Carriers>=nb.cases.carriers.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8) 
-	filt<-subset(filt, filt$CompoundHetPvalue<=pval | ( filt$SKATO<=pval & filt$FisherPvalue<=pval))
-	
-	filt$Nb.relevant.papers<-0
-	for(ro in 1:nrow(filt))
-	{
-		ff<- entrez_search(db="pubmed", term= paste('(',filt$Symbol[ro],')AND(',disease,')'))
-		filt$Nb.relevant.papers[ro]<-ff$count
-	}
+	filt$FisherPvalue<-as.numeric(filt$FisherPvalue)
+	filt<-subset(filt, as.numeric(filt$CompoundHetPvalue)<=pval | ( as.numeric(filt$SKATO)<=pval | filt$FisherPvalue<=pval))
 
 	if(nrow(filt)>0)
 	{
+
+		# make a table of most likely causative gene for each case. 
+		cases<-unique(unlist(strsplit(filt$Carriers,split=';') ))
+		case.dat<-data.frame(matrix(nrow=length(cases),ncol=3))
+		case.dat[,1]<-cases
+		colnames(case.dat)<-c('Case','MostLikelyCausativeGenesInOrder','Variants')
+		for(case in 1:length(cases))
+		{
+			case.genes<-filt$Symbol[grep(cases[case],filt$Carriers)]
+			for(gen in 1:length(case.genes))
+			{
+				gene.variants<-carriers[carriers$V3==filt$ENSEMBL[filt$Symbol==case.genes[gen]],]
+				case.gene.variants<-paste(gene.variants[gene.variants$V2==cases[case],1],collapse=',')
+				if(gen==1)case.variants<-case.gene.variants else case.variants<-c(case.variants,case.gene.variants)
+			}
+			case.variants<-paste(unlist(case.variants),collapse=';')
+			case.dat[case,2]<-paste(filt$Symbol[grep(cases[case],filt$Carriers)],collapse=';')
+			case.dat[case,3]<-case.variants
+		}
+		write.table(case.dat,paste0(outputDirectory,Title,'_solved_cases.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
+
+		filt$Nb.relevant.papers<-0
+		message('Finding relevant papers...')
+		for(ro in 1:nrow(filt))
+		{
+			ff<- entrez_search(db="pubmed", term= paste('(',filt$Symbol[ro],')AND(',disease,')'))
+			filt$Nb.relevant.papers[ro]<-ff$count
+		}
+
 		write.table(filt,paste0(outputDirectory,Title,'_SKAT_processed_filtered.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 
 		if(nrow(filt)>10)filt<-filt[1:10,]
 		rownames(filt)<-1:nrow(filt)
 
 		message("Making HTML table for top genes")
-		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",4),'E',rep("d",5),rep("E",6),rep('d',3),rep('E',11),rep("s",7),rep('d',2),rep('s',2)))
+		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",4),'E',rep("d",5),rep("E",6),rep('d',3),rep('E',11),rep("s",7),rep('d',2),rep('s',1)))
 		htmlOut<-paste0(outputDirectory,Title,"_SKAT.html")
 		print(htmlOut)
 		print.xtable(filt.xtable, type="html",file=htmlOut,scalebox=.7)
