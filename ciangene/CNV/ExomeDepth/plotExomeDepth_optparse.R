@@ -201,7 +201,7 @@ topCNVs.merged<-topCNVs.merged[with(topCNVs.merged, order(chromosome, start,end)
 pdf(hitCNVspdf)
 loopPlot(topCNVs.merged)
 dev.off()
-if(file.info(hitCNVspdf) $size<10000) file.remove(hitCNVspdf) else message(paste('PDF is:',hitCNVspdf))
+#if(file.info(hitCNVspdf) $size<10000) file.remove(hitCNVspdf) else message(paste('PDF is:',hitCNVspdf))
 #######################################################################################################################################
 ## Now look at the candidate genes. 
 

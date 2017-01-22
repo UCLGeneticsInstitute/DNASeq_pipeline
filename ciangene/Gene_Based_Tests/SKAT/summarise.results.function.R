@@ -192,7 +192,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		file$Nb.case.snps[car]<-length(unique(unlist(strsplit(as.character(file$CaseSNPs[car]),';')) ))
 	}
 
-	prion<-FALSE
+	prion<-TRUE
 	#carriers.summary<-data.frame(Gene=file$Symbol,)
 	if(!prion)if(grep('ADA',colnames(file))) file$ADA<-NULL
 	write.table(file,paste0(outputDirectory,Title,'_SKAT_processed.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
