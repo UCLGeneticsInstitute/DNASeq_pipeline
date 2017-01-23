@@ -69,7 +69,7 @@ for line in sys.stdin:
     #lines which start with '###'
     #are not tab separated
     if line.startswith('##'):
-        #print(line)
+        print(line)
         continue
     #this is tab separated line
     s=line.split("\t")
@@ -124,9 +124,17 @@ for line in sys.stdin:
     alleles=[s['REF']]+alternative_alleles
     n2geno=dict(zip(['.']+[str(i) for i in range(0,len(alleles))],['.']+alleles))
     for idx, alt in enumerate(alternative_alleles):
-        s['ALT']=alt
-        #recode GT
         s1=s.copy()
+        s['ALT']=alt
+        # split info fields on ',' across lines
+        def f(info):
+            k,v,=info.split('=')
+            if ',' in v:
+                return '='.join([k,v.split(',')[idx]])
+            else:
+                return '='.join([k,v])
+        s1['INFO']=';'.join(map(f, s['INFO'].split(';')))
+        #recode GT
         for h in SAMPLE_HEADERS:
             d=dict(zip(s1['FORMAT'].split(':'),s1[h].split(":")))
             #length of allele depth is 2 where first is always REF allele depth
