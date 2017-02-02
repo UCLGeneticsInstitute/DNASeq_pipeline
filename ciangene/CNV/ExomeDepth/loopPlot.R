@@ -1,8 +1,9 @@
-loopPlot<-function(dat)
+loopPlot<-function(dat,CallsDirectory)
 {
 	for(cnv in 1:nrow(dat))
 	{
-		cnv.file<-paste0(CallsDirectory,'single_exons/',dat$sample[cnv],'.RData')
+		cnv.file<-paste0(CallsDirectory,'/single_exons/',dat$sample[cnv],'.RData')
+		if(!grepl('CNVcalls',cnv.file))cnv.file<-paste0(CallsDirectory,'/CNVcalls/single_exons/',dat$sample[cnv],'.RData')
 		if(file.exists(cnv.file))
 		{
 			load(cnv.file)

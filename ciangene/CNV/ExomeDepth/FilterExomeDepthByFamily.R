@@ -17,8 +17,8 @@ opt <- parse_args(OptionParser(option_list=option_list))
 message('starting argument check')
 inputFile<-opt$inputFile
 message(paste('input file:',inputFile)) 
-proband<-opt$proband
-family<-opt$family
+probandID<-opt$proband
+familyID<-opt$family
 outDir<-opt$outDir
 if(!file.exists(outDir))dir.create(outDir,recursive=TRUE)
 
@@ -27,14 +27,16 @@ source('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/CNV/ExomeDepth/loopPl
 
 
 file<-fread(inputFile)
-proband<-fread(proband)
-family<-fread(family)
+proband<-read.table(probandID)[,1]
+family<-read.table(familyID)[,1]
 
 proband.cnvs<-file[file$sample %in% proband,]
 family.cnvs<-file[file$sample %in% family,]
 
 proband.ranges <- with(proband.cnvs, GRanges(chromosome, IRanges(start=start, end=end)))
 family.ranges <- with(family.cnvs, GRanges(chromosome, IRanges(start=start, end=end)))
+genes<-read.table('/SAN/vyplab/UCLex/support/genes.bed',header=TRUE,sep='\t')
+gr0 = with(genes, GRanges(chromosome, IRanges(start=start, end=end)))
 
 hits<-data.frame(findOverlaps(proband.ranges, family.ranges)) 
 
@@ -44,11 +46,11 @@ if(nrow(proband.novel.cnvs)==0)
 	stop('There are no novel CNVs in proband apparently')
 } else
 {
-	write.table(proband.novel.cnvs,paste0(outDir,'ProbandOnlyCNVs.csv'),col.names=T,row.names=F,quote=T,sep=',')
-	pdfOut<-paste0(outDir,'ProbandOnlyCNVs.pdf')
+	write.table(proband.novel.cnvs,file.path(outDir,'ProbandOnlyCNVs.csv'),col.names=T,row.names=F,quote=T,sep=',')
+	pdfOut<-file.path(outDir,'ProbandOnlyCNVs.pdf')
 	pdf(pdfOut)
-		loopPlot(proband.novel.cnvs)
+		loopPlot(proband.novel.cnvs,outDir)
 	dev.off()
-	message(paste('output in csv & pdf at',paste0(outDir,'ProbandOnlyCNVs.csv and .pdf') ))
+	message(paste('output in',pdfOut ))
 }
 
