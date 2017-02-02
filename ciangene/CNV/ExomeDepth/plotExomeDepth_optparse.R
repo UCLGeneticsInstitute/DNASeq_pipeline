@@ -10,7 +10,7 @@ option_list <- list(
  	make_option(c("--outPDF"),  help="where to store pdf",type='character',default=NULL),
  	make_option(c("--Genes"),  help="candidate gene list",type='character',default=NULL),
  	make_option(c("--BF"),  help="candidate gene list",type='character',default=NULL),
- 	make_option(c("--novelBF"),  help="candidate gene list",type='character',default=NULL),
+ 	make_option(c("--novelBF"),  help="candidate gene list",type='character',default=7),
  	make_option(c("--Pattern"),  default='bam.cnv',type='character'),
  	make_option(c("--SavePrep"), default=TRUE, help="Do you want to save an image of setup?",type='character'),
  	make_option(c("--TargetChr"),  default=NULL,type='character',help='Are there certain chromosomes of interest?'),
@@ -24,7 +24,7 @@ if ( opt$verbose ) {
 }
 ######################
 CallsDirectory<-opt$CallsDirectory
-if(!file.exists(CallsDirectory))dir.create(CallsDirectory)
+if(!file.exists(CallsDirectory))dir.create(CallsDirectory,recursive=TRUE)
 outPDF<-opt$outPDF
 candidate.genes<-opt$Genes
 pattern<-opt$Pattern
@@ -120,7 +120,7 @@ if(SavePrep)
 #######################################################################################################################################
 ##  Plot the most significnat novel multi exon CNVs. 
 novelCNVs<-read.csv(list.files(CallsDirectory,pattern='multi_exons_postQC_novel_CNVs.csv',recursive=TRUE,full.names=TRUE))
-novelCNVs<-novelCNVs[with(novelCNVs, order(chromosome,start,end)), ]
+novelCNVs<-novelCNVs[order(-novelCNVs$BF), ]
 
 
 allCNVsPDF<-paste0(dirname(outPDF),'/AllCNVs.pdf')
@@ -128,13 +128,14 @@ pdf(allCNVsPDF)
 	loopPlot(novelCNVs) 
 dev.off()
 
-
-
 gene.CNVs<- data.frame(table(unlist(strsplit(novelCNVs$genePos_hg19.tab,',' ) ) ))
 gene.CNVs<-gene.CNVs[order(-gene.CNVs$Freq),]
 write.table(gene.CNVs,paste0(dirname(outPDF),'/GeneCNVcount.csv'),col.names=T,row.names=F,quote=T,sep=',')
 
 if(!is.null(novel.bayes.filter))novelCNVs.sig<-subset(novelCNVs,novelCNVs$BF >= novel.bayes.filter)else novelCNVs.sig<-novelCNVs
+
+novelCNVs.sig<-subset(novelCNVs.sig, novelCNVs.sig$reads.ratio< -1 | novelCNVs.sig$reads.ratio > .58 ) 
+
 write.table(novelCNVs.sig,paste0(dirname(outPDF),'/NovelCNVs.csv'),col.names=T,row.names=F,quote=T,sep=',')
 message(paste(nrow(novelCNVs.sig), 'novel post-QC CNVs found that pass Bayes Filter'))
 
@@ -198,6 +199,8 @@ for(cnv in 1:length(cnvs)) # and here I merge them.
 }
 topCNVs.merged<-topCNVs[unique(topCNVs$CNVplot),]
 topCNVs.merged<-topCNVs.merged[with(topCNVs.merged, order(chromosome, start,end)), ]
+
+write.table(topCNVs.merged,paste0(dirname(outPDF),'/hitCNVs.csv'),col.names=T,row.names=F,quote=T,sep=',')
 pdf(hitCNVspdf)
 loopPlot(topCNVs.merged)
 dev.off()
@@ -275,6 +278,8 @@ if(!is.null(DBOXdir))
 	system(run)
 	run<-paste(dbup,'upload',hitCNVspdf, paste0('PostDoc/', DBOXdir,'genesMultipleCNVs.pdf')) 
 	if(file.exists(hitCNVspdf))system(run)
+	run<-paste(dbup,'upload',paste0(dirname(outPDF),'/hitCNVs.csv'), paste0('PostDoc/', DBOXdir,'genesMultipleCNVs.csv')) 
+	if(file.exists(paste0(dirname(outPDF),'/hitCNVs.csv'))) system(run) # good filtered CNV list
 	if(!is.null(TargetChrs))run<-paste(dbup,'upload',targetChrPDF, paste0('PostDoc/', DBOXdir,basename(targetChrPDF) ) ) 
 	if(!is.null(TargetChrs))system(run)
 

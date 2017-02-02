@@ -4,7 +4,7 @@ suppressPackageStartupMessages(library(GenomicRanges) )
 suppressPackageStartupMessages(library(biomaRt) )
 
 dbup='/cluster/project8/vyp/cian/scripts/bash/dropbox_uploader.sh'
-source('/cluster/project8/vyp/cian/scripts/r/ExomeDepthplot.R')
+source('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/CNV/ExomeDepth/plot.R')
 option_list <- list(
 	make_option(c("-v", "--verbose"), action="store_true", default=TRUE,help="Print extra output [default]"),
  	make_option(c("--CallsDirectory"),  help="location of calls from exomedepth",type='character',default=NULL),
@@ -17,7 +17,6 @@ option_list <- list(
  	make_option(c("--TargetChr"),  default=NULL,type='character',help='Are there certain chromosomes of interest?'),
  	make_option(c("--DBOXdir"),  default=NULL,type='character')
  )
-
 
 opt <- parse_args(OptionParser(option_list=option_list))
 if ( opt$verbose ) {
@@ -277,8 +276,6 @@ if(!is.null(DBOXdir))
 	if(file.exists(hitCNVspdf))system(run)
 	if(!is.null(TargetChrs))run<-paste(dbup,'upload',targetChrPDF, paste0('PostDoc/', DBOXdir,basename(targetChrPDF) ) ) 
 	if(!is.null(TargetChrs))system(run)
-
 }
-
 
 message("Finished ok")
