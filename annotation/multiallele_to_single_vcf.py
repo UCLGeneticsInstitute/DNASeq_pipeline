@@ -123,6 +123,7 @@ for line in sys.stdin:
     #each genotype then takes a 1 if matches the alternative or a 0 otherwise
     alleles=[s['REF']]+alternative_alleles
     n2geno=dict(zip(['.']+[str(i) for i in range(0,len(alleles))],['.']+alleles))
+    sys.stderr.write(line+'\n')
     for idx, alt in enumerate(alternative_alleles):
         s1=s.copy()
         s['ALT']=alt
@@ -133,13 +134,21 @@ for line in sys.stdin:
                 return '='.join([k,v.split(',')[idx]])
             else:
                 return '='.join([k,v])
-        s1['INFO']=';'.join(map(f, s['INFO'].split(';')))
+        s1['INFO']=';'.join(map(f, [x for x in s['INFO'].split(';') if '=' in x]))
         #recode GT
         for h in SAMPLE_HEADERS:
             d=dict(zip(s1['FORMAT'].split(':'),s1[h].split(":")))
             #length of allele depth is 2 where first is always REF allele depth
             #and second can be either ALT
             if 'AD' in d and d['AD']!='' and d['AD']!='.':
+                #sys.stderr.write('idx:')
+                #sys.stderr.write(str(idx))
+                #sys.stderr.write(':alt:')
+                #sys.stderr.write(str(alt))
+                #sys.stderr.write(':AD:')
+                #sys.stderr.write(str(idx))
+                #sys.stderr.write(':')
+                #sys.stderr.write(d['AD']+'\n')
                 AD=d['AD'].split(',')
                 AD[1]=AD[idx+1]
                 AD=','.join(AD[:2])
@@ -156,6 +165,7 @@ for line in sys.stdin:
                 DP=0
             s1[h]=':'.join( [GT, AD, DP] )
             s1['FORMAT']='GT:AD:DP'
+        s1['ALT']=alt
         print_line(s1)
 
 

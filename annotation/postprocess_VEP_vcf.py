@@ -7,6 +7,7 @@ from __future__ import print_function
 import sys
 import re
 import argparse
+import gzip
 
 # check the INFO header of your VCF for more ouput options
 # also check the INFO CSQ field
@@ -37,7 +38,10 @@ parser.add_argument('--depth', default=False, action='store_true', help='')
 
 args=parser.parse_args()
 filename=args.file
-infile=open(filename,'r')
+if filename.endswith('.gz'):
+    infile=gzip.open(filename,'r')
+else:
+    infile=open(filename,'r')
 basename=filename.split('.')[0]
 CUSTOM_ALLELE_FREQ=args.custom_allele_freq
 if not CUSTOM_ALLELE_FREQ: CUSTOM_ALLELE_FREQ=[]
@@ -71,8 +75,8 @@ for l in infile:
         HEADER=l.strip().split('\t')
         SAMPLES=HEADER[9:]
         GENOTYPE_HEADER=['VARIANT_ID']+SAMPLES
-        print(*(GENOTYPE_HEADER),sep=',',file=genotype_file)
-        print(*(GENOTYPE_HEADER),sep=',',file=depth_file)
+        if args.genotypes: print(*(GENOTYPE_HEADER),sep=',',file=genotype_file)
+        if args.depth: print(*(GENOTYPE_HEADER),sep=',',file=depth_file)
         print(*(ANNOTATION_HEADER),sep=',',file=annotation_file)
         continue
     s=l.strip().split('\t')
@@ -80,7 +84,7 @@ for l in infile:
     s=dict(zip(HEADER, s))
     #for k in SAMPLES: s[k]=s[k].split(':')[0]
     for k in SAMPLES: s[k]=s[k]
-    VARIANT_ID='_'.join([s['CHROM'],s['POS'],s['REF'],s['ALT']])
+    VARIANT_ID='-'.join([s['CHROM'],s['POS'],s['REF'],s['ALT']]).replace(',','/')
     s['VARIANT_ID']=VARIANT_ID
     #print output, anything which was not found in the line gets a '.'
     #','.join([csq['Feature']  for csq in cons if csq['Feature_type']=='Transcript']), [s[k] for k in s if 'EXAC' in k]
@@ -103,21 +107,27 @@ for l in infile:
         else:
             print( VARIANT_ID, geno, sep=',', file=sys.stderr)
             #print( l, file=sys.stderr)
-            raise 'hell'
+            return 'NA'
     if args.genotypes:
         GENOTYPES=[genotype(s.get(h,'NA'))for h in SAMPLES]
         # if all genotypes are NA then skip this variant
         if GENOTYPES.count('NA')==len(SAMPLES): continue
-        print(*([VARIANT_ID] + GENOTYPES),sep=',',file=genotype_file)
+        print(*([VARIANT_ID.replace(',','/')] + GENOTYPES),sep=',',file=genotype_file)
     # DEPTH
     def genotype_depth(g):
         d=dict(zip(s['FORMAT'].split(':'),g.split(':')))
-        allele_depth=d['AD']
-        total_depth=d['DP']
+        if 'AD' not in d: 
+            allele_depth=0
+        else:
+            allele_depth=d['AD']
+        if 'DP' not in d:
+            total_depth=0
+        else:
+            total_depth=d['DP']
         return total_depth
     if args.depth:
         DEPTH=[genotype_depth(s.get(h,'.')) for h in SAMPLES]
-        print(*([VARIANT_ID] + DEPTH),sep=',',file=depth_file)
+        print(*([VARIANT_ID.replace(',','/')] + DEPTH),sep=',',file=depth_file)
     # CUSTOM ANNOTATIONS mostly AFs but also CADD, ImmunoBase etc
     x=[tuple(x.split('=')) for x in s['INFO'].split(';')]
     x=[y for y in x if len(y)>1]
@@ -135,6 +145,9 @@ for l in infile:
                 #sometimes there might be a comma for multiallelic
                 #af=af.split(',')[0]
                 if ':' not in af: continue
+                if af.count(':')>1:
+                    print(af)
+                    continue
                 var,freq,=af.split(':')
                 if (variant!=var): continue
                 k=k.replace('1KG','ONEKG')
@@ -192,6 +205,6 @@ for l in infile:
         s['HET'] = float(GENOTYPES.count(1))
         s['HOM'] = float(GENOTYPES.count(2))
         s['AF']=float(GENOTYPES.count(1)+GENOTYPES.count(2)*2) / (2*len(SAMPLES))
-    print(*([s.get(h,'NA') for h in ANNOTATION_HEADER]),sep=',',file=annotation_file)
+    print(*([str(s.get(h,'NA')).replace(',','/') for h in ANNOTATION_HEADER]),sep=',',file=annotation_file)
 
 

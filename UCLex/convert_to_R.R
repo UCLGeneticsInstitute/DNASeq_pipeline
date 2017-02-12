@@ -8,8 +8,6 @@ suppressPackageStartupMessages(library(xtable))
 suppressPackageStartupMessages(library(snpStats))
 suppressPackageStartupMessages(library(GenomicRanges))
 
-### Series of filters suggested by Adam.
-# Filtering of variants based on annotation
 
 option_list <- list(
     make_option(c('--root'), help='path to root'),
@@ -29,10 +27,10 @@ sample.names <- scan(sample.names.file, what = character())
 matrix.calls.snpStats.all <- NULL
 first <- TRUE
 message('Preparing data for chromosome ', chromosome)
-calls.file <- paste(root, '_snpStats/calls_chr', chromosome, '.tab', sep = '')
-depth.file <- paste(root, '_snpStats/depth_chr', chromosome, '.tab', sep = '')
-rowname.file <- paste(root, '_snpStats/rowname_chr', chromosome, '.tab', sep = '')
-annotations.file <- paste(root, '_snpStats/annotations_chr', chromosome, '.csv', sep = '')
+print(calls.file <- paste(root, '_snpStats/calls_chr', chromosome, '.tab', sep = ''))
+print(depth.file <- paste(root, '_snpStats/depth_chr', chromosome, '.tab', sep = ''))
+print(rowname.file <- paste(root, '_snpStats/rowname_chr', chromosome, '.tab', sep = ''))
+print(annotations.file <- paste(root, '_snpStats/annotations_chr', chromosome, '.csv', sep = ''))
 
 if (file.exists(rowname.file) && file.exists(calls.file)) {
   variant.names <- scan(rowname.file, what = character())
@@ -47,6 +45,8 @@ if (file.exists(rowname.file) && file.exists(calls.file)) {
                          dimnames = list( variant.names, sample.names), byrow = TRUE,
                          ncol = length(sample.names),
                          nrow = n.calls)
+
+  print(dim(matrix.calls))
   
   matrix.calls.snpStats <- new('SnpMatrix', t(matrix.calls)+1)
   
@@ -55,6 +55,9 @@ if (file.exists(rowname.file) && file.exists(calls.file)) {
                          dimnames = list( variant.names, sample.names), byrow = TRUE,
                          ncol = length(sample.names),
                          nrow = n.calls)
+
+  print(dim(matrix.depth))
+
   
   save(list = c('matrix.depth', 'annotations.snpStats', 'matrix.calls.snpStats'), file = paste(root, '_snpStats/chr', chromosome, '_snpStats.RData', sep = ''))
   

@@ -1,5 +1,16 @@
-library(ggplot2)
-releases <- c("July2016", "June2016")
+suppressMessages(suppressWarnings(suppressPackageStartupMessages(library(ggplot2, quietly=TRUE, verbose=FALSE, warn.conflicts=FALSE))))
+suppressMessages(suppressWarnings(suppressPackageStartupMessages(library(optparse, quietly=TRUE, verbose=FALSE, warn.conflicts=FALSE))))
+
+option_list <- list( 
+make_option(c("--release1"), help = "release 1"),
+make_option(c("--release2"), help = "release 2"),
+make_option(c("--output"), help = "plot")
+)
+OptionParser(option_list=option_list) -> option.parser
+parse_args(option.parser) -> opt
+
+
+releases <- c(opt$release1, opt$release2)
 
 #file.type <- "exome_table.csv"
 #file.type <- "_recal_filtered2.vcf"
@@ -23,4 +34,4 @@ complete$size <- complete$size / 1000
 complete$chromosome <- factor(complete$chromosome, levels = c(1:22, "X"))
 p <- ggplot(data = complete, aes(x = chromosome, y = size, colour = release))
 p <- p + geom_point()
-ggsave(p, file = "check.pdf")
+print(ggsave(p, file = opt$output))

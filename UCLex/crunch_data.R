@@ -4,7 +4,13 @@
 ###TODO: create equivalent files with read depth information
 
 library(snpStats)
-source('/cluster/project8/vyp/vincent/Software/DNASeq_pipeline/GATK_v2/process_multiVCF.R')
+
+
+initial.options <- commandArgs(trailingOnly = FALSE)
+file.arg.name <- "--file="
+script.name <- sub(file.arg.name, "", initial.options[grep(file.arg.name, initial.options)])
+script.basename <- dirname(script.name)
+source(file.path(script.basename,'make_csv_files.R'))
 options(stringsAsFactors = FALSE)
 
 
@@ -23,6 +29,10 @@ root <- '/scratch2/vyp-scratch2/vincent/GATK/mainset_October2014/mainset_October
 
 
 myArgs <- getArgs()
+
+print(myArgs)
+
+exit(0)
 
 if ('Prion.setup' %in% names(myArgs)) Prion.setup <- as.logical(myArgs[[ 'Prion.setup' ]])
 if ('minDepth' %in% names(myArgs)) missing.depth.threshold <- as.numeric(myArgs[[ 'minDepth' ]])

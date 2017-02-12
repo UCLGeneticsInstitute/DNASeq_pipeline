@@ -50,12 +50,13 @@ function mode_align() {
     memory2=${memory2-7}
     #
     #tparam=${tparam:-250}
-    output=${outputdir}/data
+    #output=${outputdir}/data
+    output="/SAN/vyplab/UCLex_raw/"
     mkdir -p $outputdir/data $outputdir/out $outputdir/err $outputdir/scripts
     SGE_PARAMETERS="
-#$ -l scr=10G
+#$ -l scr=20G
 #$ -pe smp ${ncores}
-#$ -l tmem=4G,h_vmem=4G
+#$ -l tmem=5G,h_vmem=5G
 #$ -l h_rt=240:0:0
 "
     for file in $novoalignRef
@@ -81,8 +82,7 @@ function mode_align() {
             # delete contents of temp dir [vplagnol/pipelines/issues/11]
             rm -f ${tempFolder}/${code}/*
             mkdir -p ${tempFolder}/${code} 
-	    toutput=/scratch0/${code}
-
+            toutput=/scratch0/${code}
 cat >${mainScript%.sh}_${code}.sh<<EOL
 # disc is for discordant reads, which can be used for CNV calling purposes
 # unique_sorted.bam is the file that should be used!
@@ -280,7 +280,8 @@ EOL
 # Input: BAM files.
 # Output: per sample per chromosome gvcf files.
 function mode_gvcf() {
-    input=${projectID}/align/data/
+    #input=${projectID}/align/data/
+    input="/SAN/vyplab/UCLex_raw/"
     outputdir=${projectID}/gvcf
     output=${outputdir}/data
     mkdir -p $outputdir/data $outputdir/out $outputdir/err $outputdir/scripts
@@ -347,7 +348,8 @@ $HaplotypeCaller -R $fasta -I ${input}/${code}_sorted_unique.bam  --emitRefConfi
 # Input: BAM files.
 # Output: per sample gvcf files.
 function mode_gvcf_unsplit() {
-    input=${projectID}/align/data/
+    #input=${projectID}/align/data/
+    input="/SAN/vyplab/UCLex_raw/"
     outputdir=${projectID}/gvcf_unsplit/
     output=$outputdir/data/
     mkdir -p $outputdir/data $outputdir/out $outputdir/err $outputdir/scripts
@@ -449,6 +451,9 @@ function mode_CombineGVCFs() {
            done
            echo "
 $java -Djava.io.tmpdir=/scratch0/ -Xmx8g -Xms8g -jar $GATK -T CombineGVCFs -R $fasta -L ${chrPrefix}${chrCleanCode} -o ${output} $VARIANTS
+
+zgrep -m1 '^#CHROM' $output | tr '\t' '\n' | grep -v -F -f <(echo '#CHROM,POS,ID,REF,ALT,QUAL,FILTER,INFO,FORMAT' | tr ',' '\n') >  /SAN/vyplab/UCLex/combinedGVCFs/batches/${batchName}.samples
+
 " > ${script}
        else
            rm -f ${script}
@@ -679,7 +684,8 @@ then
     Software=/cluster/project8/vyp/vincent/Software
     bundle=$SCRATCH2/GATK_bundle
     target=/cluster/project8/vyp/exome_sequencing_multisamples/target_region/data/merged_exome_target_cleaned.bed
-    tempFolder=$SCRATCH2/vincent/temp/novoalign
+    #tempFolder=$SCRATCH2/vincent/temp/novoalign
+    tempFolder=.
 fi
 
 ### Tools needed by this script
@@ -794,21 +800,22 @@ mode_${mode}
 njobs=`ls -1 ${outputdir}/scripts/${mode}_*.sh | wc -l`
 
 echo "
-#!/bin/bash
 #$ -S /bin/bash
 #$ -o /dev/null
 #$ -e /dev/null
 #$ -cwd
 #$ -V
+#$ -R y
 #$ -t 1-${njobs}
 $SGE_PARAMETERS
-set -u
-set -x
 mkdir -p ${outputdir}/scripts ${outputdir}/data ${outputdir}/err ${outputdir}/out
 array=( header \`ls -1 ${outputdir}/scripts/${mode}_*.sh \`) 
 script=\${array[ \$SGE_TASK_ID ]} 
 scriptname=\`basename \${script%.sh}\`
 exec >${outputdir}/out/\${scriptname}_job\${SGE_TASK_ID}_\${JOB_ID}.out 2>${outputdir}/err/\${scriptname}_job\${SGE_TASK_ID}_\${JOB_ID}.err  
+set -u
+set -x
+hostname
 echo \$script 
 bash \$script
 

@@ -19,7 +19,7 @@ data<-'/SAN/vyplab/UCLex/mainset_September2016/cian/allChr_snpStats_out'
 
 
 
-summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=basename(outputDirectory),percent=NULL,disease='heart')
+summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=basename(outputDirectory),percent=5,disease='heart')
 {
 	dir<-paste0(dir,'/')
 	outputDirectory<-paste0(outputDirectory,'/')
@@ -194,7 +194,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 
 	prion<-TRUE
 	#carriers.summary<-data.frame(Gene=file$Symbol,)
-	if(!prion)if(grep('ADA',colnames(file))) file$ADA<-NULL
+	if(length(grep('ADA',colnames(file)))>0 )  file$ADA<-NULL
 	write.table(file,paste0(outputDirectory,Title,'_SKAT_processed.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 
 ############################################################################################################
@@ -204,7 +204,8 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	{
 		percent.cases.carriers<-percent
 		nb.cases.carriers.required<- round( as.numeric(file$nb.cases) * (percent.cases.carriers/100)  ) [1]
-	} else nb.cases.carriers.required<-5
+	} else 
+	if(mean(file$nb.cases)>20) nb.cases.carriers.required<- 5 else nb.cases.carriers.required <-2
 	pval<-0.000001
 	filt<-subset(file,file$Nb.Carriers>=nb.cases.carriers.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8) 
 	filt$FisherPvalue<-as.numeric(filt$FisherPvalue)

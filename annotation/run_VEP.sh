@@ -45,6 +45,7 @@ then
     perl="/share/apps/perl/bin/perl"
 fi
 
+chr=""
 
 ##
 until [ -z "$1" ]
@@ -103,38 +104,86 @@ condel_config=${ensembl}/Plugins/config/Condel/config
 #fasta=$SCRATCH2/reference_datasets/human_reference_sequence/human_g1k_v37.fasta
 #fasta=$SCRATCH2/reference_datasets/human_reference_sequence/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna
 #file://$SCRATCH2/reference_datasets/human_reference_sequence/GCA_000001405.15_GRCh38_no_alt_analysis_set.fna
-cat $input | grep '^##reference=' | cut -f2 -d'='
+#cat $input | grep '^##reference=' | cut -f2 -d'='
 
 
 #annotations_dir=/cluster/project8/vyp/AdamLevine/annotations
-annotations_dir=/cluster/project9/IBDAJE/VEP_custom_annotations/${reference}
+annotations_dir="/cluster/project9/IBDAJE/VEP_custom_annotations/${reference}"
+
+custom_annotation=""
+plugins=""
 
 # Custom annotations
 ####CADD http://cadd.gs.washington.edu/home
 #This needs to be updated with the latest scores [ACTION!]
 #They also now provide a script which is worth exploring
 #custom_annotation="--custom ${annotations_dir}/CADD/chr${chr}.vcf.gz,CADD,vcf,exact"
-custom_annotation="--custom ${annotations_dir}/CADD/chr${chr}.vcf.gz,CADD,vcf,exact"
-
+# Nikolas Pontikos 2017-02-09: CADD will no
+#if [[ "$chr" != "" ]]
+#then
+    #custom_annotation="${custom_annotation} --custom ${annotations_dir}/CADD/chr${chr}.vcf.gz,CADD,vcf,exact"
+    #plugins="${plugins} --plugin CADD,${annotations_dir}/CADD/chr${chr}.vcf.gz"
+#else
+    #if [ -e ${annotations_dir}/CADD/all.vcf.gz ]
+    #then
+        #custom_annotation="${custom_annotation} --custom ${annotations_dir}/CADD/all.vcf.gz,CADD,vcf,exact"
+        #plugins="${plugins} --plugin CADD,${annotations_dir}/CADD/all.vcf.gz"
+    #fi
+#fi
+#
 ####ExAC
 for pop in AFR AMR Adj EAS FIN NFE OTH SAS
 do
     shortname=EXAC_${pop}
-    custom_annotation="${custom_annotation} --custom ${annotations_dir}/ExAC/0.3/chr${chr}_${pop}.vcf.gz,${shortname},vcf,exact"
+    if [[ "$chr" != "" ]]
+    then
+        custom_annotation="${custom_annotation} --custom ${annotations_dir}/ExAC/0.3/chr${chr}_${pop}.vcf.gz,${shortname},vcf,exact"
+    else
+        if [ -e ${annotations_dir}/ExAC/0.3/${pop}.vcf.gz ]
+        then
+            custom_annotation="${custom_annotation} --custom ${annotations_dir}/ExAC/0.3/${pop}.vcf.gz,${shortname},vcf,exact"
+        fi
+    fi
 done
+
+if [[ "$chr" != "" ]]
+then
+    plugins="${plugins} --plugin ExAC,${annotations_dir}/ExAC/0.3/chr${chr}.vcf.gz"
+else
+        if [ -e ${annotations_dir}/ExAC/0.3/${pop}.vcf.gz ]
+        then
+            plugins="${plugins} --plugin ExAC,${annotations_dir}/ExAC/0.3/all.vcf.gz"
+        fi
+fi
 
 ####1kg
 for pop in EUR AFR AMR ASN
 do
     shortname=1KG_${pop}
-    custom_annotation="${custom_annotation} --custom ${annotations_dir}/1kg/chr${chr}_${pop}.vcf.gz,${shortname},vcf,exact"
+    if [[ "$chr" != "" ]]
+    then
+        custom_annotation="${custom_annotation} --custom ${annotations_dir}/1kg/chr${chr}_${pop}.vcf.gz,${shortname},vcf,exact"
+    else
+        if [ -e ${annotations_dir}/1kg/${pop}.vcf.gz ]
+        then
+            custom_annotation="${custom_annotation} --custom ${annotations_dir}/1kg/${pop}.vcf.gz,${shortname},vcf,exact"
+        fi
+    fi
 done
 
 ####ESP frequency annotations
 for pop in EA AA
 do
     shortname=ESP_${pop}
-    custom_annotation="${custom_annotation} --custom ${annotations_dir}/esp/chr${chr}_${pop}.vcf.gz,${shortname},vcf,exact"
+    if [[ "$chr" != "" ]]
+    then
+        custom_annotation="${custom_annotation} --custom ${annotations_dir}/esp/chr${chr}_${pop}.vcf.gz,${shortname},vcf,exact"
+    else
+         if [ -e ${annotations_dir}/esp/${pop}.vcf.gz ]
+         then 
+            custom_annotation="${custom_annotation} --custom ${annotations_dir}/esp/${pop}.vcf.gz,${shortname},vcf,exact"
+        fi
+    fi
 done
 
 #### 
@@ -179,7 +228,15 @@ custom_annotation="${custom_annotation} --custom ${annotations_dir}/SZ_Curtis/ch
 ###
 function Kaviar() {
 shortname=Kaviar
-custom_annotation="${custom_annotation} --custom ${annotations_dir}/Kaviar/Kaviar-160204-Public/chr${chr}.vcf.gz,${shortname},vcf,exact"
+#custom_annotation="${custom_annotation} --custom /cluster/scratch3/vyp-scratch2/reference_datasets/Kaviar/Kaviar-160204-Public/hg19/chr${chr}.vcf.gz,${shortname},vcf,exact"
+if [[ "$reference" == 1kg ]]
+then
+    custom_annotation="${custom_annotation} --custom /cluster/scratch3/vyp-scratch2/reference_datasets/Kaviar/Kaviar-160204-Public/hg19/VEP_annotation.vcf.gz,${shortname},vcf,exact"
+elif [[ "$reference" == hg38_noAlt ]]
+then
+    #custom_annotation="${custom_annotation} --custom /cluster/scratch3/vyp-scratch2/reference_datasets/Kaviar/Kaviar-160204-Public/hg38/VEP_annotation.vcf.gz,${shortname},vcf,exact"
+    custom_annotation="${custom_annotation} --custom /SAN/vyplab/NCMD_raw/VEP/Kaviar/hg38/all.vcf.gz,${shortname},vcf,exact"
+fi
 }
 
 
@@ -188,6 +245,7 @@ if [[ "$custom" != "" ]]
 then
     for x in `echo $custom | tr ',' ' '`
     do
+        echo $custom
         $x
     done
 fi
@@ -219,6 +277,10 @@ then
     port=
     custom_annotation=
 else
+    echo Supported references:
+    echo hg38_noAlt
+    echo 1kg
+    echo hg19
     stop Unsupported reference $reference
 fi
 
@@ -295,9 +357,10 @@ fi
 #plugins="--plugin Condel,${condel_config},b --plugin Carol --plugin LoF,human_ancestor_fa:$SCRATCH2/reference_datasets/loftee/human_ancestor.fa.rz,filter_position:0.05"
 #plugins="--plugin Condel,${condel_config},b --plugin Carol --plugin CADD,${annotations_dir}/CADD/chr${chr}.vcf.gz --plugin LoF,human_ancestor_fa:$SCRATCH2/reference_datasets/loftee/human_ancestor.fa.rz,filter_position:0.05"
 #plugins="--plugin Condel,${condel_config},b --plugin Carol --plugin CADD,${annotations_dir}/CADD/chr${chr}.vcf.gz --plugin LoF,human_ancestor_fa:$SCRATCH2/reference_datasets/loftee/human_ancestor.fa.rz,filter_position:0.05"
-plugins="--plugin Condel,${condel_config},b --plugin Carol --plugin CADD,${annotations_dir}/CADD/chr${chr}.vcf.gz --plugin GO --plugin ExAC,${annotations_dir}/ExAC/0.3/chr${chr}.vcf.gz"
+plugins="${plugins} --plugin Condel,${condel_config},b --plugin Carol --plugin GO"
 
 #$perl $VEP $port --verbose --ASSEMBLY $assembly --fasta $fasta --cache --dir_cache $dir_cache --input_file $vcfin --format vcf --sift b --polyphen b --symbol  --canonical --check_existing --check_alleles  --no_progress --output_file $vcfout  --force_overwrite $output --fork 2 $maf $fields $custom_annotation $plugins $coding_only --offline
+echo /share/apps/perl/bin/perl $VEP $port --verbose --ASSEMBLY $assembly --fasta $fasta --cache --dir_cache $dir_cache --input_file $input --sift b --polyphen b --symbol  --canonical --check_existing --check_alleles  --no_progress --output_file $vcfout  --force_overwrite $output --fork 2 $maf $fields $custom_annotation $plugins $coding_only --offline $cache_version
 /share/apps/perl/bin/perl $VEP $port --verbose --ASSEMBLY $assembly --fasta $fasta --cache --dir_cache $dir_cache --input_file $input --sift b --polyphen b --symbol  --canonical --check_existing --check_alleles  --no_progress --output_file $vcfout  --force_overwrite $output --fork 2 $maf $fields $custom_annotation $plugins $coding_only --offline $cache_version
 #$perl $VEP $port --verbose --ASSEMBLY $assembly --fasta $fasta --input_file $vcfin -cache --dir_cache $dir_cache --format vcf --sift b --polyphen b --symbol  --canonical --check_existing --check_alleles  --no_progress --output_file $vcfout  --force_overwrite $output --offline
 

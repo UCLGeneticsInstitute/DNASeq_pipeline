@@ -3,9 +3,9 @@
 
 use strict;
 
-my $inputVCF = $ARGV[0];
-my $outputVCF = $ARGV[1];
-my $threshold = $ARGV[2];
+#my $inputVCF = $ARGV[0];
+my $outputVCF = $ARGV[0];
+my $threshold = $ARGV[1];
 
 
 my $variantExclusion = "/cluster/project8/vyp/exome_sequencing_multisamples/mainset/support/exclusion_lists/variant_exclusion.tab";
@@ -20,17 +20,13 @@ while (<exclu>) {
 close (exclu);
 
 
-open (INP, " < $inputVCF") or die "Cannot open $inputVCF\n";
+#open (INP, " < $inputVCF") or die "Cannot open $inputVCF\n";
 open (OUT, " > $outputVCF");
-
-
-
-
 
 
 #GT:AD:DP:GQ:PL
 
-while (<INP>) {
+while (<STDIN>) {
 
     if ($_ =~ /^\#/) {print OUT $_;} else {
 	chomp $_;

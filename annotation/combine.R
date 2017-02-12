@@ -27,7 +27,7 @@ if (!is.null(chr)) {
     #print(dim(geno.depth <- geno.depth[,-which('VARIANT_ID'==names(geno.depth))]))
     names(geno.depth) <- paste('depth',names(geno.depth),sep='.')
     # ignore the first column which is variant id
-    d <- cbind(ann,geno[,-1],geno.depth[,-1])
+    d <- cbind(ann,geno=geno[,-1],geno.depth=geno.depth[,-1])
     write.csv(d, quote=FALSE, row.names=FALSE, file=sprintf('VEP_%s.csv',chr))
 } else {
     # works on all chromosomes to create one giant file

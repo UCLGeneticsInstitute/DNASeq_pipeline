@@ -686,13 +686,12 @@ case.names <- scan('data/caseKeywords.tab', what = character())
 control.names <- scan('data/controlKeywords.tab', what = character()) 
 first <- TRUE 
 
-main()
-
 load('data/poly_in_cases_snpStats.RData')
 known.genes <- scan('/cluster/project8/vyp/IoO_exome_sequencing/support/retinal_disease_genes.txt', what = 'character')
 my.names <- dimnames(combined.snpStats)[[1]]
-print(my.names)
-print(my.cases <- grep(pattern = case.names, my.names, value = TRUE))
+print(my.cases <- grep(pattern = paste(case.names,collapse='|'), my.names, value = TRUE))
+
+main()
 
 res <- process.multiVCF (calls = combined.snpStats,
                          depth = combined.matrix.depth,

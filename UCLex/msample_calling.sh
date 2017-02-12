@@ -331,7 +331,10 @@ function VEP_mongo() {
         echo "
 ############### VEP_mongo chr${chr}
 # split single lines
-zcat ${output}_chr${chr}_for_annovar.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_gvcf.py --headers CHROM,POS,ID,REF,ALT,QUAL,FILTER,INFO > ${output}_VEP/chr${chr}_for_VEP.vcf
+zcat ${output}_chr${chr}_for_annovar.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_vcf.py --headers CHROM,POS,ID,REF,ALT,QUAL,FILTER,INFO > ${output}_VEP/chr${chr}_for_VEP.vcf
+/share/apps/genomics/htslib-1.1/bin/bgzip -f -c ${output}_VEP/chr${chr}_for_VEP.vcf > ${output}_VEP/chr${chr}_for_VEP.vcf.gz
+/share/apps/genomics/htslib-1.1/bin/tabix -f -p vcf ${output}_VEP/chr${chr}_for_VEP.vcf.gz
+rm ${output}_VEP/chr${chr}_for_VEP.vcf
 ####CONFIGURE SOFTWARE SHORTCUTS AND PATHS
 reference=1kg
 ensembl=/cluster/project8/vyp/AdamLevine/software/ensembl/
@@ -351,22 +354,17 @@ export PATH=$PATH:/cluster/project8/vyp/vincent/Software/tabix-0.2.5/
 --custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/1kg/chr${chr}_ASN.vcf.gz,1KG_ASN,vcf,exact \
 --custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/esp/chr${chr}_EA.vcf.gz,ESP_EA,vcf,exact \
 --custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/esp/chr${chr}_AA.vcf.gz,ESP_AA,vcf,exact \
---custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/CADD/chr${chr}.vcf.gz,CADD,vcf,exact \
 --custom /cluster/scratch3/vyp-scratch2/reference_datasets/Kaviar/Kaviar-160204-Public/hg19/VEP_annotation.vcf.gz,Kaviar,vcf,exact \
 --plugin Condel,${DIR_PLUGINS}/config/Condel/config,b \
 --plugin Carol \
---plugin CADD,/cluster/project9/IBDAJE/VEP_custom_annotations/1kg/CADD/chr${chr}.vcf.gz \
 --no_stats \
 --hgvs \
 --pubmed \
 --plugin HGVSshift \
 --plugin SameCodon \
---input_file ${output}_VEP/chr${chr}_for_VEP.vcf \
+--input_file ${output}_VEP/chr${chr}_for_VEP.vcf.gz \
 --json \
---output_file STDOUT | python ${baseFolder}/annotation/postprocess_VEP_json.py | grep '^JSON:' | sed 's/^JSON://' > ${output}_VEP/VEP_chr${chr}.json
-/share/apps/genomics/htslib-1.1/bin/bgzip -f -c ${output}_VEP/chr${chr}_for_VEP.vcf > ${output}_VEP/chr${chr}_for_VEP.vcf.gz
-/share/apps/genomics/htslib-1.1/bin/tabix -f -p vcf ${output}_VEP/chr${chr}_for_VEP.vcf.gz
-rm ${output}_VEP/chr${chr}_for_VEP.vcf
+--output_file STDOUT | python ${baseFolder}/annotation/postprocess_VEP_json.py --release mainset_${currentUCLex} | grep '^JSON:' | sed 's/^JSON://' > ${output}_VEP/VEP_chr${chr}.json
 " >> ${scripts_folder}/subscript_chr${chr}.sh
 #--output_file STDOUT | python ${baseFolder}/annotation/postprocess_VEP_json.py | grep '^JSON:' | sed 's/^JSON://' | mongoimport --db uclex --collection variants --host phenotips
   done
@@ -393,7 +391,7 @@ function VEP() {
         echo "
 ############### VEP chr${chr}
 # split single lines
-zcat ${output}_chr${chr}_filtered.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_gvcf.py | gzip > ${output}_chr${chr}_filtered3.vcf.gz 
+zcat ${output}_chr${chr}_filtered.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_vcf.py | gzip > ${output}_chr${chr}_filtered3.vcf.gz 
 # make genotype matrix
 #mainset_July2016_chr${chr}_filtered3-genotypes.csv
 #mainset_July2016_chr${chr}_filtered3-annotations.csv
@@ -402,7 +400,9 @@ zcat ${output}_chr${chr}_filtered.vcf.gz | /share/apps/python/bin/python ${baseF
 rm ${output}_chr${chr}_filtered3-annotations.csv
 gzip -f ${output}_chr${chr}_filtered3-genotypes.csv
 gzip -f ${output}_chr${chr}_filtered3-genotypes_depth.csv
-zcat ${output}_chr${chr}_filtered3.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_gvcf.py --headers CHROM,POS,ID,REF,ALT,QUAL,FILTER,INFO,FORMAT | cut -f1-9 | gzip > ${output}_VEP/chr${chr}_for_VEP.vcf.gz
+zcat ${output}_chr${chr}_filtered3.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_vcf.py --headers CHROM,POS,ID,REF,ALT,QUAL,FILTER,INFO,FORMAT | cut -f1-9 | gzip > ${output}_VEP/chr${chr}_for_VEP.vcf.gz
+# run CADD
+/share/apps/genomics/CADD_v1.3/bin/score.sh ${output}_VEP/chr${chr}_for_VEP.vcf.gz ${output}_VEP/CADD_chr${chr}.vcf.gz
 ####CONFIGURE SOFTWARE SHORTCUTS AND PATHS
 reference=1kg
 export PERL5LIB=${PERL5LIB}:${ensembl}/src/bioperl-1.6.1::${ensembl}/src/ensembl/modules:${ensembl}/src/ensembl-compara/modules:${ensembl}/src/ensembl-variation/modules:${ensembl}/src/ensembl-funcgen/modules:${ensembl}/Plugins
@@ -417,8 +417,6 @@ export PATH=$PATH:/cluster/project8/vyp/vincent/Software/tabix-0.2.5/
 --pubmed \
 --no_progress --quiet \
 --custom /cluster/scratch3/vyp-scratch2/reference_datasets/Kaviar/Kaviar-160204-Public/hg19/VEP_annotation.vcf.gz,Kaviar,vcf,exact \
---custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/CADD/chr${chr}.vcf.gz,CADD,vcf,exact \
---plugin CADD,/cluster/project9/IBDAJE/VEP_custom_annotations/1kg/CADD/chr${chr}.vcf.gz \
 --plugin Condel,${DIR_PLUGINS}/config/Condel/config,b \
 --plugin Carol \
 --no_stats \
@@ -429,7 +427,7 @@ export PATH=$PATH:/cluster/project8/vyp/vincent/Software/tabix-0.2.5/
 --pick \
 --everything \
 --tab \
---fields Uploaded_variation,Location,Allele,Gene,Feature,Feature_type,Consequence,cDNA_position,CDS_position,Protein_position,Amino_acids,Codons,Existing_variation,IMPACT,DISTANCE,STRAND,FLAGSVARIANT_CLASS,SYMBOL,SYMBOL_SOURCE,HGNC_ID,BIOTYPE,CANONICAL,TSL,APPRIS,CCDS,ENSP,SWISSPROT,TREMBL,UNIPARC,GENE_PHENO,SIFT,PolyPhen,EXON,INTRON,DOMAINS,HGVSc,HGVSp,HGVS_OFFSET,GMAF,AFR_MAF,AMR_MAF,EAS_MAF,EUR_MAF,SAS_MAF,AA_MAF,EA_MAF,ExAC_MAF,ExAC_Adj_MAF,ExAC_AFR_MAF,ExAC_AMR_MAF,ExAC_EAS_MAF,ExAC_FIN_MAF,ExAC_NFE_MAF,ExAC_OTH_MAF,ExAC_SAS_MAF,CLIN_SIG,SOMATIC,PHENO,PUBMED,MOTIF_NAME,MOTIF_POS,HIGH_INF_POS,MOTIF_SCORE_CHANGE,CAROL,HGVSc_unshifted,HGVSp_unshifted,SameCodon,Kaviar,CADD \
+--fields Uploaded_variation,Location,Allele,Gene,Feature,Feature_type,Consequence,cDNA_position,CDS_position,Protein_position,Amino_acids,Codons,Existing_variation,IMPACT,DISTANCE,STRAND,FLAGSVARIANT_CLASS,SYMBOL,SYMBOL_SOURCE,HGNC_ID,BIOTYPE,CANONICAL,TSL,APPRIS,CCDS,ENSP,SWISSPROT,TREMBL,UNIPARC,GENE_PHENO,SIFT,PolyPhen,EXON,INTRON,DOMAINS,HGVSc,HGVSp,HGVS_OFFSET,GMAF,AFR_MAF,AMR_MAF,EAS_MAF,EUR_MAF,SAS_MAF,AA_MAF,EA_MAF,ExAC_MAF,ExAC_Adj_MAF,ExAC_AFR_MAF,ExAC_AMR_MAF,ExAC_EAS_MAF,ExAC_FIN_MAF,ExAC_NFE_MAF,ExAC_OTH_MAF,ExAC_SAS_MAF,CLIN_SIG,SOMATIC,PHENO,PUBMED,MOTIF_NAME,MOTIF_POS,HIGH_INF_POS,MOTIF_SCORE_CHANGE,CAROL,HGVSc_unshifted,HGVSp_unshifted,SameCodon,Kaviar \
 --output_file STDOUT > ${output}_VEP/VEP_chr${chr}.tab
 /share/apps/R/bin/Rscript ${baseFolder}/annotation/postprocess_VEP_tab.R --input ${output}_VEP/VEP_chr${chr}.tab --output ${output}_VEP/VEP_chr${chr}.csv
 gzip -f ${output}_VEP/VEP_chr${chr}.csv
@@ -456,13 +454,11 @@ function convertToR() {
         then
             echo "
 ############### convertToR chr${chr}
-/share/apps/R/bin/Rscript ${baseFolder}/UCLex/convert_to_R.R --chromosome ${chr} --root ${output} > cluster/R/convert_to_R_chr${chr}.out
+/share/apps/R/bin/Rscript ${baseFolder}/UCLex/convert_to_R.R --chromosome ${chr} --root ${output} > ${output}_snpStats/convert_to_R_chr${chr}.out
 " >> ${scripts_folder}/subscript_chr${chr}.sh
         fi
     done
 }
-
-
 
 ##################################################
 function finalCrunch() {
@@ -480,6 +476,15 @@ ${baseFolder}/UCLex/crunch_controls.pl ${output}_chr${chr}_exome_table.csv $keyW
 
 ##################################################
 function all() {
+    for chr in `seq 1 22` X
+    do
+        script=${scripts_folder}/subscript_chr${chr}.sh
+        echo "
+#! /bin/bash
+set +x
+        " > ${script}
+        chmod u+rx ${script}
+    done
     genotype
     recal
     annovar
