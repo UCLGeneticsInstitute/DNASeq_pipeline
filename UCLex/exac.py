@@ -76,19 +76,22 @@ f=args.file
 
 #tb=tabix.open('/cluster/project8/IBDAJE/VEP_custom_annotations/GRCh37/ExAC/0.3/ExAC.r0.3.sites.vep.vcf.gz')
 #tb=tabix.open('/cluster/project8/IBDAJE/VEP_custom_annotations/GRCh37/ExAC/0.3/ExAC.r0.3.sites.vep.vcf.gz')
-tb=tabix.open('/Users/pontikos/exac/exac_data/ExAC_HC.0.3.final.vep.vcf.gz')
+tb=tabix.open('/cluster/scratch3/vyp-scratch2/reference_datasets/ExAC/0.3.1/ExAC.r0.3.1.sites.vep.vcf.gz')
+#tb=tabix.open('/Users/pontikos/exac/exac_data/ExAC_HC.0.3.final.vep.vcf.gz')
 
 pli=dict()
 #file('/goon2/scratch2/vyp-scratch2/reference_datasets/ExAC/forweb_cleaned_exac_r03_march16_z_data_pLI.txt')
-for l in csv.DictReader(file('/Users/pontikos/exac/exac_data/forweb_cleaned_exac_r03_march16_z_data_pLI.txt','r'),delimiter='\t'):
-    pli[l['gene']]=l
+#for l in csv.DictReader(file('/Users/pontikos/exac/exac_data/forweb_cleaned_exac_r03_march16_z_data_pLI.txt','r'),delimiter='\t'): pli[l['gene']]=l
+#for l in csv.DictReader(file( '/cluster/scratch3/vyp-scratch2/reference_datasets/ExAC/0.3.1/functional_gene_constraint/fordist_cleaned_exac_r03_march16_z_pli_rec_null_data.txt' ,'r'),delimiter='\t'): pli[l['gene']]=l
 
-col0=["Samples","Func","ExonicFunc","HUGO","Description","non.ref.calls.cases","ncarriers.cases","missing.rate.cases","freq.controls","non.missing.controls","non.ref.calls.controls","non.missing.external.controls","freq.external.controls","AAChange","is.indel","QUAL","Gene","Conserved","SegDup","ESP6500si_ALL","X1000g2012apr_ALL","dbSNP137","AVSIFT","LJB_PhyloP","LJB_PhyloP_Pred","LJB_SIFT","LJB_SIFT_Pred","LJB_PolyPhen2","LJB_PolyPhen2_Pred","LJB_LRT","LJB_LRT_Pred","LJB_MutationTaster","LJB_MutationTaster_Pred","LJB_GERP..","cg69","Omim","Chr","Start","End","Ref","Obs","FILTER","signature","clean.signature","indel.length","ensemblID","ensemblID.bis","HUGO.no.splice.info","dup.region","somewhat.rare","rare","novel","exonic.splicing","splicing","core.splicing","lof","non.syn","remove.bad.transcripts","non.ref.calls.external.controls","freq.cases","non.missing.cases","potential.comp.het"]
+#col0=["Samples","Func","ExonicFunc","HUGO","Description","non.ref.calls.cases","ncarriers.cases","missing.rate.cases","freq.controls","non.missing.controls","non.ref.calls.controls","non.missing.external.controls","freq.external.controls","AAChange","is.indel","QUAL","Gene","Conserved","SegDup","ESP6500si_ALL","X1000g2012apr_ALL","dbSNP137","AVSIFT","LJB_PhyloP","LJB_PhyloP_Pred","LJB_SIFT","LJB_SIFT_Pred","LJB_PolyPhen2","LJB_PolyPhen2_Pred","LJB_LRT","LJB_LRT_Pred","LJB_MutationTaster","LJB_MutationTaster_Pred","LJB_GERP..","cg69","Omim","Chr","Start","End","Ref","Obs","FILTER","signature","clean.signature","indel.length","ensemblID","ensemblID.bis","HUGO.no.splice.info","dup.region","somewhat.rare","rare","novel","exonic.splicing","splicing","core.splicing","lof","non.syn","remove.bad.transcripts","non.ref.calls.external.controls","freq.cases","non.missing.cases","potential.comp.het"]
 col1=['CHROM','POS','ID','REF','ALT','QUAL','FILTER']
 #ExAC columns
 col2=['AC', 'AC_AFR', 'AC_AMR', 'AC_Adj', 'AC_EAS', 'AC_FIN', 'AC_Het', 'AC_Hom', 'AC_NFE', 'AC_OTH', 'AC_SAS', 'AF', 'AN', 'AN_AFR', 'AN_AMR', 'AN_Adj', 'AN_EAS', 'AN_FIN', 'AN_NFE', 'AN_OTH', 'AN_SAS', 'DP', 'FS', 'GQ_MEAN', 'GQ_STDDEV', 'Het_AFR', 'Het_AMR', 'Het_EAS', 'Het_FIN', 'Het_NFE', 'Het_OTH', 'Het_SAS', 'Hom_AFR', 'Hom_AMR', 'Hom_EAS', 'Hom_FIN', 'Hom_NFE', 'Hom_OTH', 'Hom_SAS', 'InbreedingCoeff', 'VQSLOD', 'culprit']
 #ExAC pLI: prob of being loss intolerant
-print(','.join(col0+map(lambda x:'ExAC.'+x,col1)+map(lambda x:'ExAC.'+x, col2)+['pLI']))
+col0=file(f,'r').readline().strip().replace('"','').split(',')
+#print(','.join(col0+map(lambda x:'ExAC.'+x,col1)+map(lambda x:'ExAC.'+x, col2)+['pLI']))
+print(','.join(col0+map(lambda x:'ExAC.'+x,col1)+map(lambda x:'ExAC.'+x, col2)))
 #print(','.join(col1+col2))
 
 for l in csv.DictReader(file(f,'r')):
@@ -105,7 +108,8 @@ for l in csv.DictReader(file(f,'r')):
     #print( [ '%s,%s' % (), ','.join() for r in records]
     d=dict( [x for x in [x.split('=') for x in r[7].split('|')[0].split(';')] if len(x)==2] )
     c2=','.join([d[k].replace(',','/') for k in col2])
-    pLI=pli.get(((l['HUGO'].split('/')[0]).split('('))[0],{'pLI':''})['pLI']
-    print(c0,c1,c2,pLI,sep=',')
+    #pLI=pli.get(((l['HUGO'].split('/')[0]).split('('))[0],{'pLI':''})['pLI']
+    #print(c0,c1,c2,pLI,sep=',')
+    print(c0,c1,c2,sep=',')
 
 
