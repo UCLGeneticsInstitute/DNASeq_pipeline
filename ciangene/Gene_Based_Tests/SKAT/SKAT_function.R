@@ -32,9 +32,6 @@ print('---latest change----')
 message(latest.change)
 print('--------------------')
 
-
-source('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Gene_Based_Tests/ADA/ADA.R')
-
 ldak='/cluster/project8/vyp/cian/support/ldak/ldak'
 
 suppressPackageStartupMessages(library("ggplot2"))
@@ -638,10 +635,23 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					case.calls<-FALSE
 					ctrl.calls<-FALSE
 
+					hetHom<-function(dat,snps)
+					{
+						dat$AlleleCount<-0
+						for(i in 1:nrow(dat))
+						{
+							variant<-snps[rownames(snps) %in% dat$variants[i], colnames(snps) %in% dat$carriers.clean[i] ]
+							dat$AlleleCount[i]<-variant
+						}
+						return(dat)
+					}
+
+
 					if(sum(as.matrix(case.snps),na.rm=T)>0)
 					{
 						case.dat<-GetCarriers(case.snps)
 						case.dat<-data.frame(case.dat,results[gene,1:2])
+						case.dat<-hetHom(case.dat,case.snps)
 						write.table(case.dat, caseFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
 						case.calls<-TRUE
 					}
@@ -650,6 +660,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					{
 						ctrl.dat<-GetCarriers(ctrl.snps)
 						ctrl.dat<-data.frame(ctrl.dat,results[gene,1:2])
+						ctrl.dat<-hetHom(ctrl.dat,ctrl.snps)
 						write.table(ctrl.dat,ctrlFile, col.names=FALSE,row.names=F,quote=F,sep='\t',append=T)
 						ctrl.calls<-TRUE
 					}
