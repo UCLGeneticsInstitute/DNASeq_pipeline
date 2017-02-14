@@ -1,3 +1,5 @@
+## plot sample snps as hom/het
+
 message('Loading libraries')
 suppressPackageStartupMessages(library("optparse"))
 suppressPackageStartupMessages(library("GenomicRanges"))

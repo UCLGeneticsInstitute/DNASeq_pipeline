@@ -640,12 +640,20 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 						dat$AlleleCount<-0
 						for(i in 1:nrow(dat))
 						{
-							variant<-snps[rownames(snps) %in% dat$variants[i], colnames(snps) %in% dat$carriers.clean[i] ]
-							dat$AlleleCount[i]<-variant
+							#if(is.na(dat$variants[i])) dat$variants[i]<-str_extract(dat[i,grep('carriers',colnames(dat))],"[0-9]{1,2}_[0-9]+_[A-Z]+_.")
+							variant<-snps[rownames(snps) %in% dat$variants[i], colnames(snps) %in%  dat[i,grep('carriers',colnames(dat))] ]
+							if(length(variant)>0)dat$AlleleCount[i]<-variant
 						}
 						return(dat)
 					}
 
+				if(qcPREP)
+				{
+
+					robj<-paste0(outputDirectory,'qc/test_setup.RData')
+					message(paste('Saving workspace image to', robj))
+					save(list=ls(environment()),file=robj)
+				}	
 
 					if(sum(as.matrix(case.snps),na.rm=T)>0)
 					{
