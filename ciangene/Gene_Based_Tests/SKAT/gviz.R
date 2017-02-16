@@ -23,7 +23,7 @@ snp.file<-gsub(opt$skat,pattern='SKAT_processed_filtered.csv',replacement='resul
 if(!file.exists(snp.file)) stop('skat snp file doesnt exist')
 
 test.bam<-opt$sampleBam
-if(!file.exists(test.bam)) stop('bam doesnt exist')
+if(!is.null(test.bam))if(!file.exists(test.bam)) stop('bam doesnt exist')
 
 gene<-opt$Gene
 gene.row<-grep(gene,filt$Symbol)

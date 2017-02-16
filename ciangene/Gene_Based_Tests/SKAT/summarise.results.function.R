@@ -7,7 +7,6 @@ suppressPackageStartupMessages(library(rentrez))
 
 ldak='/cluster/project8/vyp/cian/support/ldak/ldak'
 source('/cluster/project8/vyp/cian/scripts/r/annotate_qqplot.R') ## Modified qqplot so I can label specific genes. 
-
 lof <-  c("frameshift deletion", "frameshift substitution", "frameshift insertion",  "stoploss SNV", "splicing"
 		,"stopgain SNV","exonic;splicing"
 		)
@@ -16,10 +15,11 @@ snps.filt<-snps[snps$ExonicFunc %in% lof & snps$ExAC_MAF < 0.0001,]
 snps.filt<-snps.filt[!duplicated(snps.filt$SNP),]
 
 data<-'/SAN/vyplab/UCLex/mainset_September2016/cian/allChr_snpStats_out'
+Rscript='/cluster/project8/vyp/vincent/Software/R-3.3.0/bin/Rscript'
+gviz='/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Gene_Based_Tests/SKAT/gviz.R'
 
 
-
-summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=basename(outputDirectory),percent=5,disease='heart')
+summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=basename(outputDirectory),percent=5,disease='heart',gviz=TRUE)
 {
 	dir<-paste0(dir,'/')
 	outputDirectory<-paste0(outputDirectory,'/')
@@ -32,11 +32,6 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	files<-files[grep("chr",files)]
 	dirName<-paste(basename(dirname(dirname(dir))),basename(dirname(dir)),basename(dir))
 	if(length(files)!=23)message( paste('Problem-',dirName,'might be missing a few chromosomes...' ) )
-
-print(paste0(outputDirectory,Title,'_prep.RData'))
-		save(list=ls(environment()),file=paste0(outputDirectory,Title,'_prep.RData'))
-
-
 
 	file.copy(paste0( dirname(files)[1],'/qc/case_pca.plot.pdf'),paste0(outputDirectory,'Case_PCA_plots.pdf')) 
 	file.copy(paste0( dirname(files)[1],'/qc/cases_removed_because_of_low_read_depth.tab'),paste0(outputDirectory,'cases_removed_because_of_low_read_depth.tab')) 
@@ -168,8 +163,6 @@ print(paste0(outputDirectory,Title,'_prep.RData'))
 		dev.off()
 	}
 
-	message("Saving workspace to ",paste0(outputDirectory,Title,'_prep.RData'))
-	save(list=ls(environment()),file=paste0(outputDirectory,Title,'_prep.RData'))
 
 	message("Making list of samples that are carriers per variant")
 
@@ -200,6 +193,7 @@ print(paste0(outputDirectory,Title,'_prep.RData'))
 	if(length(grep('ADA',colnames(file)))>0 )  file$ADA<-NULL
 	write.table(file,paste0(outputDirectory,Title,'_SKAT_processed.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 
+
 ############################################################################################################
 ############################################################################################################
 	## Now make a filtered list of more plausible results
@@ -213,6 +207,10 @@ print(paste0(outputDirectory,Title,'_prep.RData'))
 	filt<-subset(file,file$Nb.Carriers>=nb.cases.carriers.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8) 
 	filt$FisherPvalue<-as.numeric(filt$FisherPvalue)
 	filt<-subset(filt, as.numeric(filt$CompoundHetPvalue)<=pval | ( as.numeric(filt$SKATO)<=pval | filt$FisherPvalue<=pval))
+
+	message("Saving workspace to ",paste0(outputDirectory,Title,'_prep.RData'))
+	save(list=ls(environment()),file=paste0(outputDirectory,Title,'_prep.RData'))
+
 
 	if(nrow(filt)>0)
 	{
@@ -245,8 +243,8 @@ print(paste0(outputDirectory,Title,'_prep.RData'))
 			filt$Nb.relevant.papers[ro]<-ff$count
 		}
 		filt$pubmed.disease.term<-disease # record in output what disease we searched pubmed for with gene name
-
-		write.table(filt,paste0(outputDirectory,Title,'_SKAT_processed_filtered.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
+		SKATout<-paste0(outputDirectory,Title,'_SKAT_processed_filtered.csv')
+		write.table(filt,SKATout,col.names=T,row.names=F,quote=T,sep=',',append=F)
 
 		if(nrow(filt)>10)filt<-filt[1:10,]
 		rownames(filt)<-1:nrow(filt)
@@ -269,6 +267,27 @@ print(paste0(outputDirectory,Title,'_prep.RData'))
 			case.ctrl.carriers<-subset(tt,tt$case.snp.hets>1 | tt$case.snp.homs > 1 )
 			#if(nrow(case.ctrl.carriers)>0)write.table(case.ctrl.carriers,paste0(outputDirectory,Title,'_BiallelicSNPs.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 			#if(nrow(case.ctrl.carriers)==0)write.table('None Found',paste0(outputDirectory,Title,'_BiallelicSNPs.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
+		}
+
+		if(gviz)
+		{
+			message('Now plotting top genes/samples')
+			variantDir<-file.path(outputDirectory,'topGenePlots')
+		 	if(!file.exists(variantDir))dir.create(variantDir,recursive=TRUE)
+			for(gene in 1:nrow(filt))
+			{
+				if(filt$Nb.Carriers[gene]<10)
+				{
+					carriers<-unlist(strsplit(filt$Carriers[gene],';') )
+					for(carrier in 1:filt$Nb.Carriers[gene])
+					{
+						pdf<-paste0(variantDir,'/',filt$Symbol[gene],'_',carriers[carrier],'.pdf')
+						run<-paste(Rscript,gviz,'--skat',SKATout,'--outPDF',pdf, '--Sample', carriers[carrier],'--Gene', filt$Symbol[gene])
+						message(run)
+						system(run)
+					}
+				}
+			}
 		}
 	}
 } # summarise
