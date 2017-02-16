@@ -32,6 +32,12 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	files<-files[grep("chr",files)]
 	dirName<-paste(basename(dirname(dirname(dir))),basename(dirname(dir)),basename(dir))
 	if(length(files)!=23)message( paste('Problem-',dirName,'might be missing a few chromosomes...' ) )
+
+print(paste0(outputDirectory,Title,'_prep.RData'))
+		save(list=ls(environment()),file=paste0(outputDirectory,Title,'_prep.RData'))
+
+
+
 	file.copy(paste0( dirname(files)[1],'/qc/case_pca.plot.pdf'),paste0(outputDirectory,'Case_PCA_plots.pdf')) 
 	file.copy(paste0( dirname(files)[1],'/qc/cases_removed_because_of_low_read_depth.tab'),paste0(outputDirectory,'cases_removed_because_of_low_read_depth.tab')) 
 

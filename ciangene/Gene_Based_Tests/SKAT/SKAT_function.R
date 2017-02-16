@@ -647,14 +647,6 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 						return(dat)
 					}
 
-				if(qcPREP)
-				{
-
-					robj<-paste0(outputDirectory,'qc/test_setup.RData')
-					message(paste('Saving workspace image to', robj))
-					save(list=ls(environment()),file=robj)
-				}	
-
 					if(sum(as.matrix(case.snps),na.rm=T)>0)
 					{
 						case.dat<-GetCarriers(case.snps)
@@ -735,13 +727,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					case.sums[is.na(case.sums)]<-0
 					results$CaseSNPs[gene]<-paste(names(case.sums[case.sums>0]),collapse=';') 
 			
-				if(qcPREP)
-				{
-
-					robj<-paste0(outputDirectory,'qc/test_setup.RData')
-					message(paste('Saving workspace image to', robj))
-					save(list=ls(environment()),file=robj)
-				}	
+	
 					##### ADA
 					ada<-FALSE
 					if(ada)
@@ -769,6 +755,13 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 						} else message('However there are too few SNPs to bother. skipping.')
 					}
 				print(results[gene,])
+				if(qcPREP)
+				{
+
+					robj<-paste0(outputDirectory,'qc/test_setup.RData')
+					message(paste('Saving workspace image to', robj))
+					save(list=ls(environment()),file=robj)
+				}
 
 			}
 		}
