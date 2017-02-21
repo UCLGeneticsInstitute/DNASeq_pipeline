@@ -70,13 +70,14 @@ usage_example = """
 parser = argparse.ArgumentParser(formatter_class = argparse.RawDescriptionHelpFormatter, epilog = usage_example) 
 #compulsory arguments
 parser.add_argument('--file', dest='file', help = "list of variants which we are interested in", required=False, default=None)
+parser.add_argument('--exac', dest='exac', help = "file of exac frequencies", required=False, default='/cluster/scratch3/vyp-scratch2/reference_datasets/ExAC/0.3.1/ExAC.r0.3.1.sites.vep.vcf.gz')
 args = parser.parse_args()
 
 f=args.file
 
 #tb=tabix.open('/cluster/project8/IBDAJE/VEP_custom_annotations/GRCh37/ExAC/0.3/ExAC.r0.3.sites.vep.vcf.gz')
 #tb=tabix.open('/cluster/project8/IBDAJE/VEP_custom_annotations/GRCh37/ExAC/0.3/ExAC.r0.3.sites.vep.vcf.gz')
-tb=tabix.open('/cluster/scratch3/vyp-scratch2/reference_datasets/ExAC/0.3.1/ExAC.r0.3.1.sites.vep.vcf.gz')
+tb=tabix.open(args.exac)
 #tb=tabix.open('/Users/pontikos/exac/exac_data/ExAC_HC.0.3.final.vep.vcf.gz')
 
 pli=dict()
