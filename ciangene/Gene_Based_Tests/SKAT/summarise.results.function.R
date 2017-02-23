@@ -191,7 +191,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		file$Nb.case.snps[car]<-length(unique(unlist(strsplit(as.character(file$CaseSNPs[car]),';')) ))
 	}
 	if(length(grep('ADA',colnames(file)))>0 )  file$ADA<-NULL
-	write.table(file,paste0(outputDirectory,Title,'_SKAT_processed.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
+	write.table(file,paste0(outputDirectory,Title,'_SKAT.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 
 
 ############################################################################################################
@@ -208,8 +208,9 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	filt$FisherPvalue<-as.numeric(filt$FisherPvalue)
 	filt<-subset(filt, as.numeric(filt$CompoundHetPvalue)<=pval | ( as.numeric(filt$SKATO)<=pval | filt$FisherPvalue<=pval))
 
-	message("Saving workspace to ",paste0(outputDirectory,Title,'_prep.RData'))
-	save(list=ls(environment()),file=paste0(outputDirectory,Title,'_prep.RData'))
+	RData.file<-paste0(outputDirectory,Title,'_prep.RData')
+	message("Saving workspace to ",RData.file)
+	save(list=ls(environment()),file=RData.file)
 
 
 	if(nrow(filt)>0)
@@ -217,21 +218,27 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 
 		# make a table of most likely causative gene for each case. 
 		cases<-unique(unlist(strsplit(filt$Carriers,split=';') ))
-		case.dat<-data.frame(matrix(nrow=length(cases),ncol=3))
+		case.dat<-data.frame(matrix(nrow=length(cases),ncol=5))
 		case.dat[,1]<-cases
-		colnames(case.dat)<-c('Case','MostLikelyCausativeGenesInOrder','Variants')
+		colnames(case.dat)<-c('Case','CausativeGene','Variants','RareAlleleCount','Phenopolis')
 		for(case in 1:length(cases))
 		{
-			case.genes<-filt$Symbol[grep(cases[case],filt$Carriers)]
+			case.genes<-filt$Symbol[grep(cases[case],filt$Carriers)][1] # just take first gene
 			for(gen in 1:length(case.genes))
 			{
 				gene.variants<-carriers[carriers$V3==filt$ENSEMBL[filt$Symbol==case.genes[gen]],]
 				case.gene.variants<-paste(gene.variants[gene.variants$V2==cases[case],1],collapse=',')
 				if(gen==1)case.variants<-case.gene.variants else case.variants<-c(case.variants,case.gene.variants)
+				allele.count<-paste(gene.variants[gene.variants$V2==cases[case],5],collapse=',')
+				if(gen==1)allele.count.all<-allele.count else allele.count.all<-c(allele.count,allele.count.all)
 			}
 			case.variants<-paste(unlist(case.variants),collapse=';')
-			case.dat[case,2]<-paste(filt$Symbol[grep(cases[case],filt$Carriers)],collapse=';')
-			case.dat[case,3]<-case.variants
+			case.dat$CausativeGene[case]<-case.genes
+			case.dat$Variants[case]<-case.variants
+			case.dat$RareAlleleCount[case]<-allele.count.all
+			phen<-paste0('https://uclex.cs.ucl.ac.uk/variant/',gsub(case.dat$Variants[1],pattern='_',replacement='-') )
+			case.dat$Phenopolis[case]<-phen
+
 		}
 		write.table(case.dat,paste0(outputDirectory,Title,'_solved_cases.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 
@@ -243,7 +250,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 			filt$Nb.relevant.papers[ro]<-ff$count
 		}
 		filt$pubmed.disease.term<-disease # record in output what disease we searched pubmed for with gene name
-		SKATout<-paste0(outputDirectory,Title,'_SKAT_processed_filtered.csv')
+		SKATout<-paste0(outputDirectory,Title,'_SKAT_filtered.csv')
 		write.table(filt,SKATout,col.names=T,row.names=F,quote=T,sep=',',append=F)
 
 		if(nrow(filt)>10)filt<-filt[1:10,]
@@ -290,4 +297,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 			}
 		}
 	}
+	message("Saving workspace to ",RData.file)
+	save(list=ls(environment()),file=RData.file)
+
 } # summarise
