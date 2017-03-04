@@ -639,7 +639,9 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	       		}
 
 
-				snp.out<-data.frame( rownames(case.snps),case.snp.hets,case.snp.homs,case.mafs,ctrl.snp.hets,ctrl.snp.homs,ctrl.mafs,results[gene,]) 
+	       		colnames(case.mafs)<-c('SNP','snp')
+	       		colnames(ctrl.mafs)<-c('SNP','snp')
+				snp.out<-data.frame( rownames(case.snps),case.snp.hets,case.snp.homs,case.mafs$snp,ctrl.snp.hets,ctrl.snp.homs,ctrl.mafs$snp,results[gene,]) 
 				write.table( snp.out, oFile, col.names=!file.exists(oFile),row.names=F,quote=F,sep='\t',append=T)
 
 				GetCarriers<-function(snps)

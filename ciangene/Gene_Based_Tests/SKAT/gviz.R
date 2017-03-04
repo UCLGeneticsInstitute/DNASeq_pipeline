@@ -18,63 +18,79 @@ gen<-'hg19'
 
 filt<-read.csv(opt$skat)
 oPDF<-opt$outPDF
+message(oPDF)
 
-snp.file<-gsub(opt$skat,pattern='SKAT_processed_filtered.csv',replacement='results_by_SNP_cases.csv')
+snp.file<-gsub(opt$skat,pattern='SKAT_filtered.csv',replacement='results_by_SNP_cases.csv')
 if(!file.exists(snp.file)) stop('skat snp file doesnt exist')
 
 test.bam<-opt$sampleBam
 if(!is.null(test.bam))if(!file.exists(test.bam)) stop('bam doesnt exist')
+CNV<-opt$CNV
 
 gene<-opt$Gene
 gene.row<-grep(gene,filt$Symbol)
 if(length(gene.row)==0)stop('gene symbol not found in skat file')
 
+sample<-opt$Sample
 message('Finished argument check. processing.')
 
 snp<-read.csv(snp.file)
+snp<- snp[,- which(snp[1,] %in% snp[1,1])[-1] ]
+colnames(snp)<-c("SNP", "case.snp.hets", "case.snp.homs", "case.mafs.snp",
+		"ctrl.snp.hets", "ctrl.snp.homs", "ctrl.mafs.snp", "ENSEMBL",
+		"Symbol", "SKATO", "nb.snps", "nb.cases", "nb.ctrls", "nb.alleles.cases",
+		"nb.alleles.ctrls", "case.maf", "ctrl.maf", "total.maf", "nb.case.homs",
+		"nb.case.hets", "nb.ctrl.homs", "nb.ctrl.hets", "Chr", "Start",
+		"End", "FisherPvalue", "OddsRatio", "CompoundHetPvalue", "minCadd",
+		"maxExac", "min.depth", "MeanCallRateCases", "MeanCallRateCtrls",
+		"MaxMissRate", "HWEp", "MinSNPs", "MaxCtrlMAF", "SNPs", "GeneRD",
+		"CaseSNPs", "SKATbeSNPs")
 snp<-snp[snp$Symbol %in% filt$Symbol[gene.row],]
-snps<-unlist(strsplit(snp[,1],';'))
-snp.data<-data.frame(t(data.frame(strsplit(snps,'_'))))
+snp.data<-data.frame(t(data.frame(strsplit(snp$SNP,'_'))))
 snp.data[,2]<-as.numeric(snp.data[,2])
-rownames(snp.data)<- snps
-
+rownames(snp.data)<-snp$SNP
 colnames(snp.data)<-c('chr','start','a','b')
-snp.data$case.maf<-snp$maf.snp.cases
+snp.data$case.maf<-as.numeric(snp$case.mafs.snp)
 snp.data$case.maf[is.na(snp.data$case.maf)]<-0
 snp.data$case.maf<-log10(as.numeric(snp.data$case.maf)+0.0001)
-snp.data$ctrl.maf<-snp$maf.snp.ctrls
+snp.data$ctrl.maf<-as.numeric(snp$ctrl.mafs.snp)
 snp.data$ctrl.maf[is.na(snp.data$ctrl.maf)]<-0
 snp.data$ctrl.maf<-log10(as.numeric(snp.data$ctrl.maf)+0.0001)
 snp.data.ranges = GRanges(seqnames=snp.data$chr, ranges=IRanges(start=snp.data$start, end=snp.data$start) ,
 	case=snp.data$case.maf,ctrl=snp.data$ctrl.maf)
+colours<-c('red','black')
+maf.data<- DataTrack(snp.data.ranges,groups=colours,col=colours,genome=gen,name='log10(MAF)')## case and control mafs
 
-
-case.snps<-read.csv(gsub(opt$skat,pattern='SKAT_processed_filtered.csv',replacement='case_carriers.csv'),header=FALSE)
+case.snps<-read.csv(gsub(opt$skat,pattern='SKAT_filtered.csv',replacement='case_carriers.csv'),header=FALSE)
 case.snp.data<-case.snps[case.snps[,1] %in% rownames(snp.data),]
 case.snp.data<-data.frame(cbind(case.snp.data,data.frame(t(data.frame(strsplit(case.snp.data[,1],'_'))))))
 colnames(case.snp.data)<-c('SNP','Sample','ENSEMBL','HUGO','MinorAlleleCount','Chr','Start','Ref','Alt')
-case.snp.data$Start<-as.numeric(case.snp.data$Start)
-case.snp.ranges <- GRanges(seqnames=case.snp.data$Chr, ranges=IRanges(start=case.snp.data$Start, end=case.snp.data$Start) ,
-	case=case.snp.data$MinorAlleleCount)
+case.snp.data$Start<-as.numeric(case.snp.data$Start) ## all cases
+
+sampleSNPs<-case.snp.data[case.snp.data$Sample %in% sample,]
+case.snp.ranges <- GRanges(seqnames=sampleSNPs$Chr, ranges=IRanges(start=sampleSNPs$Start, end=sampleSNPs$Start) ,
+	case=sampleSNPs$MinorAlleleCount)
 target.snps<- DataTrack(case.snp.ranges,col='Red',genome=gen,name='CaseAlleleCount')
 
+oData<-paste0(dirname(oPDF),'/plot.prep.RData')
+save(list=ls(environment()),file=oData)
+message(oData)
 
-test.chr<-filt$Chr[gene.row]
-test.start<-filt$Start[gene.row]
-test.end<-filt$End[gene.row]
+test.chr<-as.numeric(as.character(case.snp.data$Chr))
+test.start<-min(as.numeric(as.character(case.snp.data$Start)) )
+test.end<-max(as.numeric(as.character(case.snp.data$Start) )) 
 test.dat<-data.frame(chr=test.chr,start=test.start,end=test.end)
 print(test.dat)
 
-dTrack4 <- DataTrack(range=test.bam, genome=gen, type="l", name="Coverage", window=-1, chromosome=test.chr)
-
-save(list=ls(environment()),file='prep.RData')
-
+#dTrack4 <- DataTrack(range=test.bam, genome=gen, type="l", name="Coverage", window=-1, chromosome=test.chr)
 
 itrack <- IdeogramTrack(genome = gen, chromosome = test.chr)
 
 message('reading in exon bed file')
 exon.bed<-read.table('/SAN/vyplab/UCLex/support/exons.hg19.bed')
 bed.ranges = with(exon.bed, GRanges(V1, IRanges(start=V2, end=V3)))
+test.dat$start<-as.numeric(test.dat$start)
+test.dat$end<-as.numeric(test.dat$end)
 test.ranges = with(test.dat, GRanges(chr, IRanges(start=start, end=end)))
 hits<-data.frame( findOverlaps(bed.ranges ,test.ranges))
 exon.bed.small<-exon.bed[hits$queryHits,]
@@ -95,13 +111,15 @@ for(i in 1:length(genes))
 }
 
 grtrack <- GeneRegionTrack(exon.bed.small, genome = gen, chromosome = test.chr, name = "Gene Model")
-#bmt <- BiomartGeneRegionTrack(genome="hg19", chromosome=test.chr, start=test.start, end=test.end,
-                        #   filter=list(with_ox_refseq_mrna=TRUE), stacking="dense")
 gtrack <- GenomeAxisTrack()
 
+buffer<-1000
 
-colours<-c('red','black')
-maf.data<- DataTrack(snp.data.ranges,groups=colours,col=colours,genome=gen,name='log10(MAF)')
+
+oData<-paste0(dirname(oPDF),'/plot.prep.RData')
+save(list=ls(environment()),file=oData)
+message(oData)
+
 
 ##### CNV
 # add option to include exomeDepth call
@@ -116,20 +134,17 @@ if(!is.null(CNV))
 if(!is.null(test.bam)) 
 {
 	message('including bam track')
-	alTrack <- AlignmentsTrack(test.bam, isPaired=TRUE,start=test.start,end=test.end,chromosome=test.chr,genome='hg19')
-	pdf(oPDF)
-	plotTracks(list(itrack, target.snps, gtrack, alTrack,  grtrack,maf.data), from=test.start, 
-		to=test.end,chromosome=test.chr,extend.left=1000,extend.right=1000)
+	bam.track <- AnnotationTrack(test.bam, genome = gen, chromosome = test.chr, name = "SampleBam")#ideally alignments track but it doesnt seem to work right now 
+	pdf(oPDF,width=10,height=10)
+	plotTracks(list(itrack,gtrack, grtrack, bam.track,target.snps,maf.data), from=test.start, 
+		to=test.end,chromosome=test.chr,extend.left=buffer,extend.right=buffer)
 	dev.off()
 	message(oPDF)
 } else 
 {
 	pdf(oPDF)
-	plotTracks(list(itrack, target.snps, gtrack,  grtrack,maf.data), from=test.start, 
-		to=test.end,chromosome=test.chr,extend.left=1000,extend.right=1000)
+	plotTracks(list(itrack, gtrack, grtrack,target.snps,maf.data), from=test.start, 
+		to=test.end,chromosome=test.chr,extend.left=buffer,extend.right=buffer)
 	dev.off()
 	message(oPDF)
 }
-
-save(list=ls(environment()),file='prep.RData')
-

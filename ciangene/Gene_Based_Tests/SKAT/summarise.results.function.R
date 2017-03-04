@@ -6,7 +6,7 @@ suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(rentrez))
 
 ldak='/cluster/project8/vyp/cian/support/ldak/ldak'
-source('/cluster/project8/vyp/cian/scripts/r/annotate_qqplot.R') ## Modified qqplot so I can label specific genes. 
+source('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Gene_Based_Tests/plot/annotate_qqplot.R') ## Modified qqplot so I can label specific genes. 
 lof <-  c("frameshift deletion", "frameshift substitution", "frameshift insertion",  "stoploss SNV", "splicing"
 		,"stopgain SNV","exonic;splicing"
 		)
@@ -16,8 +16,9 @@ snps.filt<-snps.filt[!duplicated(snps.filt$SNP),]
 
 data<-'/SAN/vyplab/UCLex/mainset_September2016/cian/allChr_snpStats_out'
 Rscript='/cluster/project8/vyp/vincent/Software/R-3.3.0/bin/Rscript'
-gviz='/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Gene_Based_Tests/SKAT/gviz.R'
+gviz.script='/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Gene_Based_Tests/SKAT/gviz.R'
 
+bamList<-read.table('/SAN/vyplab/UCLex/support/SampleBamList',sep='\t')
 
 summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=basename(outputDirectory),percent=5,disease='heart',gviz=TRUE)
 {
@@ -33,10 +34,10 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	dirName<-paste(basename(dirname(dirname(dir))),basename(dirname(dir)),basename(dir))
 	if(length(files)!=23)message( paste('Problem-',dirName,'might be missing a few chromosomes...' ) )
 
-	file.copy(paste0( dirname(files)[1],'/qc/case_pca.plot.pdf'),paste0(outputDirectory,'Case_PCA_plots.pdf')) 
-	file.copy(paste0( dirname(files)[1],'/qc/cases_removed_because_of_low_read_depth.tab'),paste0(outputDirectory,'cases_removed_because_of_low_read_depth.tab')) 
-
-	file.copy(paste0( dirname(files)[1],'/case.list'),paste0(outputDirectory,'case.list')) 
+	#file.copy(paste0( dirname(files)[1],'/qc/case_pca.plot.pdf'),paste0(outputDirectory,'Case_PCA_plots.pdf')) 
+	case.qc.file<-paste0( dirname(files)[1],'/qc/cases_removed_because_of_low_read_depth.tab')
+	if(file.size(case.qc.file)>0)file.copy(case.qc.file,paste0(outputDirectory,'cases_removed_because_of_low_read_depth.tab')) 
+	#file.copy(paste0( dirname(files)[1],'/case.list'),paste0(outputDirectory,'case.list.txt')) 
 
 	message("Added PCA plot of cases to outputDirectory")
 	oFile<-paste0(outputDirectory,Title,'_SKAT_results.csv') 
@@ -75,10 +76,11 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		outFile<-read.csv(out,header=FALSE)
 		return(outFile)
 	}
+
 	message('Merging case carriers')
 	carriers<-list.files(dir,pattern='case_carriers',full.names=T,recursive=T)
 	carry.oFile<-paste0(outputDirectory,Title,'_case_carriers.csv') 
-	file.remove(carry.oFile)
+	if(file.exists(carry.oFile))file.remove(carry.oFile)
 	carriers<-MergeFiles(carriers,carry.oFile)
 	message('Merging ctrl carriers')
 
@@ -87,11 +89,20 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	file.remove(ctrl.carry.oFile)
 	ctrl.carriers<-MergeFiles(ctrl.carriers,ctrl.carry.oFile)
 	message('Merging results by SNP')
+	if(file.exists(ctrl.carry.oFile))file.remove(ctrl.carry.oFile)
 
 	by.snp<-list.files(dir,pattern='SKAT_results_by_SNP',full.names=T,recursive=T)
 	by.snp.out<-paste0(outputDirectory,Title,'_results_by_SNP_cases.csv') 
 	by.snp<-MergeFiles(by.snp,by.snp.out)
-	colnames(by.snp)[1]<-'SNP'
+	colnames(by.snp)<-c("SNP", "case.snp.hets", "case.snp.homs", "case.mafs.snp",
+		"ctrl.snp.hets", "ctrl.snp.homs", "ctrl.mafs.snp", "ENSEMBL",
+		"Symbol", "SKATO", "nb.snps", "nb.cases", "nb.ctrls", "nb.alleles.cases",
+		"nb.alleles.ctrls", "case.maf", "ctrl.maf", "total.maf", "nb.case.homs",
+		"nb.case.hets", "nb.ctrl.homs", "nb.ctrl.hets", "Chr", "Start",
+		"End", "FisherPvalue", "OddsRatio", "CompoundHetPvalue", "minCadd",
+		"maxExac", "min.depth", "MeanCallRateCases", "MeanCallRateCtrls",
+		"MaxMissRate", "HWEp", "MinSNPs", "MaxCtrlMAF", "SNPs", "GeneRD",
+		"CaseSNPs", "SKATbeSNPs")
 	message('Merging compound hets files cases')
 
 	cpd.ctrls<-FALSE
@@ -105,13 +116,14 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	cpd.cases<-TRUE
 	}
 
-	CompoundHets_ctrls<-list.files(dir,pattern='CompoundHets_ctrls',full.names=T,recursive=T)
-	if(length(CompoundHets_ctrls)>0)
-	{
-	CompoundHets_ctrls.oFile<-paste0(outputDirectory,Title,'_CompoundHets_ctrls.csv') 
-	CompoundHets_ctrls<-MergeFiles(CompoundHets_ctrls,CompoundHets_ctrls.oFile)
-	cpd.ctrls<-TRUE
-	}
+	#CompoundHets_ctrls<-list.files(dir,pattern='CompoundHets_ctrls',full.names=T,recursive=T)
+	#if(length(CompoundHets_ctrls)>0)
+	#{
+	#CompoundHets_ctrls.oFile<-paste0(outputDirectory,Title,'_CompoundHets_ctrls.csv') 
+	#CompoundHets_ctrls<-MergeFiles(CompoundHets_ctrls,CompoundHets_ctrls.oFile)
+	#cpd.ctrls<-TRUE
+	##if(file.exists(CompoundHets_ctrls.oFile))file.remove(CompoundHets_ctrls.oFile)
+	#}
 
 	SummariseCpdHets<-function(file)
 	{
@@ -130,42 +142,13 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		cpd.hets.cases<-SummariseCpdHets(CompoundHets_cases)
 		if(nrow(cpd.hets.cases)>0)write.table(cpd.hets.cases,CompoundHets_cases.oFile,col.names=T,row.names=F,quote=F,sep='\t') else file.remove (CompoundHets_cases.oFile)
 	}
-	if(cpd.ctrls)
-	{
-		cpd.hets.ctrls<-SummariseCpdHets(CompoundHets_ctrls)
-		if(nrow(cpd.hets.ctrls)>0)write.table(cpd.hets.ctrls,CompoundHets_ctrls.oFile,col.names=T,row.names=F,quote=F,sep='\t') else file.remove (CompoundHets_ctrls.oFile)
-	}
-
-	if(plot)
-	{
-
-		qqplot.name<-paste0(paste0(outputDirectory,'qqplots.pdf')) 
-		message(paste('QQplot stored in:',qqplot.name))
-		pdf(qqplot.name)
-
-
-		file<-file[which(file$SKATO>0),]
-
-		if(!is.null(genes))
-		{
-			if( file.exists(file.path(genes))) genes<-read.table(genes,header=FALSE)[,1]
-			file$Candidate<-FALSE
-			file$Candidate[file$Symbol %in% genes[,1]]<-TRUE
-			file<-data.frame(cbind(file[,ncol(file)],file[,1:(ncol(file)-1)]))
-			colnames(file)[1]<-'Candidate'
-			tst <- qq.chisq(-2*log(file$SKATO), df=2, x.max=50,pvals=TRUE,main=Title)
-			labelQQplot(pval.labels=file$Symbol,qqplotOut=tst,pvals.raw=file$SKATO, genelist= genes) 
-		} else{
-			sig.genes<-subset(gene.pvals,gene.pvals$SKATO <0.0001)$Symbol
-			tst <- qq.chisq(-2*log(file$SKATO), df=2, x.max=50,pvals=TRUE,main=Title)
-			labelQQplot(pval.labels=file$Symbol,qqplotOut=tst,pvals.raw=file$SKATO, genelist= sig.genes )
-		}
-		dev.off()
-	}
-
+	#if(cpd.ctrls)
+	#{
+	#	cpd.hets.ctrls<-SummariseCpdHets(CompoundHets_ctrls)
+	#	if(nrow(cpd.hets.ctrls)>0)write.table(cpd.hets.ctrls,CompoundHets_ctrls.oFile,col.names=T,row.names=F,quote=F,sep='\t') else file.remove (CompoundHets_ctrls.oFile)
+	#}
 
 	message("Making list of samples that are carriers per variant")
-
 	file$Carriers<-0
 	for(snp in 1:nrow(carriers))
 	{
@@ -200,17 +183,25 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	if(!is.null(percent))
 	{
 		percent.cases.carriers<-percent
-		nb.cases.carriers.required<- round( as.numeric(file$nb.cases) * (percent.cases.carriers/100)  ) [1]
+		nb.cases.required<- round( as.numeric(file$nb.cases) * (percent.cases.carriers/100)  ) [1]
 	} else 
-	if(mean(file$nb.cases)>20) nb.cases.carriers.required<- 5 else nb.cases.carriers.required <-2
+	if(mean(file$nb.cases)>20) nb.cases.required<- 5 else nb.cases.required <-2
+	file<-file[which(file$SKATO>0),]
+	if(!is.null(genes))
+	{
+		if( file.exists(file.path(genes))) genes<-read.table(genes,header=FALSE)[,1]
+		file$Candidate<-FALSE
+		file$Candidate[file$Symbol %in% genes[,1]]<-TRUE
+		file<-data.frame(cbind(file[,ncol(file)],file[,1:(ncol(file)-1)]))
+		colnames(file)[1]<-'Candidate'
+	}# else{
 	pval<-0.000001
-	filt<-subset(file,file$Nb.Carriers>=nb.cases.carriers.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8) 
+	filt<-subset(file,file$Nb.Carriers>=nb.cases.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8 & file$Nb.case.snps > 2) 
+	if(nrow(filt)==0) filt<-subset(file,file$Nb.Carriers>=nb.cases.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8) 
+	
+	plot.file<-filt 
 	filt$FisherPvalue<-as.numeric(filt$FisherPvalue)
 	filt<-subset(filt, as.numeric(filt$CompoundHetPvalue)<=pval | ( as.numeric(filt$SKATO)<=pval | filt$FisherPvalue<=pval))
-
-	RData.file<-paste0(outputDirectory,Title,'_prep.RData')
-	message("Saving workspace to ",RData.file)
-	save(list=ls(environment()),file=RData.file)
 
 
 	if(nrow(filt)>0)
@@ -276,6 +267,11 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 			#if(nrow(case.ctrl.carriers)==0)write.table('None Found',paste0(outputDirectory,Title,'_BiallelicSNPs.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 		}
 
+
+		RData.file<-paste0(outputDirectory,Title,'_prep.RData')
+		message("Saving workspace to ",RData.file)
+		save(list=ls(environment()),file=RData.file)
+
 		if(gviz)
 		{
 			message('Now plotting top genes/samples')
@@ -283,21 +279,50 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		 	if(!file.exists(variantDir))dir.create(variantDir,recursive=TRUE)
 			for(gene in 1:nrow(filt))
 			{
-				if(filt$Nb.Carriers[gene]<10)
+				carriers<-unlist(strsplit(filt$Carriers[gene],';') )
+				nb.carriers<-length(carriers)
+				if(nb.carriers>20) nb.samples<-20 else nb.samples<-nb.carriers
+				for(carrier in 1:nb.samples)
 				{
-					carriers<-unlist(strsplit(filt$Carriers[gene],';') )
-					for(carrier in 1:filt$Nb.Carriers[gene])
-					{
-						pdf<-paste0(variantDir,'/',filt$Symbol[gene],'_',carriers[carrier],'.pdf')
-						run<-paste(Rscript,gviz,'--skat',SKATout,'--outPDF',pdf, '--Sample', carriers[carrier],'--Gene', filt$Symbol[gene])
-						message(run)
-						system(run)
-					}
+					sample<-carriers[carrier]
+					bams<-bamList[bamList[,2] %in% sample,]
+					bams<-bams[grep('sorted',bams[,1]) ,]
+					if(nrow(bams)>1)bams<-bams[which(file.size(bams[,1]) ==  max(file.size(bams[,1]) )),]
+
+					pdf<-paste0(variantDir,'/',filt$Symbol[gene],'_',sample,'.pdf')
+			#		run<-paste(Rscript,gviz,'--skat',SKATout,'--outPDF',pdf, '--Sample',sample,'--Gene', filt$Symbol[gene],'--sampleBam', bams[,1])
+					run<-paste(Rscript,gviz.script,'--skat',SKATout,'--outPDF',pdf, '--Sample',sample,'--Gene', filt$Symbol[gene]) # bam reads display not clean yet
+					message(run)
+					system(run)
 				}
 			}
 		}
-	}
-	message("Saving workspace to ",RData.file)
-	save(list=ls(environment()),file=RData.file)
+	
 
+	#}
+
+	if(plot & (nrow(plot.file)>1000)  ) 
+	{
+		file<-plot.file
+		qqplot.name<-paste0(paste0(outputDirectory,'qqplots.pdf')) 
+		message(paste('QQplot stored in:',qqplot.name))
+		pdf(qqplot.name)
+
+		if(!is.null(genes)) 
+		{			
+			tst <- qq.chisq(-2*log(file$SKATO), df=2, pvals=TRUE,main=Title)
+			labelQQplot(pval.labels=file$Symbol,qqplotOut=tst,pvals.raw=file$SKATO, genelist= genes) 
+		} else{
+			sig.genes<-subset(gene.pvals,gene.pvals$SKATO <0.000001)$Symbol
+			if(length(sig.genes)>5)sig.genes<-sig.genes[1:5]
+			tst <- qq.chisq(-2*log(file$SKATO), df=2,pvals=TRUE,main=Title)
+			labelQQplot(pval.labels=file$Symbol,qqplotOut=tst,pvals.raw=file$SKATO, genelist= sig.genes )
+		}
+		dev.off()
+	}#plot
+
+	}#nrow(filt)>0)
+
+	#message("Saving workspace to ",RData.file)
+	#save(list=ls(environment()),file=RData.file)
 } # summarise
