@@ -27,7 +27,7 @@
 # Keeping only damaging variants
 ########
 
-latest.change<-'added skat backward elimination'
+latest.change<-'added ability to supply case/control lists as single file. one column per sample in form --SampleID,0-- or --SampleID,1-- where is 1 is case'
 print('---latest change----')
 message(latest.change)
 print('--------------------')
@@ -46,25 +46,26 @@ suppressPackageStartupMessages(library("data.table"))
 option_list <- list(
 	make_option(c("--chrom"), default=NULL,help="Chromosome"),
 	make_option(c("-v", "--verbose"), action="store_true", default=TRUE,help="Print extra output [default]"),
- 	make_option(c("--case.list"),  help="one column file containing list of cases",type='character'),
+ 	make_option(c("--case.list"), default=NULL, help="one column file containing list of cases",type='character'),
  	make_option(c("--control.list"), default=NULL, help="one column file containing list of controls",type='character'),
  	make_option(c("--SampleGene"), default=NULL, help="Gene Symbol eg ABCA4",type='character'),
  	make_option(c("--TargetGenes"), default=NULL, help="Gene File",type='character'),
- 	make_option(c("--MinReadDepth"), default=10, help="Specify MinReadDepth",type='character'),
+ 	make_option(c("--MinReadDepth"), default=3, help="Specify MinReadDepth",type='character'),
  	make_option(c("--SavePrep"), default=FALSE, help="Do you want to save an image of setup?",type='character'),
- 	make_option(c("--minCadd"), default=15, help="minimum CADD score for retained variants",type='character'),
- 	make_option(c("--maxExac"), default=0.001, help="Max EXAC maf for retained variants",type='character'),
+ 	make_option(c("--minCadd"), default=20, help="minimum CADD score for retained variants",type='character'),
+ 	make_option(c("--maxExac"), default=0.0001, help="Max EXAC maf for retained variants",type='character'),
  	make_option(c("--oDir"),default='SKATtest',type='character', help='Specify output directory'),
  	make_option(c("--MinSNPs"),default=3,type='character',help='Minimum number of SNPs needed in gene.'),
  	make_option(c("--PlotPCA"),default=TRUE,type='character',help='If yes, the PCA graphs highlighting cases will be included'), 
  	make_option(c("--homozyg.mapping"),default=FALSE,type='character',help='Right now, homozygous mapping does not work...'),  
  	make_option(c("--MaxMissRate"),default=20,type='character',help='maximum per snp missingess rate'), 
  	make_option(c("--HWEp"),default=0 ,type='character',help='what hardy weinberg pvalue cut off for control disequilibrium to use to remove SNPs '), 
- 	make_option(c("--compoundHets"),default=NULL,type='character',help='added function to look for compound Heterozygotes'),
+ 	make_option(c("--compoundHets"),default=TRUE,type='character',help='added function to look for compound Heterozygotes'),
  	make_option(c("--Release"),default='September2016',type='character',help='what release of UCLex do you want to use') ,
- 	make_option(c("--MaxCtrlMAF"),default=0.001,type='character',help='Remove snps with maf above this in controls.') ,
+ 	make_option(c("--MaxCtrlMAF"),default=0.0001,type='character',help='Remove snps with maf above this in controls.') ,
  	make_option(c("--qcPREP"),default=FALSE,type='character',help='not used much, but handy for troubleshooting to save environment later on in function') ,
  	make_option(c("--MAFcontrolList"),default=NULL,type='character',help='I take 10% of controls for maf. This param specifies where this ctrl list will be stored to reuse for other tests for consistency'),
+ 	make_option(c("--PhenoFile"),default=NULL,type='character',help='I ta'),
  	make_option(c("--SKATbePval"),default=0.00001,type='character',help='How signif do you want the gene to be for skatbe to run. its slow...')
  )
 
@@ -92,13 +93,17 @@ HWEp<-as.numeric(opt$HWEp)
 UCLex_Release<-opt$Release
 MAFcontrolList<-opt$MAFcontrolList
 SKATbePval<-as.numeric(opt$SKATbePval) 
+PhenoFile<-opt$PhenoFile
 
 if(	is.null(opt$MAFcontrolList)) MAFcontrolList<-paste0(outputDirectory,'/MAFcontrolList')
 if( (!is.null(opt$SampleGene)) && ( !is.null(opt$TargetGenes)) ) stop("Please supply either a single gene to SampleGene or a file of gene names to TargetGenes. Not both.")
+if( (!is.null(opt$PhenoFile)) && ( !is.null(opt$case.list)) ) stop("Please supply either a single phenotype file or separate case/control lists files. Not both.")
+
 if(!is.null(opt$SampleGene))
 {
  	TargetGenes<-opt$SampleGene
  	message(paste("Setting up environment to test for gene:",TargetGenes))
+ 	source('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Gene_Based_Tests/SKAT/summarise.results.function.R')
 } 
 if(!is.null(opt$TargetGenes))
 {
@@ -107,24 +112,40 @@ if(!is.null(opt$TargetGenes))
 } 
 
 
-## Check cases
-if(!file.exists(case.list))stop("Case file doesn't exist. ")
-message(paste('Reading cases from',paste0('--',case.list,'--')))
-case.list<-read.table(case.list,header=FALSE)
-message(paste('Found',nrow(case.list),'cases'))
-case.list<-case.list[,1]
-
-
-## Set up controls
-if(is.null(control.list))message("Controls not specified, so will use all non case samples as controls.")
-if(!is.null(control.list))
+if(!is.null(PhenoFile))
 {
-	if(!file.exists(control.list))message("Control file doesn't exist, so will use all non case samples as controls.")
-	message(paste('Reading controls from',paste0('--',control.list,'--')))
-	control.list<-read.table(control.list,header=FALSE,stringsAsFactors=FALSE)
-	message(paste('Found',nrow(control.list),'controls'))
-	control.list<-control.list[,1]
-}
+	message(paste('Extracting phenotypes from HPO file:',PhenoFile))
+	PhenoFile<-read.table(PhenoFile,skip=3,sep=',')
+	print(c('#controls','#cases'))
+	print(data.frame(table(PhenoFile[,2]))[,2])
+	case.list<-PhenoFile[PhenoFile[,2]==1,1]
+	control.list<-PhenoFile[PhenoFile[,2]==0,1]
+} 
+
+
+if(!is.null(opt$case.list))
+{
+	message('Extracting phenotypes from case/control Files')
+	## Check cases
+	if(!file.exists(case.list))stop("Case file doesn't exist. ")
+	message(paste('Reading cases from',paste0('--',case.list,'--')))
+	case.list<-read.table(case.list,header=FALSE)
+	message(paste('Found',nrow(case.list),'cases'))
+	case.list<-case.list[,1]
+
+
+	## Set up controls
+	if(is.null(control.list))message("Controls not specified, so will use all non case samples as controls.")
+	if(!is.null(control.list))
+	{
+		if(!file.exists(control.list))message("Control file doesn't exist, so will use all non case samples as controls.")
+		message(paste('Reading controls from',paste0('--',control.list,'--')))
+		control.list<-read.table(control.list,header=FALSE,stringsAsFactors=FALSE)
+		message(paste('Found',nrow(control.list),'controls'))
+		control.list<-control.list[,1]
+	}
+
+} # case.list 
 
 ## make or break oDir
 if(outputDirectory=='SKATtest')message('Output directory not specified so will use default folder of ./SKATtest')
@@ -713,7 +734,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					ctrl.calls<-TRUE
 				}
 		
-				if(!is.null(compoundHets))
+				if(compoundHets)
 				{
 					GetCompoundHets<-function(snps,snp.dat,outFile)
 					{
@@ -803,6 +824,12 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 		qqplot.out <- paste0(outputDirectory,'skat_QQplot.png')
 
 		write.table(results,results.out,col.names=T,row.names=F,quote=F,sep=',')
+
+
+if(!is.null(opt$SampleGene))
+{
+	summarise(outputDirectory,outputDirectory=outputDirectory,Title='tt',disease='eye')
+}
 
 print("Finished testing.")
 } #doSKAT

@@ -18,7 +18,6 @@ gen<-'hg19'
 
 filt<-read.csv(opt$skat)
 oPDF<-opt$outPDF
-message(oPDF)
 
 snp.file<-gsub(opt$skat,pattern='SKAT_filtered.csv',replacement='results_by_SNP_cases.csv')
 if(!file.exists(snp.file)) stop('skat snp file doesnt exist')
@@ -35,7 +34,6 @@ sample<-opt$Sample
 message('Finished argument check. processing.')
 
 snp<-read.csv(snp.file)
-snp<- snp[,- which(snp[1,] %in% snp[1,1])[-1] ]
 colnames(snp)<-c("SNP", "case.snp.hets", "case.snp.homs", "case.mafs.snp",
 		"ctrl.snp.hets", "ctrl.snp.homs", "ctrl.mafs.snp", "ENSEMBL",
 		"Symbol", "SKATO", "nb.snps", "nb.cases", "nb.ctrls", "nb.alleles.cases",
@@ -52,14 +50,22 @@ rownames(snp.data)<-snp$SNP
 colnames(snp.data)<-c('chr','start','a','b')
 snp.data$case.maf<-as.numeric(snp$case.mafs.snp)
 snp.data$case.maf[is.na(snp.data$case.maf)]<-0
-snp.data$case.maf<-log10(as.numeric(snp.data$case.maf)+0.0001)
+snp.data$case.maf<- log10(as.numeric(snp.data$case.maf)+0.0001)
 snp.data$ctrl.maf<-as.numeric(snp$ctrl.mafs.snp)
 snp.data$ctrl.maf[is.na(snp.data$ctrl.maf)]<-0
-snp.data$ctrl.maf<-log10(as.numeric(snp.data$ctrl.maf)+0.0001)
+snp.data$ctrl.maf<- log10(as.numeric(snp.data$ctrl.maf)+0.0001)
+
+print(snp.data)
+#snp.data$diff.maf<-snp.data$case.maf-snp.data$ctrl.maf
+
 snp.data.ranges = GRanges(seqnames=snp.data$chr, ranges=IRanges(start=snp.data$start, end=snp.data$start) ,
 	case=snp.data$case.maf,ctrl=snp.data$ctrl.maf)
 colours<-c('red','black')
-maf.data<- DataTrack(snp.data.ranges,groups=colours,col=colours,genome=gen,name='log10(MAF)')## case and control mafs
+maf.data<- DataTrack(snp.data.ranges,col=colours,genome=gen,name='log10(MAF)',groups=c('cases','controls'))## case and control mafs
+
+#snp.data.ranges = GRanges(seqnames=snp.data$chr, ranges=IRanges(start=snp.data$start, end=snp.data$start) ,
+#	case=snp.data$diff.maf)
+#maf.data<- DataTrack(snp.data.ranges,genome=gen,name='log10(MAF)',type='polygon')## case and control mafs
 
 case.snps<-read.csv(gsub(opt$skat,pattern='SKAT_filtered.csv',replacement='case_carriers.csv'),header=FALSE)
 case.snp.data<-case.snps[case.snps[,1] %in% rownames(snp.data),]
@@ -70,16 +76,12 @@ case.snp.data$Start<-as.numeric(case.snp.data$Start) ## all cases
 sampleSNPs<-case.snp.data[case.snp.data$Sample %in% sample,]
 case.snp.ranges <- GRanges(seqnames=sampleSNPs$Chr, ranges=IRanges(start=sampleSNPs$Start, end=sampleSNPs$Start) ,
 	case=sampleSNPs$MinorAlleleCount)
-target.snps<- DataTrack(case.snp.ranges,col='Red',genome=gen,name='CaseAlleleCount')
-
-oData<-paste0(dirname(oPDF),'/plot.prep.RData')
-save(list=ls(environment()),file=oData)
-message(oData)
+target.snps<- DataTrack(case.snp.ranges,col='Red',genome=gen,name='CaseAlleleCount',ylim=range(sampleSNPs$MinorAlleleCount))
 
 test.chr<-as.numeric(as.character(case.snp.data$Chr))
 test.start<-min(as.numeric(as.character(case.snp.data$Start)) )
 test.end<-max(as.numeric(as.character(case.snp.data$Start) )) 
-test.dat<-data.frame(chr=test.chr,start=test.start,end=test.end)
+test.dat<-unique(data.frame(chr=test.chr,start=test.start,end=test.end)) 
 print(test.dat)
 
 #dTrack4 <- DataTrack(range=test.bam, genome=gen, type="l", name="Coverage", window=-1, chromosome=test.chr)

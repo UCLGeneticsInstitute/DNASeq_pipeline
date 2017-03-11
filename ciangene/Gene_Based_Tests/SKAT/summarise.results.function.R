@@ -11,7 +11,7 @@ lof <-  c("frameshift deletion", "frameshift substitution", "frameshift insertio
 		,"stopgain SNV","exonic;splicing"
 		)
 snps<-read.table("/SAN/vyplab/UCLex/mainset_September2016/cian/Annotations/func.tab",sep='\t',header=T) 
-snps.filt<-snps[snps$ExonicFunc %in% lof & snps$ExAC_MAF < 0.0001,]
+snps.filt<-snps[snps$ExonicFunc %in% lof,]
 snps.filt<-snps.filt[!duplicated(snps.filt$SNP),]
 
 data<-'/SAN/vyplab/UCLex/mainset_September2016/cian/allChr_snpStats_out'
@@ -30,9 +30,11 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	file.copy('/SAN/vyplab/UCLex/support/SKAT/README.docx',paste0(outputDirectory,'README.docx')) 
 	system(paste('chmod 777',paste0(outputDirectory,'README.docx')))
 	files<-list.files(dir,pattern='csv',full.names=T,recursive=T)
-	files<-files[grep("chr",files)]
+	if(length(files)>1)files<-files[grep("chr",files)]
 	dirName<-paste(basename(dirname(dirname(dir))),basename(dirname(dir)),basename(dir))
-	if(length(files)!=23)message( paste('Problem-',dirName,'might be missing a few chromosomes...' ) )
+	dirs<-list.dirs(dir)
+	dirs<-dirs[-grep('chr_Y',dirs)]
+	if(length(files)!=length(dirs))message( paste('Problem-',dirName,'is missing a few chromosomes...' ) )
 
 	#file.copy(paste0( dirname(files)[1],'/qc/case_pca.plot.pdf'),paste0(outputDirectory,'Case_PCA_plots.pdf')) 
 	case.qc.file<-paste0( dirname(files)[1],'/qc/cases_removed_because_of_low_read_depth.tab')
@@ -197,7 +199,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	}# else{
 	pval<-0.000001
 	filt<-subset(file,file$Nb.Carriers>=nb.cases.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8 & file$Nb.case.snps > 2) 
-	if(nrow(filt)==0) filt<-subset(file,file$Nb.Carriers>=nb.cases.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8) 
+	if(nrow(filt)==0) filt<-subset(file,file$Nb.Carriers>=nb.cases.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8& file$Nb.case.snps >= 2) 
 	
 	plot.file<-filt 
 	filt$FisherPvalue<-as.numeric(filt$FisherPvalue)
@@ -227,7 +229,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 			case.dat$CausativeGene[case]<-case.genes
 			case.dat$Variants[case]<-case.variants
 			case.dat$RareAlleleCount[case]<-allele.count.all
-			phen<-paste0('https://uclex.cs.ucl.ac.uk/variant/',gsub(case.dat$Variants[1],pattern='_',replacement='-') )
+			phen<-paste0('https://uclex.cs.ucl.ac.uk/variant/',gsub(case.dat$Variants[case],pattern='_',replacement='-') )
 			case.dat$Phenopolis[case]<-phen
 
 		}
@@ -243,6 +245,8 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		filt$pubmed.disease.term<-disease # record in output what disease we searched pubmed for with gene name
 		SKATout<-paste0(outputDirectory,Title,'_SKAT_filtered.csv')
 		write.table(filt,SKATout,col.names=T,row.names=F,quote=T,sep=',',append=F)
+		if(nrow(filt)==1)	filt$Candidate<-TRUE
+
 
 		if(nrow(filt)>10)filt<-filt[1:10,]
 		rownames(filt)<-1:nrow(filt)
@@ -300,6 +304,8 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	
 
 	#}
+	if(nrow(filt)==1)print(filt)
+
 
 	if(plot & (nrow(plot.file)>1000)  ) 
 	{
