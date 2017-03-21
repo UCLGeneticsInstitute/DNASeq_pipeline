@@ -140,8 +140,151 @@ echo "   -o ${output}_chr${chr}.vcf.gz" >> $script
     fi
     done 
 }
-    
 
+##################################################
+function extract() {
+    for chr in `seq 1 22` X
+    do
+        #### creates the tmpDir if needed
+        tmpDir=/scratch0/GATK_chr${chr}
+        f1=${output}_chr${chr}_SNPs.vcf.gz
+	f2=${output}_chr${chr}_indels.vcf.gz
+	rm -f ${scripts_folder}/subscript_chr${chr}.sh
+	if [[ ! -s $f1 ]] || [[ ! -s $f2 ]]
+	then
+	echo "
+############### extract chr${chr}
+set +x
+mkdir -p $tmpDir
+####### first SNPs
+#### extract the SNPs: SelectVariants
+$java  -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $chr \
+   -T SelectVariants \
+   -selectType SNP \
+   -V ${output}_chr${chr}.vcf.gz  --out ${output}_chr${chr}_SNPs.vcf.gz
+####### now indels
+#### extract the indels
+$java  -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK}  -R $fasta  -L $chr \
+   -T SelectVariants \
+   -selectType INDEL \
+   -selectType MIXED \
+   -V ${output}_chr${chr}.vcf.gz --out ${output}_chr${chr}_indels.vcf.gz" > ${scripts_folder}/subscript_chr${chr}.sh
+	fi
+    done
+}
+
+###################################################
+function recal_snps() {
+for chr in `seq 1 22` X
+    do
+        #### creates the tmpDir if needed
+        tmpDir=/scratch0/GATK_chr${chr}
+        maxGauLoc=${maxGaussians}
+        if [[ "$chr" == "14" ]]
+        then
+            maxGauLoc=4
+            maxGaussiansIndels=4
+        fi
+        rm -f ${scripts_folder}/subscript_chr${chr}.sh
+	f=${output}_chr${chr}_SNPs_filtered.vcf.gz
+	if [[ ! -s $f ]]
+        then
+	echo "
+############### recal SNPs chr${chr}
+set +x
+mkdir -p $tmpDir
+# calculate recal: VariantRecalibrator
+$java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $chr \
+   -T VariantRecalibrator \
+   --input ${output}_chr${chr}_SNPs.vcf.gz --maxGaussians ${maxGauLoc} --mode SNP \
+   -resource:hapmap,VCF,known=false,training=true,truth=true,prior=15.0 ${bundle}/hapmap_3.3.b37.vcf  \
+   -resource:omni,VCF,known=false,training=true,truth=false,prior=12.0 ${bundle}/1000G_omni2.5.b37.vcf \
+   -resource:dbsnp,VCF,known=true,training=false,truth=false,prior=8.0 ${bundle}/dbsnp_137.b37.vcf \
+   -an QD -an FS -an ReadPosRankSum -an InbreedingCoeff \
+   -tranche 100.0 -tranche 99.9 -tranche 99.8 -tranche 99.6 -tranche 99.5 -tranche 99.4 -tranche 99.3 -tranche 99.0 -tranche 98.0 -tranche 97.0 -tranche 90.0 \
+   --minNumBadVariants ${numBad} \
+   -recalFile ${output}_chr${chr}_SNPs_combrec.recal \
+   -tranchesFile ${output}_chr${chr}_SNPs_combtranch \
+   -rscriptFile  ${output}_chr${chr}_recal_plots_snps.R
+/share/apps/R/bin/Rscript ${output}_chr${chr}_recal_plots_snps.R
+# apply_recal: ApplyRecalibration
+$java -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $chr \
+   -T ApplyRecalibration \
+   --ts_filter_level 99.5 \
+   --recal_file ${output}_chr${chr}_SNPs_combrec.recal \
+   --tranches_file ${output}_chr${chr}_SNPs_combtranch --mode SNP \
+   --input ${output}_chr${chr}_SNPs.vcf.gz --out ${output}_chr${chr}_SNPs_filtered.vcf.gz" > ${scripts_folder}/subscript_chr${chr}.sh
+       	fi
+    done
+}
+
+##################################################
+function recal_indels() {
+for chr in `seq 1 22` X
+    do
+        #### creates the tmpDir if needed
+        tmpDir=/scratch0/GATK_chr${chr}
+        maxGauLoc=${maxGaussians}
+        if [[ "$chr" == "14" ]]
+        then
+            maxGauLoc=4
+            maxGaussiansIndels=4
+        fi
+	rm -f ${scripts_folder}/subscript_chr${chr}.sh
+        f1=${output}_chr${chr}_indels_hard_filtered.vcf.gz
+	f2=${output}_chr${chr}_indels_filtered.vcf.gz
+	f3=${output}_chr${chr}_filtered.vcf.gz
+	if [[ ! -s $f1 || ! -s $f2 || -s $f3 ]]
+        then
+        echo "
+############### recal_indels chr${chr}
+set +x
+mkdir -p $tmpDir
+#### apply the hard filtering for the indels
+$java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $chr \
+   -T VariantFiltration \
+   --filterExpression \"QD < 2.0 || FS > 50.0 || ReadPosRankSum < -20.0\" \
+   --filterName \"FAIL\" \
+   -V ${output}_chr${chr}_indels.vcf.gz --out ${output}_chr${chr}_indels_hard_filtered.vcf.gz
+# calculate recal: VariantRecalibrator
+$java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $chr \
+    -T VariantRecalibrator \
+   -resource:mills,known=true,training=true,truth=true,prior=12.0 ${bundle}/Mills_and_1000G_gold_standard.indels.b37.vcf \
+   -an QD -an FS -an ReadPosRankSum -an InbreedingCoeff \
+   -tranche 100.0 -tranche 99.5  -tranche 99.0 -tranche 97.0 -tranche 96.0 -tranche 95.0 -tranche 94.0 -tranche 93.0 -tranche 92.0 -tranche 91.0 -tranche 90.0 \
+   --minNumBadVariants ${numBadIndels} \
+   --maxGaussians ${maxGaussiansIndels} \
+   --input ${output}_chr${chr}_indels.vcf.gz  --mode INDEL \
+   -recalFile ${output}_chr${chr}_indels_combrec.recal \
+   -tranchesFile ${output}_chr${chr}_indels_combtranch \
+   -rscriptFile ${output}_chr${chr}_recal_plots_indels.R
+/share/apps/R/bin/Rscript ${output}_chr${chr}_recal_plots_indels.R
+#apply_recal: ApplyRecalibration
+$java -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $chr \
+    -T ApplyRecalibration  \
+   --ts_filter_level 95.0 \
+   --recal_file ${output}_chr${chr}_indels_combrec.recal \
+   --tranches_file ${output}_chr${chr}_indels_combtranch --mode INDEL \
+   --input ${output}_chr${chr}_indels.vcf.gz --out ${output}_chr${chr}_indels_filtered.vcf.gz
+#### Now we merge SNPs and indels
+$java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $chr \
+   -T CombineVariants --assumeIdenticalSamples \
+   --variant:SNPs ${output}_chr${chr}_SNPs_filtered.vcf.gz \
+   --variant:indels ${output}_chr${chr}_indels_filtered.vcf.gz \
+   -genotypeMergeOptions PRIORITIZE  \
+   -priority SNPs,indels \
+   --out ${output}_chr${chr}_filtered.vcf.gz
+rm -rf $tmpDir
+rm ${output}_chr${chr}_SNPs.vcf.gz*
+rm ${output}_chr${chr}_SNPs_filtered.vcf.gz*
+rm ${output}_chr${chr}_indels.vcf.gz*
+# keep indels for Costin
+# rm ${output}_chr${chr}_indels_filtered.vcf.gz*
+# rm ${output}_chr${chr}_indels_hard_filtered.vcf.gz*
+" >> ${scripts_folder}/subscript_chr${chr}.sh
+        fi
+    done
+}
 
 ##################################################
 function recal() {
@@ -335,6 +478,9 @@ zcat ${output}_chr${chr}_for_annovar.vcf.gz | /share/apps/python/bin/python ${ba
 /share/apps/genomics/htslib-1.1/bin/bgzip -f -c ${output}_VEP/chr${chr}_for_VEP.vcf > ${output}_VEP/chr${chr}_for_VEP.vcf.gz
 /share/apps/genomics/htslib-1.1/bin/tabix -f -p vcf ${output}_VEP/chr${chr}_for_VEP.vcf.gz
 rm ${output}_VEP/chr${chr}_for_VEP.vcf
+#### RUN CADD
+/share/apps/genomics/CADD_v1.3/bin/score.sh ${output}_VEP/chr${chr}_for_VEP.vcf.gz ${output}_VEP/CADD_chr${chr}.vcf.gz
+/share/apps/genomics/htslib-1.1/bin/tabix -p vcf ${output}_VEP/CADD_chr${chr}.vcf.gz
 ####CONFIGURE SOFTWARE SHORTCUTS AND PATHS
 reference=1kg
 ensembl=/cluster/project8/vyp/AdamLevine/software/ensembl/
@@ -355,6 +501,7 @@ export PATH=$PATH:/cluster/project8/vyp/vincent/Software/tabix-0.2.5/
 --custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/esp/chr${chr}_EA.vcf.gz,ESP_EA,vcf,exact \
 --custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/esp/chr${chr}_AA.vcf.gz,ESP_AA,vcf,exact \
 --custom /cluster/scratch3/vyp-scratch2/reference_datasets/Kaviar/Kaviar-160204-Public/hg19/VEP_annotation.vcf.gz,Kaviar,vcf,exact \
+--custom ${output}_VEP/CADD_chr${chr}.vcf.gz,CADD,vcf,exact \
 --plugin Condel,${DIR_PLUGINS}/config/Condel/config,b \
 --plugin Carol \
 --no_stats \
@@ -401,8 +548,9 @@ rm ${output}_chr${chr}_filtered3-annotations.csv
 gzip -f ${output}_chr${chr}_filtered3-genotypes.csv
 gzip -f ${output}_chr${chr}_filtered3-genotypes_depth.csv
 zcat ${output}_chr${chr}_filtered3.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_vcf.py --headers CHROM,POS,ID,REF,ALT,QUAL,FILTER,INFO,FORMAT | cut -f1-9 | gzip > ${output}_VEP/chr${chr}_for_VEP.vcf.gz
-# run CADD
+#### RUN CADD
 /share/apps/genomics/CADD_v1.3/bin/score.sh ${output}_VEP/chr${chr}_for_VEP.vcf.gz ${output}_VEP/CADD_chr${chr}.vcf.gz
+/share/apps/genomics/htslib-1.1/bin/tabix -p vcf ${output}_VEP/CADD_chr${chr}.vcf.gz
 ####CONFIGURE SOFTWARE SHORTCUTS AND PATHS
 reference=1kg
 export PERL5LIB=${PERL5LIB}:${ensembl}/src/bioperl-1.6.1::${ensembl}/src/ensembl/modules:${ensembl}/src/ensembl-compara/modules:${ensembl}/src/ensembl-variation/modules:${ensembl}/src/ensembl-funcgen/modules:${ensembl}/Plugins
@@ -417,6 +565,7 @@ export PATH=$PATH:/cluster/project8/vyp/vincent/Software/tabix-0.2.5/
 --pubmed \
 --no_progress --quiet \
 --custom /cluster/scratch3/vyp-scratch2/reference_datasets/Kaviar/Kaviar-160204-Public/hg19/VEP_annotation.vcf.gz,Kaviar,vcf,exact \
+--custom ${output}_VEP/CADD_chr${chr}.vcf.gz,CADD,vcf,exact \
 --plugin Condel,${DIR_PLUGINS}/config/Condel/config,b \
 --plugin Carol \
 --no_stats \
@@ -500,30 +649,35 @@ do
     ${m}
 done
 
-
-echo "
+job_n=$(ls ${scripts_folder}/subscript_chr* | wc -l)
+if [[ ${job_n} -gt 0 ]]
+then
+    echo "
 #$ -o ${stdout_folder}
 #$ -e ${stderr_folder}
 #$ -S /bin/bash
 #$ -l h_vmem=${memo}G,tmem=${memo}G
 #$ -l h_rt=240:0:0
 #$ -cwd 
-#$ -t 1-23
+#$ -t 1-${job_n}
 
-LISTCHROMS=(chr 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X )
+LISTJOBS=(dud $(ls ${scripts_folder}/subscript_chr* | sort -V | tr '\n' ' '))
 
-CHR=\${LISTCHROMS[ \$SGE_TASK_ID ]}
+CHR=\${LISTJOBS[ \$SGE_TASK_ID ]}
 
 echo \$HOSTNAME
 hostname
 date
 
-sh ${scripts_folder}/subscript_chr\${CHR}.sh
+sh \${CHR}
 
 date
 
 " > $mainScript
-
+else
+    rm ${scripts_folder}/calling.sh
+    echo "No jobs to submit!"
+fi
 
 
 
@@ -532,5 +686,4 @@ for chr in `seq 1 22` X
 do
     ls -ltrh ${scripts_folder}/subscript_chr${chr}.sh
 done
-wc -l $mainScript
 
