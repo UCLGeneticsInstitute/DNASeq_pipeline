@@ -1,0 +1,3 @@
+[submodule "tertiary_analyses"]
+	path = tertiary_analyses
+	url = git@github.com:mframpton/exome_analyses.git
