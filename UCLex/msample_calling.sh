@@ -265,7 +265,23 @@ $java -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $chr \
    --ts_filter_level 95.0 \
    --recal_file ${output}_chr${chr}_indels_combrec.recal \
    --tranches_file ${output}_chr${chr}_indels_combtranch --mode INDEL \
-   --input ${output}_chr${chr}_indels.vcf.gz --out ${output}_chr${chr}_indels_filtered.vcf.gz
+   --input ${output}_chr${chr}_indels.vcf.gz --out ${output}_chr${chr}_indels_filtered.vcf.gz" > ${scripts_folder}/subscript_chr${chr}.sh
+        fi
+    done
+}
+
+
+##################################################
+function recal_merge() {
+for chr in `seq 1 22` X
+    do
+        #### creates the tmpDir if needed
+        tmpDir=/scratch0/GATK_chr${chr}
+        rm -f ${scripts_folder}/subscript_chr${chr}.sh
+	f=${output}_chr${chr}_filtered.vcf.gz
+        if [[ ! -s $f ]]
+        then
+        echo "
 #### Now we merge SNPs and indels
 $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $chr \
    -T CombineVariants --assumeIdenticalSamples \
@@ -273,16 +289,8 @@ $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $ch
    --variant:indels ${output}_chr${chr}_indels_filtered.vcf.gz \
    -genotypeMergeOptions PRIORITIZE  \
    -priority SNPs,indels \
-   --out ${output}_chr${chr}_filtered.vcf.gz
-rm -rf $tmpDir
-rm ${output}_chr${chr}_SNPs.vcf.gz*
-rm ${output}_chr${chr}_SNPs_filtered.vcf.gz*
-rm ${output}_chr${chr}_indels.vcf.gz*
-# keep indels for Costin
-# rm ${output}_chr${chr}_indels_filtered.vcf.gz*
-# rm ${output}_chr${chr}_indels_hard_filtered.vcf.gz*
-" >> ${scripts_folder}/subscript_chr${chr}.sh
-        fi
+   --out ${output}_chr${chr}_filtered.vcf.gz" > ${scripts_folder}/subscript_chr${chr}.sh
+	fi
     done
 }
 
