@@ -233,8 +233,7 @@ for chr in `seq 1 22` X
 	rm -f ${scripts_folder}/subscript_chr${chr}.sh
         f1=${output}_chr${chr}_indels_hard_filtered.vcf.gz
 	f2=${output}_chr${chr}_indels_filtered.vcf.gz
-	f3=${output}_chr${chr}_filtered.vcf.gz
-	if [[ ! -s $f1 || ! -s $f2 || -s $f3 ]]
+	if [[ ! -s $f1 || ! -s $f2 ]]
         then
         echo "
 ############### recal_indels chr${chr}
