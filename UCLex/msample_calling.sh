@@ -142,7 +142,7 @@ echo "   -o ${output}_chr${chr}.vcf.gz" >> $script
 }
 
 ##################################################
-function extract() {
+function recal_extract() {
     for chr in `seq 1 22` X
     do
         #### creates the tmpDir if needed
@@ -227,7 +227,6 @@ for chr in `seq 1 22` X
         maxGauLoc=${maxGaussians}
         if [[ "$chr" == "14" ]]
         then
-            maxGauLoc=4
             maxGaussiansIndels=4
         fi
 	rm -f ${scripts_folder}/subscript_chr${chr}.sh
@@ -246,13 +245,19 @@ $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $c
    --filterName \"FAIL\" \
    -V ${output}_chr${chr}_indels.vcf.gz --out ${output}_chr${chr}_indels_hard_filtered.vcf.gz
 # calculate recal: VariantRecalibrator
+for maxGaussiansIndels in \$(seq 3 6 | sort -r)
+do
+if [[ ! -s ${output}_chr${chr}_indels_filtered.vcf.gz ]]
+then
+    break
+fi
 $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $chr \
     -T VariantRecalibrator \
    -resource:mills,known=true,training=true,truth=true,prior=12.0 ${bundle}/Mills_and_1000G_gold_standard.indels.b37.vcf \
    -an QD -an FS -an ReadPosRankSum -an InbreedingCoeff \
    -tranche 100.0 -tranche 99.5  -tranche 99.0 -tranche 97.0 -tranche 96.0 -tranche 95.0 -tranche 94.0 -tranche 93.0 -tranche 92.0 -tranche 91.0 -tranche 90.0 \
    --minNumBadVariants ${numBadIndels} \
-   --maxGaussians ${maxGaussiansIndels} \
+   --maxGaussians \${maxGaussiansIndels} \
    --input ${output}_chr${chr}_indels.vcf.gz  --mode INDEL \
    -recalFile ${output}_chr${chr}_indels_combrec.recal \
    -tranchesFile ${output}_chr${chr}_indels_combtranch \
@@ -264,7 +269,8 @@ $java -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $chr \
    --ts_filter_level 95.0 \
    --recal_file ${output}_chr${chr}_indels_combrec.recal \
    --tranches_file ${output}_chr${chr}_indels_combtranch --mode INDEL \
-   --input ${output}_chr${chr}_indels.vcf.gz --out ${output}_chr${chr}_indels_filtered.vcf.gz" > ${scripts_folder}/subscript_chr${chr}.sh
+   --input ${output}_chr${chr}_indels.vcf.gz --out ${output}_chr${chr}_indels_filtered.vcf.gz
+done " > ${scripts_folder}/subscript_chr${chr}.sh
         fi
     done
 }
