@@ -179,12 +179,6 @@ for chr in `seq 1 22` X
     do
         #### creates the tmpDir if needed
         tmpDir=/scratch0/GATK_chr${chr}
-        maxGauLoc=${maxGaussians}
-        if [[ "$chr" == "14" ]]
-        then
-            maxGauLoc=4
-            maxGaussiansIndels=4
-        fi
         rm -f ${scripts_folder}/subscript_chr${chr}.sh
 	f=${output}_chr${chr}_SNPs_filtered.vcf.gz
 	if [[ ! -s $f ]]
@@ -194,6 +188,12 @@ for chr in `seq 1 22` X
 set +x
 mkdir -p $tmpDir
 # calculate recal: VariantRecalibrator
+for maxGauLoc in \$(seq 3 6 | sort -r)
+do
+if [[ -s ${output}_chr${chr}_SNPs_filtered.vcf.gz ]]
+then
+    break
+fi
 $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $chr \
    -T VariantRecalibrator \
    --input ${output}_chr${chr}_SNPs.vcf.gz --maxGaussians ${maxGauLoc} --mode SNP \
@@ -213,7 +213,8 @@ $java -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $chr \
    --ts_filter_level 99.5 \
    --recal_file ${output}_chr${chr}_SNPs_combrec.recal \
    --tranches_file ${output}_chr${chr}_SNPs_combtranch --mode SNP \
-   --input ${output}_chr${chr}_SNPs.vcf.gz --out ${output}_chr${chr}_SNPs_filtered.vcf.gz" > ${scripts_folder}/subscript_chr${chr}.sh
+   --input ${output}_chr${chr}_SNPs.vcf.gz --out ${output}_chr${chr}_SNPs_filtered.vcf.gz
+done " > ${scripts_folder}/subscript_chr${chr}.sh
        	fi
     done
 }
@@ -224,11 +225,6 @@ for chr in `seq 1 22` X
     do
         #### creates the tmpDir if needed
         tmpDir=/scratch0/GATK_chr${chr}
-        maxGauLoc=${maxGaussians}
-        if [[ "$chr" == "14" ]]
-        then
-            maxGaussiansIndels=4
-        fi
 	rm -f ${scripts_folder}/subscript_chr${chr}.sh
         f1=${output}_chr${chr}_indels_hard_filtered.vcf.gz
 	f2=${output}_chr${chr}_indels_filtered.vcf.gz
@@ -247,7 +243,7 @@ $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $c
 # calculate recal: VariantRecalibrator
 for maxGaussiansIndels in \$(seq 3 6 | sort -r)
 do
-if [[ ! -s ${output}_chr${chr}_indels_filtered.vcf.gz ]]
+if [[ -s ${output}_chr${chr}_indels_filtered.vcf.gz ]]
 then
     break
 fi
