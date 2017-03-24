@@ -686,9 +686,10 @@ case.names <- scan('data/caseKeywords.tab', what = character())
 control.names <- scan('data/controlKeywords.tab', what = character()) 
 first <- TRUE 
 
-load('data/poly_in_cases_snpStats.RData')
-known.genes <- scan('/cluster/project8/vyp/IoO_exome_sequencing/support/retinal_disease_genes.txt', what = 'character')
-my.names <- dimnames(combined.snpStats)[[1]]
+load(paste0(root, '_snpStats/chr22_snpStats.RData'))
+my.names <- rownames(matrix.calls.snpStats)
+
+known.genes <- scan('data/known_genes.tab', what = 'character')
 print(my.cases <- grep(pattern = paste(case.names,collapse='|'), my.names, value = TRUE))
 
 main()
