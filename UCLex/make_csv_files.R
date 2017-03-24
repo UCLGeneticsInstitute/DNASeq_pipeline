@@ -1,4 +1,4 @@
-##create a snpStats object with annotations (including external control set) that has only the variant found in at least one case
+# #create a snpStats object with annotations (including external control set) that has only the variant found in at least one case
 
 ###TODO: also save individual per chromosome files with case, controls and basic annotations-> useful for SKAT test
 ###TODO: create equivalent files with read depth information
@@ -692,7 +692,12 @@ my.names <- rownames(matrix.calls.snpStats)
 known.genes <- scan('data/known_genes.tab', what = 'character')
 print(my.cases <- grep(pattern = paste(case.names,collapse='|'), my.names, value = TRUE))
 
+# this creates the data files
 main()
+
+load('data/poly_in_cases_snpStats.RData')
+my.names <- dimnames(combined.snpStats)[[1]]
+print(my.cases <- grep(pattern = paste(case.names,collapse='|'), my.names, value = TRUE))
 
 res <- process.multiVCF (calls = combined.snpStats,
                          depth = combined.matrix.depth,
