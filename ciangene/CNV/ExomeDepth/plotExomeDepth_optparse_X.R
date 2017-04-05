@@ -197,6 +197,9 @@ for(cnv in 1:length(cnvs)) # and here I merge them.
 }
 topCNVs.merged<-topCNVs[unique(topCNVs$CNVplot),]
 topCNVs.merged<-topCNVs.merged[with(topCNVs.merged, order(chromosome, start,end)), ]
+
+write.table(topCNVs.merged,paste0(dirname(outPDF),'/hitCNVs.csv'),col.names=T,row.names=F,quote=T,sep=',')
+
 pdf(hitCNVspdf)
 loopPlot(topCNVs.merged)
 dev.off()

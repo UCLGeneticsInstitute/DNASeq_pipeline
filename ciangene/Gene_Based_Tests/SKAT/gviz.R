@@ -9,7 +9,7 @@ option_list <- list(
  	make_option("--outPDF",  help="pdf",type='character'), 
  	make_option("--Gene",  help="pdf",type='character'),
  	make_option("--CNV",  help="CNV csv",type='character',default=NULL),
- 	make_option("--Sample",  help="pdf",type='character')
+ 	make_option("--Sample",  help="pdf",type='character',default=NULL)
  	)
 
 opt <- parse_args(OptionParser(option_list=option_list))
@@ -73,10 +73,13 @@ case.snp.data<-data.frame(cbind(case.snp.data,data.frame(t(data.frame(strsplit(c
 colnames(case.snp.data)<-c('SNP','Sample','ENSEMBL','HUGO','MinorAlleleCount','Chr','Start','Ref','Alt')
 case.snp.data$Start<-as.numeric(case.snp.data$Start) ## all cases
 
-sampleSNPs<-case.snp.data[case.snp.data$Sample %in% sample,]
-case.snp.ranges <- GRanges(seqnames=sampleSNPs$Chr, ranges=IRanges(start=sampleSNPs$Start, end=sampleSNPs$Start) ,
-	case=sampleSNPs$MinorAlleleCount)
-target.snps<- DataTrack(case.snp.ranges,col='Red',genome=gen,name='CaseAlleleCount',ylim=range(sampleSNPs$MinorAlleleCount))
+if(!is.null(sample)) 
+{
+	sampleSNPs<-case.snp.data[case.snp.data$Sample %in% sample,]
+	case.snp.ranges <- GRanges(seqnames=sampleSNPs$Chr, ranges=IRanges(start=sampleSNPs$Start, end=sampleSNPs$Start) ,
+		case=sampleSNPs$MinorAlleleCount)
+	target.snps<- DataTrack(case.snp.ranges,col='Red',genome=gen,name='CaseAlleleCount',ylim=range(sampleSNPs$MinorAlleleCount))
+}
 
 test.chr<-as.numeric(as.character(case.snp.data$Chr))
 test.start<-min(as.numeric(as.character(case.snp.data$Start)) )
@@ -138,15 +141,31 @@ if(!is.null(test.bam))
 	message('including bam track')
 	bam.track <- AnnotationTrack(test.bam, genome = gen, chromosome = test.chr, name = "SampleBam")#ideally alignments track but it doesnt seem to work right now 
 	pdf(oPDF,width=10,height=10)
+
+	if(!is.null(sample)) 
+	{
 	plotTracks(list(itrack,gtrack, grtrack, bam.track,target.snps,maf.data), from=test.start, 
 		to=test.end,chromosome=test.chr,extend.left=buffer,extend.right=buffer)
+	}else #no sample specified so ignore that track 
+	{
+	plotTracks(list(itrack,gtrack, grtrack, bam.track,maf.data), from=test.start, 
+		to=test.end,chromosome=test.chr,extend.left=buffer,extend.right=buffer)
+	}
 	dev.off()
 	message(oPDF)
 } else 
 {
 	pdf(oPDF)
+
+	if(!is.null(sample)) 
+	{
 	plotTracks(list(itrack, gtrack, grtrack,target.snps,maf.data), from=test.start, 
 		to=test.end,chromosome=test.chr,extend.left=buffer,extend.right=buffer)
+	}else #no sample specified so ignore that track 
+	{
+	plotTracks(list(itrack, gtrack, grtrack,maf.data), from=test.start, 
+		to=test.end,chromosome=test.chr,extend.left=buffer,extend.right=buffer)
+	}
 	dev.off()
 	message(oPDF)
 }

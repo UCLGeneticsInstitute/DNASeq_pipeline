@@ -199,7 +199,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	}# else{
 	pval<-0.000001
 	filt<-subset(file,file$Nb.Carriers>=nb.cases.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8 & file$Nb.case.snps > 2) 
-	if(nrow(filt)==0) filt<-subset(file,file$Nb.Carriers>=nb.cases.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8& file$Nb.case.snps >= 2) 
+	if(nrow(filt)==0) filt<-subset(file,file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8& file$Nb.case.snps >= 2) 
 	
 	plot.file<-filt 
 	filt$FisherPvalue<-as.numeric(filt$FisherPvalue)
@@ -243,10 +243,15 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 			filt$Nb.relevant.papers[ro]<-ff$count
 		}
 		filt$pubmed.disease.term<-disease # record in output what disease we searched pubmed for with gene name
+
+		# include exac pLI score. 
+		exac<-read.table('/home/sejjcmu/reference_datasets/ExAC/0.3.1/functional_gene_constraint/fordist_cleaned_exac_r03_march16_z_pli_rec_null_data.txt',header=TRUE)
+		exac.dat<-data.frame(Symbol=exac$gene,pLI=exac$pLI)
+		filt2<-merge(filt,exac.dat,by='Symbol',all.x=T)
+
 		SKATout<-paste0(outputDirectory,Title,'_SKAT_filtered.csv')
 		write.table(filt,SKATout,col.names=T,row.names=F,quote=T,sep=',',append=F)
 		if(nrow(filt)==1)	filt$Candidate<-TRUE
-
 
 		if(nrow(filt)>10)filt<-filt[1:10,]
 		rownames(filt)<-1:nrow(filt)
@@ -286,16 +291,19 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 				carriers<-unlist(strsplit(filt$Carriers[gene],';') )
 				nb.carriers<-length(carriers)
 				if(nb.carriers>20) nb.samples<-20 else nb.samples<-nb.carriers
-				for(carrier in 1:nb.samples)
+#				for(carrier in 1:nb.samples)
+				for(carrier in 1:1)# just one plot per gene is enough for now. 
 				{
 					sample<-carriers[carrier]
 					bams<-bamList[bamList[,2] %in% sample,]
 					bams<-bams[grep('sorted',bams[,1]) ,]
 					if(nrow(bams)>1)bams<-bams[which(file.size(bams[,1]) ==  max(file.size(bams[,1]) )),]
 
-					pdf<-paste0(variantDir,'/',filt$Symbol[gene],'_',sample,'.pdf')
+#					pdf<-paste0(variantDir,'/',filt$Symbol[gene],'_',sample,'.pdf') # if plotting per sample per gene
+					pdf<-paste0(variantDir,'/',filt$Symbol[gene],'.pdf') # if plotting per gene
 			#		run<-paste(Rscript,gviz,'--skat',SKATout,'--outPDF',pdf, '--Sample',sample,'--Gene', filt$Symbol[gene],'--sampleBam', bams[,1])
-					run<-paste(Rscript,gviz.script,'--skat',SKATout,'--outPDF',pdf, '--Sample',sample,'--Gene', filt$Symbol[gene]) # bam reads display not clean yet
+#					run<-paste(Rscript,gviz.script,'--skat',SKATout,'--outPDF',pdf, '--Sample',sample,'--Gene', filt$Symbol[gene]) # bam reads display not clean yet
+					run<-paste(Rscript,gviz.script,'--skat',SKATout,'--outPDF',pdf,'--Gene', filt$Symbol[gene]) # bam reads display not clean yet
 					message(run)
 					system(run)
 				}
@@ -307,7 +315,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	if(nrow(filt)==1)print(filt)
 
 
-	if(plot & (nrow(plot.file)>1000)  ) 
+	if(plot & (nrow(plot.file)>100)  ) 
 	{
 		file<-plot.file
 		qqplot.name<-paste0(paste0(outputDirectory,'qqplots.pdf')) 
