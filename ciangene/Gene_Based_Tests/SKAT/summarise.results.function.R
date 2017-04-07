@@ -4,6 +4,7 @@ suppressPackageStartupMessages(library(xtable))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(stringr))
 suppressPackageStartupMessages(library(rentrez))
+suppressPackageStartupMessages(library(GenABEL))
 
 ldak='/cluster/project8/vyp/cian/support/ldak/ldak'
 source('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Gene_Based_Tests/plot/annotate_qqplot.R') ## Modified qqplot so I can label specific genes. 
@@ -176,7 +177,16 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		file$Nb.case.snps[car]<-length(unique(unlist(strsplit(as.character(file$CaseSNPs[car]),';')) ))
 	}
 	if(length(grep('ADA',colnames(file)))>0 )  file$ADA<-NULL
-	write.table(file,paste0(outputDirectory,Title,'_SKAT.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
+
+	# include exac pLI score. hardcoded for now :( 
+	exac<-read.table('/home/sejjcmu/fordist_cleaned_exac_r03_march16_z_pli_rec_null_data.txt',header=TRUE)
+	exac.dat<-data.frame(Symbol=exac$gene,pLI=exac$pLI)
+	file2<-merge(file,exac.dat,by='Symbol',all.x=T)
+	file2<-file2[order(file2$SKATO),]
+
+	# inflation factor
+	write.table(estlambda(file2$SKATO)$estimate,paste0(outputDirectory,Title,'_inflation.factor.csv'),col.names=F,row.names=F,quote=T,sep=',',append=F)
+	write.table(file2,paste0(outputDirectory,Title,'_SKAT.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 
 
 ############################################################################################################
@@ -243,12 +253,8 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 			filt$Nb.relevant.papers[ro]<-ff$count
 		}
 		filt$pubmed.disease.term<-disease # record in output what disease we searched pubmed for with gene name
-
-		# include exac pLI score. 
-		exac<-read.table('/home/sejjcmu/reference_datasets/ExAC/0.3.1/functional_gene_constraint/fordist_cleaned_exac_r03_march16_z_pli_rec_null_data.txt',header=TRUE)
-		exac.dat<-data.frame(Symbol=exac$gene,pLI=exac$pLI)
-		filt2<-merge(filt,exac.dat,by='Symbol',all.x=T)
-
+		filt<-merge(filt,exac.dat,by='Symbol',all.x=T)
+		filt<-filt[order(filt$SKATO),]
 		SKATout<-paste0(outputDirectory,Title,'_SKAT_filtered.csv')
 		write.table(filt,SKATout,col.names=T,row.names=F,quote=T,sep=',',append=F)
 		if(nrow(filt)==1)	filt$Candidate<-TRUE
@@ -257,7 +263,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		rownames(filt)<-1:nrow(filt)
 
 		message("Making HTML table for top genes")
-		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",4),'E',rep("d",5),rep("E",6),rep('d',3),rep('E',11),rep("s",7),rep('d',3),rep('s',1)))
+		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",4),'E',rep("d",5),rep("E",6),rep('d',3),rep('E',11),rep("s",7),rep('d',3),rep('s',1),'d'))
 		htmlOut<-paste0(outputDirectory,Title,"_SKAT.html")
 		print(htmlOut)
 		print.xtable(filt.xtable, type="html",file=htmlOut,scalebox=.7)

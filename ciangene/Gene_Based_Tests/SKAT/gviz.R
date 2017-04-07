@@ -2,6 +2,7 @@ message('Loading libraries')
 suppressPackageStartupMessages(library("optparse"))
 suppressPackageStartupMessages(library("GenomicRanges"))
 suppressPackageStartupMessages(library("Gviz"))
+options(ucscChromosomeNames=FALSE)
 
 option_list <- list(
 	make_option("--skat", default=NULL,help="Chromosome"),
