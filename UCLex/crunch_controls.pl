@@ -1,4 +1,4 @@
-#!/share/apps/perl-5.14.2/bin/perl
+#!/share/apps/perl/bin/perl
 
 use lib '/cluster/project8/vyp/vincent/libraries/perl/Text-CSV-1.21/blib/lib';
 use Text::CSV;

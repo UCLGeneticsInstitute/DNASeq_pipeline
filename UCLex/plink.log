@@ -1,0 +1,12 @@
+PLINK v1.90b3w 64-bit (3 Sep 2015)
+Options in effect:
+  --v
+
+Hostname: hope.local
+Working directory: /SAN/vyplab/UCLex/scripts/DNASeq_pipeline/UCLex
+Start time: Tue Mar 28 11:13:04 2017
+
+Error: Unrecognized flag ('-v').
+For more information, try 'plink --help [flag name]' or 'plink --help | more'.
+
+End time: Tue Mar 28 11:13:04 2017

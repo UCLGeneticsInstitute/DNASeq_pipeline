@@ -5,10 +5,13 @@ function stop() { error "$*"; exit 1; }
 try() { "$@" || stop "cannot $*"; }
 
 mainFolder=/SAN/vyplab/UCLex
-referenceFolder=/cluster/scratch3/vyp-scratch2
 
-fasta=${referenceFolder}/reference_datasets/human_reference_sequence/human_g1k_v37.fasta
+referenceFolder=/cluster/scratch3/vyp-scratch2
+#fasta=${referenceFolder}/reference_datasets/human_reference_sequence/human_g1k_v37.fasta
+fasta=/SAN/vyplab/UKIRDC/reference/human_g1k_v37.fasta
 bundle=${referenceFolder}/reference_datasets/GATK_bundle
+#dbsnp=${bundle}/dbsnp_137.b37.vcf
+dbsnp=/SAN/vyplab/UKIRDC/reference/dbsnp_138.b37.vcf.gz
 
 #Rscript=/share/apps/R-3.3.0/bin/Rscript
 #Rbin=/share/apps/R-3.3.0/bin/R 
@@ -36,6 +39,7 @@ maxGaussiansIndels=5
 numBad=1000
 numBadIndels=1000
 GQ=20
+
 
 until [ -z "$1" ]
 do
@@ -122,7 +126,7 @@ $java -Djava.io.tmpdir=/scratch0/ -Xmx${memoSmall}g -jar $GATK \\
    -L $chr -L $target --interval_set_rule INTERSECTION --interval_padding 100  \\
    --annotation InbreedingCoeff --annotation QualByDepth --annotation HaplotypeScore \\
    --annotation MappingQualityRankSumTest --annotation ReadPosRankSumTest --annotation FisherStrand \\
-   --dbsnp ${bundle}/dbsnp_137.b37.vcf \\" >> $script
+   --dbsnp ${dbsnp} \\" >> $script
     while read path id format
         do
             if [[ "$format" == "v1" ]]; then gVCF=${path}/chr${chr}/${id}.gvcf.gz; fi
@@ -464,6 +468,56 @@ rm ${output}_chr${chr}_for_annovar.vcf
 
 
 ##################################################
+function VEP_input() {
+    memo=14
+    mkdir -p ${output}_VEP
+    for chr in `seq 1 22` X
+    do
+        echo "
+############### VEP_input
+# split single lines
+zcat ${output}_chr${chr}_for_annovar.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_vcf.py --headers CHROM,POS,ID,REF,ALT,QUAL,FILTER,INFO > ${output}_VEP/chr${chr}_for_VEP.vcf
+/share/apps/genomics/htslib-1.1/bin/bgzip -f -c ${output}_VEP/chr${chr}_for_VEP.vcf > ${output}_VEP/chr${chr}_for_VEP.vcf.gz
+/share/apps/genomics/htslib-1.1/bin/tabix -f -p vcf ${output}_VEP/chr${chr}_for_VEP.vcf.gz
+rm ${output}_VEP/chr${chr}_for_VEP.vcf
+" >> ${scripts_folder}/subscript_chr${chr}.sh
+  done
+}
+
+
+
+##################################################
+function CADD() {
+    memo=30
+    mkdir -p ${output}_VEP
+    for chr in `seq 1 22` X
+    do
+if [ ! -s ${output}_VEP/chr${chr}_for_VEP.vcf.gz.tbi ]
+then
+        echo "
+############### CADD
+# split single lines
+zcat ${output}_chr${chr}_for_annovar.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_vcf.py --headers CHROM,POS,ID,REF,ALT,QUAL,FILTER,INFO > ${output}_VEP/chr${chr}_for_VEP.vcf
+/share/apps/genomics/htslib-1.1/bin/bgzip -f -c ${output}_VEP/chr${chr}_for_VEP.vcf > ${output}_VEP/chr${chr}_for_VEP.vcf.gz
+/share/apps/genomics/htslib-1.1/bin/tabix -f -p vcf ${output}_VEP/chr${chr}_for_VEP.vcf.gz
+rm ${output}_VEP/chr${chr}_for_VEP.vcf
+" >> ${scripts_folder}/subscript_chr${chr}.sh
+fi
+if [ ! -s ${output}_VEP/CADD_chr${chr}.vcf.gz ]
+then
+        echo "
+#### RUN CADD
+/share/apps/genomics/CADD_v1.3/bin/score.sh ${output}_VEP/chr${chr}_for_VEP.vcf.gz ${output}_VEP/CADD_chr${chr}.vcf.gz
+/share/apps/genomics/htslib-1.1/bin/tabix -p vcf ${output}_VEP/CADD_chr${chr}.vcf.gz
+" >> ${scripts_folder}/subscript_chr${chr}.sh
+fi
+  done
+}
+
+
+
+
+##################################################
 # write straight to mongo
 function VEP_mongo() {
     memo=30
@@ -487,9 +541,6 @@ zcat ${output}_chr${chr}_for_annovar.vcf.gz | /share/apps/python/bin/python ${ba
 /share/apps/genomics/htslib-1.1/bin/bgzip -f -c ${output}_VEP/chr${chr}_for_VEP.vcf > ${output}_VEP/chr${chr}_for_VEP.vcf.gz
 /share/apps/genomics/htslib-1.1/bin/tabix -f -p vcf ${output}_VEP/chr${chr}_for_VEP.vcf.gz
 rm ${output}_VEP/chr${chr}_for_VEP.vcf
-#### RUN CADD
-/share/apps/genomics/CADD_v1.3/bin/score.sh ${output}_VEP/chr${chr}_for_VEP.vcf.gz ${output}_VEP/CADD_chr${chr}.vcf.gz
-/share/apps/genomics/htslib-1.1/bin/tabix -p vcf ${output}_VEP/CADD_chr${chr}.vcf.gz
 ####CONFIGURE SOFTWARE SHORTCUTS AND PATHS
 reference=1kg
 ensembl=/cluster/project8/vyp/AdamLevine/software/ensembl/
@@ -510,7 +561,7 @@ export PATH=$PATH:/cluster/project8/vyp/vincent/Software/tabix-0.2.5/
 --custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/esp/chr${chr}_EA.vcf.gz,ESP_EA,vcf,exact \
 --custom /cluster/project9/IBDAJE/VEP_custom_annotations/1kg/esp/chr${chr}_AA.vcf.gz,ESP_AA,vcf,exact \
 --custom /cluster/scratch3/vyp-scratch2/reference_datasets/Kaviar/Kaviar-160204-Public/hg19/VEP_annotation.vcf.gz,Kaviar,vcf,exact \
---custom ${output}_VEP/CADD_chr${chr}.vcf.gz,CADD,vcf,exact \
+--custom /cluster/project8/vyp/gnomad_data/vcf/genomes/gnomad.genomes.r2.0.1.sites.${chr}.vcf.gz,gnomad,vcf,exact,0,$GNOMAD_INFO_FIELDS \
 --plugin Condel,${DIR_PLUGINS}/config/Condel/config,b \
 --plugin Carol \
 --no_stats \
@@ -537,29 +588,12 @@ function VEP() {
     VEP_DIR=/cluster/project8/vyp/Software/ensembl-tools-release-82/scripts/
     DIR_CACHE=/SAN/vyplab/NCMD_raw/VEP/cache/
     DIR_PLUGINS=${DIR_CACHE}/Plugins
+    GNOMAD_INFO_FIELDS="AC_AFR,AC_AMR,AC_ASJ,AC_EAS,AC_FIN,AC_NFE,AC_OTH,AC_SAS,AC_Male,AC_Female,AN_AFR,AN_AMR,AN_ASJ,AN_EAS,AN_FIN,AN_NFE,AN_OTH,AN_SAS,AN_Male,AN_Female,AF_AFR,AF_AMR,AF_ASJ,AF_EAS,AF_FIN,AF_NFE,AF_OTH,AF_SAS,AF_Male,AF_Female,AC_raw,AN_raw,AF_raw,GC_raw,GC,Hom_AFR,Hom_AMR,Hom_ASJ,Hom_EAS,Hom_FIN,Hom_NFE,Hom_OTH,Hom_SAS,Hom_Male,Hom_Female,Hom_raw,Hom"
+    GNOMAD_INFO_FIELDS2=`for x in $(echo $GNOMAD_INFO_FIELDS | tr , ' '); do echo gnomad_$x; done | tr '\n' ',' | sed 's/,$/ /'`
     for chr in `seq 1 22` X
     do
-        #output_lines=`zcat ${output}_VEP/VEP_${chr}.json.gz | wc -l` 
-        #input_lines=`tail -n+2 ${output}_VEP/chr${chr}_for_VEP.vcf | wc -l`
-        #echo ${output}_VEP/chr${chr}_for_VEP.vcf input lines: $input_lines
-        #echo ${output}_VEP/VEP_${chr}.json.gz output lines: $output_lines
-        #if [[ $lines -gt 0 ]]; then echo ${output}_VEP/VEP_${chr}.json.gz $lines gt than 0, skipping; continue; fi
         echo "
 ############### VEP chr${chr}
-# split single lines
-zcat ${output}_chr${chr}_filtered.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_vcf.py | gzip > ${output}_chr${chr}_filtered3.vcf.gz 
-# make genotype matrix
-#mainset_July2016_chr${chr}_filtered3-genotypes.csv
-#mainset_July2016_chr${chr}_filtered3-annotations.csv
-#mainset_July2016_chr${chr}_filtered3-genotypes_depth.csv
-/share/apps/python/bin/python ${baseFolder}/annotation/postprocess_VEP_vcf.py --file ${output}_chr${chr}_filtered3.vcf.gz --genotypes --depth
-rm ${output}_chr${chr}_filtered3-annotations.csv
-gzip -f ${output}_chr${chr}_filtered3-genotypes.csv
-gzip -f ${output}_chr${chr}_filtered3-genotypes_depth.csv
-zcat ${output}_chr${chr}_filtered3.vcf.gz | /share/apps/python/bin/python ${baseFolder}/annotation/multiallele_to_single_vcf.py --headers CHROM,POS,ID,REF,ALT,QUAL,FILTER,INFO,FORMAT | cut -f1-9 | gzip > ${output}_VEP/chr${chr}_for_VEP.vcf.gz
-#### RUN CADD
-/share/apps/genomics/CADD_v1.3/bin/score.sh ${output}_VEP/chr${chr}_for_VEP.vcf.gz ${output}_VEP/CADD_chr${chr}.vcf.gz
-/share/apps/genomics/htslib-1.1/bin/tabix -p vcf ${output}_VEP/CADD_chr${chr}.vcf.gz
 ####CONFIGURE SOFTWARE SHORTCUTS AND PATHS
 reference=1kg
 export PERL5LIB=${PERL5LIB}:${ensembl}/src/bioperl-1.6.1::${ensembl}/src/ensembl/modules:${ensembl}/src/ensembl-compara/modules:${ensembl}/src/ensembl-variation/modules:${ensembl}/src/ensembl-funcgen/modules:${ensembl}/Plugins
@@ -574,7 +608,7 @@ export PATH=$PATH:/cluster/project8/vyp/vincent/Software/tabix-0.2.5/
 --pubmed \
 --no_progress --quiet \
 --custom /cluster/scratch3/vyp-scratch2/reference_datasets/Kaviar/Kaviar-160204-Public/hg19/VEP_annotation.vcf.gz,Kaviar,vcf,exact \
---custom ${output}_VEP/CADD_chr${chr}.vcf.gz,CADD,vcf,exact \
+--custom /cluster/project8/vyp/gnomad_data/vcf/genomes/gnomad.genomes.r2.0.1.sites.${chr}.vcf.gz,gnomad,vcf,exact,0,$GNOMAD_INFO_FIELDS \
 --plugin Condel,${DIR_PLUGINS}/config/Condel/config,b \
 --plugin Carol \
 --no_stats \
@@ -585,11 +619,11 @@ export PATH=$PATH:/cluster/project8/vyp/vincent/Software/tabix-0.2.5/
 --pick \
 --everything \
 --tab \
---fields Uploaded_variation,Location,Allele,Gene,Feature,Feature_type,Consequence,cDNA_position,CDS_position,Protein_position,Amino_acids,Codons,Existing_variation,IMPACT,DISTANCE,STRAND,FLAGSVARIANT_CLASS,SYMBOL,SYMBOL_SOURCE,HGNC_ID,BIOTYPE,CANONICAL,TSL,APPRIS,CCDS,ENSP,SWISSPROT,TREMBL,UNIPARC,GENE_PHENO,SIFT,PolyPhen,EXON,INTRON,DOMAINS,HGVSc,HGVSp,HGVS_OFFSET,GMAF,AFR_MAF,AMR_MAF,EAS_MAF,EUR_MAF,SAS_MAF,AA_MAF,EA_MAF,ExAC_MAF,ExAC_Adj_MAF,ExAC_AFR_MAF,ExAC_AMR_MAF,ExAC_EAS_MAF,ExAC_FIN_MAF,ExAC_NFE_MAF,ExAC_OTH_MAF,ExAC_SAS_MAF,CLIN_SIG,SOMATIC,PHENO,PUBMED,MOTIF_NAME,MOTIF_POS,HIGH_INF_POS,MOTIF_SCORE_CHANGE,CAROL,HGVSc_unshifted,HGVSp_unshifted,SameCodon,Kaviar \
---output_file STDOUT > ${output}_VEP/VEP_chr${chr}.tab
-/share/apps/R/bin/Rscript ${baseFolder}/annotation/postprocess_VEP_tab.R --input ${output}_VEP/VEP_chr${chr}.tab --output ${output}_VEP/VEP_chr${chr}.csv
-gzip -f ${output}_VEP/VEP_chr${chr}.csv
+--fields Uploaded_variation,Location,Allele,Gene,Feature,Feature_type,Consequence,cDNA_position,CDS_position,Protein_position,Amino_acids,Codons,Existing_variation,IMPACT,DISTANCE,STRAND,FLAGSVARIANT_CLASS,SYMBOL,SYMBOL_SOURCE,HGNC_ID,BIOTYPE,CANONICAL,TSL,APPRIS,CCDS,ENSP,SWISSPROT,TREMBL,UNIPARC,GENE_PHENO,SIFT,PolyPhen,EXON,INTRON,DOMAINS,HGVSc,HGVSp,HGVS_OFFSET,GMAF,AFR_MAF,AMR_MAF,EAS_MAF,EUR_MAF,SAS_MAF,AA_MAF,EA_MAF,ExAC_MAF,ExAC_Adj_MAF,ExAC_AFR_MAF,ExAC_AMR_MAF,ExAC_EAS_MAF,ExAC_FIN_MAF,ExAC_NFE_MAF,ExAC_OTH_MAF,ExAC_SAS_MAF,CLIN_SIG,SOMATIC,PHENO,PUBMED,MOTIF_NAME,MOTIF_POS,HIGH_INF_POS,MOTIF_SCORE_CHANGE,CAROL,HGVSc_unshifted,HGVSp_unshifted,SameCodon,Kaviar,$GNOMAD_INFO_FIELDS2 \
+--output_file stdout --force_overwrite > ${output}_VEP/VEP_chr${chr}.tab
 gzip -f ${output}_VEP/VEP_chr${chr}.tab
+/share/apps/R/bin/Rscript ${baseFolder}/annotation/postprocess_VEP_tab.R --input ${output}_VEP/VEP_chr${chr}.tab.gz --output ${output}_VEP/VEP_chr${chr}.csv
+gzip -f ${output}_VEP/VEP_chr${chr}.csv
 " >> ${scripts_folder}/subscript_chr${chr}.sh
   done
 }
@@ -644,7 +678,9 @@ set +x
         chmod u+rx ${script}
     done
     genotype
-    recal
+    recal_extract
+    recal_snps
+    recal_indel
     annovar
     convertToR
     h_vmem=20
