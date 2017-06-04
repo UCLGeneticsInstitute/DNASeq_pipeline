@@ -2,15 +2,15 @@ message('Loading libraries')
 suppressPackageStartupMessages(library("optparse"))
 suppressPackageStartupMessages(library("GenomicRanges"))
 suppressPackageStartupMessages(library("Gviz"))
-options(ucscChromosomeNames=FALSE)
+#options(ucscChromosomeNames=FALSE)
 
 option_list <- list(
-	make_option("--skat", default=NULL,help="Chromosome"),
-	make_option("--sampleBam", default=NULL,help="Print extra output [default]",type='character'),
+	make_option("--skat", default=NULL,help="skat csv"),
+	make_option("--sampleBam", default=NULL,help="optional bam file if reads are to be plotted",type='character'),
  	make_option("--outPDF",  help="pdf",type='character'), 
- 	make_option("--Gene",  help="pdf",type='character'),
+ 	make_option("--Gene",  help="gene symbol eg ABCA4",type='character'),
  	make_option("--CNV",  help="CNV csv",type='character',default=NULL),
- 	make_option("--Sample",  help="pdf",type='character',default=NULL)
+ 	make_option("--Sample",  help="name of sample if track of samples variants to be included",type='character',default=NULL)
  	)
 
 opt <- parse_args(OptionParser(option_list=option_list))
@@ -20,7 +20,7 @@ gen<-'hg19'
 filt<-read.csv(opt$skat)
 oPDF<-opt$outPDF
 
-snp.file<-gsub(opt$skat,pattern='SKAT_filtered.csv',replacement='results_by_SNP_cases.csv')
+snp.file<-gsub(opt$skat,pattern='skat.csv',replacement='SKAT_results_by_SNP.tab')
 if(!file.exists(snp.file)) stop('skat snp file doesnt exist')
 
 test.bam<-opt$sampleBam
@@ -34,12 +34,12 @@ if(length(gene.row)==0)stop('gene symbol not found in skat file')
 sample<-opt$Sample
 message('Finished argument check. processing.')
 
-snp<-read.csv(snp.file)
+snp<-read.table(snp.file,header=T)
 colnames(snp)<-c("SNP", "case.snp.hets", "case.snp.homs", "case.mafs.snp",
 		"ctrl.snp.hets", "ctrl.snp.homs", "ctrl.mafs.snp", "ENSEMBL",
 		"Symbol", "SKATO", "nb.snps", "nb.cases", "nb.ctrls", "nb.alleles.cases",
 		"nb.alleles.ctrls", "case.maf", "ctrl.maf", "total.maf", "nb.case.homs",
-		"nb.case.hets", "nb.ctrl.homs", "nb.ctrl.hets", "Chr", "Start",
+		"nb.case.hets", "nb.ctrl.homs", "nb.ctrl.hets", "Chr", "Start",#
 		"End", "FisherPvalue", "OddsRatio", "CompoundHetPvalue", "minCadd",
 		"maxExac", "min.depth", "MeanCallRateCases", "MeanCallRateCtrls",
 		"MaxMissRate", "HWEp", "MinSNPs", "MaxCtrlMAF", "SNPs", "GeneRD",
@@ -49,7 +49,7 @@ snp.data<-data.frame(t(data.frame(strsplit(snp$SNP,'_'))))
 snp.data[,2]<-as.numeric(snp.data[,2])
 rownames(snp.data)<-snp$SNP
 colnames(snp.data)<-c('chr','start','a','b')
-snp.data$case.maf<-as.numeric(snp$case.mafs.snp)
+snp.data$case.maf<-as.numeric(snp$case.maf)
 snp.data$case.maf[is.na(snp.data$case.maf)]<-0
 snp.data$case.maf<- log10(as.numeric(snp.data$case.maf)+0.0001)
 snp.data$ctrl.maf<-as.numeric(snp$ctrl.mafs.snp)
@@ -57,7 +57,9 @@ snp.data$ctrl.maf[is.na(snp.data$ctrl.maf)]<-0
 snp.data$ctrl.maf<- log10(as.numeric(snp.data$ctrl.maf)+0.0001)
 
 print(snp.data)
+if(length(grep('chr',snp.data$chr))==0) snp.data$chr<-paste0('chr',snp.data$chr)
 #snp.data$diff.maf<-snp.data$case.maf-snp.data$ctrl.maf
+save(list=ls(environment()),file='prep.RData')
 
 snp.data.ranges = GRanges(seqnames=snp.data$chr, ranges=IRanges(start=snp.data$start, end=snp.data$start) ,
 	case=snp.data$case.maf,ctrl=snp.data$ctrl.maf)
@@ -68,7 +70,7 @@ maf.data<- DataTrack(snp.data.ranges,col=colours,genome=gen,name='log10(MAF)',gr
 #	case=snp.data$diff.maf)
 #maf.data<- DataTrack(snp.data.ranges,genome=gen,name='log10(MAF)',type='polygon')## case and control mafs
 
-case.snps<-read.csv(gsub(opt$skat,pattern='SKAT_filtered.csv',replacement='case_carriers.csv'),header=FALSE)
+case.snps<-read.table(gsub(opt$skat,pattern='skat.csv',replacement='case_carriers'),header=FALSE)
 case.snp.data<-case.snps[case.snps[,1] %in% rownames(snp.data),]
 case.snp.data<-data.frame(cbind(case.snp.data,data.frame(t(data.frame(strsplit(case.snp.data[,1],'_'))))))
 colnames(case.snp.data)<-c('SNP','Sample','ENSEMBL','HUGO','MinorAlleleCount','Chr','Start','Ref','Alt')

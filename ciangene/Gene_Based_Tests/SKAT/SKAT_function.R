@@ -66,7 +66,8 @@ option_list <- list(
  	make_option(c("--qcPREP"),default=FALSE,type='character',help='not used much, but handy for troubleshooting to save environment later on in function') ,
  	make_option(c("--MAFcontrolList"),default=NULL,type='character',help='I take 10% of controls for maf. This param specifies where this ctrl list will be stored to reuse for other tests for consistency'),
  	make_option(c("--PhenoFile"),default=NULL,type='character',help='I ta'),
- 	make_option(c("--SKATbePval"),default=0.00001,type='character',help='How signif do you want the gene to be for skatbe to run. its slow...')
+ 	make_option(c("--SKATbePval"),default=0.00001,type='character',help='How signif do you want the gene to be for skatbe to run. its slow...'), 
+ 	 make_option(c("--phenotype"),default='eye',type='character',help='phenotype to search pubmed for')
  )
 
 opt <- parse_args(OptionParser(option_list=option_list))
@@ -74,6 +75,7 @@ if ( opt$verbose ) {
  write("Starting Argument checks...\n", stderr())
 }
 
+phenotype<-as.character(opt$phenotype)
 MaxCtrlMAF<-as.numeric(opt$MaxCtrlMAF) 
 qcPREP <- opt$qcPREP
 chrom <- opt$chrom
@@ -103,7 +105,7 @@ if(!is.null(opt$SampleGene))
 {
  	TargetGenes<-opt$SampleGene
  	message(paste("Setting up environment to test for gene:",TargetGenes))
- 	source('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Gene_Based_Tests/SKAT/summarise.results.function.R')
+ #	source('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Gene_Based_Tests/SKAT/summarise.results.function.R')
 } 
 if(!is.null(opt$TargetGenes))
 {
@@ -213,7 +215,8 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	MaxCtrlMAF=MaxCtrlMAF,SavePrep=SavePrep)
 {
 	outputDirectory<-paste0(outputDirectory,'/')
-	rootODir<-paste0('/SAN/vyplab/UCLex/mainset_',UCLex_Release,'/cian/') 
+	rootODir<-paste0('/SAN/vyplab/UCLex/.snapshot/AUTO_SNAPSHOT_TARGET_16/mainset_',UCLex_Release,'/cian/') 
+	print(paste('-',rootODir))
 	if(!file.exists(outputDirectory))dir.create(outputDirectory,recursive=TRUE)
 	qc<-paste0(outputDirectory,'/qc/')
 	if(!file.exists(qc))dir.create(qc)
@@ -826,10 +829,10 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 		write.table(results,results.out,col.names=T,row.names=F,quote=F,sep=',')
 
 
-if(!is.null(opt$SampleGene))
-{
-	summarise(outputDirectory,outputDirectory=outputDirectory,Title='tt',disease='eye')
-}
+#if(!is.null(opt$SampleGene))
+#{
+#	summarise(outputDirectory,outputDirectory=outputDirectory,Title=phenotype,disease=phenotype)
+#}
 
 print("Finished testing.")
 } #doSKAT

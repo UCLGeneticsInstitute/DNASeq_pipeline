@@ -31,40 +31,43 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	file.copy('/SAN/vyplab/UCLex/support/SKAT/README.docx',paste0(outputDirectory,'README.docx')) 
 	system(paste('chmod 777',paste0(outputDirectory,'README.docx')))
 	files<-list.files(dir,pattern='csv',full.names=T,recursive=T)
-	if(length(files)>1)files<-files[grep("chr",files)]
+	if(length(files)>1)files<-files[grep("skat",files)]
 	dirName<-paste(basename(dirname(dirname(dir))),basename(dirname(dir)),basename(dir))
 	dirs<-list.dirs(dir)
 	dirs<-dirs[-grep('chr_Y',dirs)]
 	if(length(files)!=length(dirs))message( paste('Problem-',dirName,'is missing a few chromosomes...' ) )
 
 	#file.copy(paste0( dirname(files)[1],'/qc/case_pca.plot.pdf'),paste0(outputDirectory,'Case_PCA_plots.pdf')) 
-	case.qc.file<-paste0( dirname(files)[1],'/qc/cases_removed_because_of_low_read_depth.tab')
+	case.qc.file<-paste0(outputDirectory,'/qc/cases_removed_because_of_low_read_depth.tab')
+	message(case.qc.file)
 	if(file.size(case.qc.file)>0)file.copy(case.qc.file,paste0(outputDirectory,'cases_removed_because_of_low_read_depth.tab')) 
 	#file.copy(paste0( dirname(files)[1],'/case.list'),paste0(outputDirectory,'case.list.txt')) 
 
 	message("Added PCA plot of cases to outputDirectory")
 	oFile<-paste0(outputDirectory,Title,'_SKAT_results.csv') 
 	if(file.exists(oFile))file.remove(oFile)
-	message("Merging results found in:")
-	for(i in 1:length(files))
+	if(length(files)>0)
 	{
-		print(files[i])
-		if(file.size(files[i])>0)
+		message("Merging results found in:")
+		for(i in 1:length(files))
 		{
-			file<-read.csv(files[i],header=T)
-			names<-colnames(file)
-			write.table(file,oFile,col.names=!file.exists(oFile),row.names=F,quote=T,sep=',',append=T)
+			print(files[i])
+			if(file.size(files[i])>0)
+			{
+				file<-read.csv(files[i],header=T)
+				names<-colnames(file)
+				write.table(file,oFile,col.names=!file.exists(oFile),row.names=F,quote=T,sep=',',append=T)
+			}
 		}
+
+		file<-read.csv(oFile,header=F)
+		file.remove(oFile)
+		colnames(file)<-names
+		file$SKATO<-as.numeric(as.character(file$SKATO))
+		file<-file[order(file$SKATO),]
+		file<-file[-grep("nb.cases",file$nb.cases),]
+		#write.table(file,oFile,col.names=T,row.names=F,quote=T,sep=',')
 	}
-
-	file<-read.csv(oFile,header=F)
-	file.remove(oFile)
-	colnames(file)<-names
-	file$SKATO<-as.numeric(as.character(file$SKATO))
-	file<-file[order(file$SKATO),]
-	file<-file[-grep("nb.cases",file$nb.cases),]
-	#write.table(file,oFile,col.names=T,row.names=F,quote=T,sep=',')
-
 	MergeFiles<-function(files,out)
 	{
 		if(file.exists(out))file.remove(out)
@@ -81,18 +84,25 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	}
 
 	message('Merging case carriers')
-	carriers<-list.files(dir,pattern='case_carriers',full.names=T,recursive=T)
-	carry.oFile<-paste0(outputDirectory,Title,'_case_carriers.csv') 
-	if(file.exists(carry.oFile))file.remove(carry.oFile)
-	carriers<-MergeFiles(carriers,carry.oFile)
-	message('Merging ctrl carriers')
+	carriers<-list.files(dir,pattern="case_carriers$",full.names=T,recursive=T)
+	if(length(carriers)>0)
+	{
+		carry.oFile<-paste0(outputDirectory,Title,'_case_carriers.csv') 
+		if(file.exists(carry.oFile))file.remove(carry.oFile)
+		carriers<-MergeFiles(carriers,carry.oFile)
+		any.case.carriers<-TRUE
+	} else any.case.carriers<-FALSE
 
+	message('Merging ctrl carriers')
 	ctrl.carriers<-list.files(dir,pattern='ctrl_carriers',full.names=T,recursive=T)
-	ctrl.carry.oFile<-paste0(outputDirectory,Title,'_control_carriers.csv') 
-	file.remove(ctrl.carry.oFile)
-	ctrl.carriers<-MergeFiles(ctrl.carriers,ctrl.carry.oFile)
-	message('Merging results by SNP')
-	if(file.exists(ctrl.carry.oFile))file.remove(ctrl.carry.oFile)
+	if(length(ctrl.carriers)>0)
+	{
+		ctrl.carry.oFile<-paste0(outputDirectory,Title,'_control_carriers.csv') 
+		if(file.exists(ctrl.carry.oFile))file.remove(ctrl.carry.oFile)
+		ctrl.carriers<-MergeFiles(ctrl.carriers,ctrl.carry.oFile)
+		message('Merging results by SNP')
+#		if(file.exists(ctrl.carry.oFile))file.remove(ctrl.carry.oFile)
+	}
 
 	by.snp<-list.files(dir,pattern='SKAT_results_by_SNP',full.names=T,recursive=T)
 	by.snp.out<-paste0(outputDirectory,Title,'_results_by_SNP_cases.csv') 
@@ -152,40 +162,49 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	#}
 
 	message("Making list of samples that are carriers per variant")
-	file$Carriers<-0
-	for(snp in 1:nrow(carriers))
+	save(list=ls(environment()),file='tst.RData')
+#	message(carriers)
+	if(length(carriers)>0)
 	{
-		if(!is.na(carriers[snp,1]))
+		file$Carriers<-0
+		file$Nb.Carriers<-0 ## I dont want signal to be driven by a small number of cases which would prob be an artefact
+		file$Nb.case.snps<-0 ## I dont want signal to be driven by a small number of cases which would prob be an artefact
+		
+		for(snp in 1:nrow(carriers))
 		{
-			hit<-grep(carriers$V1[snp],file$SNPs)
-			if(length(hit)>0)
+			if(!is.na(carriers[snp,1]))
 			{
-				for(snp.hit in 1:length(hit))
+				hit<-grep(carriers$V1[snp],file$SNPs)
+				if(length(hit)>0)
 				{
-					if(file$Carriers[hit[snp.hit]]!=0)file$Carriers[hit[snp.hit]]<-paste0(file$Carriers[hit[snp.hit]],';',carriers$V2[snp])
-					if(file$Carriers[hit[snp.hit]]==0)file$Carriers[hit[snp.hit]]<-carriers$V2[snp]
+					for(snp.hit in 1:length(hit))
+					{
+						if(file$Carriers[hit[snp.hit]]!=0)file$Carriers[hit[snp.hit]]<-paste0(file$Carriers[hit[snp.hit]],';',carriers$V2[snp])
+						if(file$Carriers[hit[snp.hit]]==0)file$Carriers[hit[snp.hit]]<-carriers$V2[snp]
+					}
 				}
 			}
 		}
-	}
 
-	file$Nb.Carriers<-0 ## I dont want signal to be driven by a small number of cases which would prob be an artefact
-	file$Nb.case.snps<-0 ## I dont want signal to be driven by a small number of cases which would prob be an artefact
-	for(car in 1:nrow(file))
-	{
-		file$Nb.Carriers[car]<-length(unique(unlist(strsplit(as.character(file$Carriers[car]),';')) ))
-		file$Nb.case.snps[car]<-length(unique(unlist(strsplit(as.character(file$CaseSNPs[car]),';')) ))
+		for(car in 1:nrow(file))
+		{
+			file$Nb.Carriers[car]<-length(unique(unlist(strsplit(as.character(file$Carriers[car]),';')) ))
+			file$Nb.case.snps[car]<-length(unique(unlist(strsplit(as.character(file$CaseSNPs[car]),';')) ))
+		}
+		if(length(grep('ADA',colnames(file)))>0 )  file$ADA<-NULL
 	}
-	if(length(grep('ADA',colnames(file)))>0 )  file$ADA<-NULL
-
+	
 	# include exac pLI score. hardcoded for now :( 
 	exac<-read.table('/home/sejjcmu/fordist_cleaned_exac_r03_march16_z_pli_rec_null_data.txt',header=TRUE)
 	exac.dat<-data.frame(Symbol=exac$gene,pLI=exac$pLI)
 	file2<-merge(file,exac.dat,by='Symbol',all.x=T)
+	trunc<-read.csv('/SAN/vyplab/UCLex/support/ng.3831-S2.csv')
+	file2<-merge(file2,trunc,by.x='Symbol',by.y='gene_symbol',all.x=T)
 	file2<-file2[order(file2$SKATO),]
 
 	# inflation factor
-	write.table(estlambda(file2$SKATO)$estimate,paste0(outputDirectory,Title,'_inflation.factor.csv'),col.names=F,row.names=F,quote=T,sep=',',append=F)
+	inflation.factor<-try(estlambda(file2$SKATO),silent=TRUE)
+	if(!class(inflation.factor)=='try-error')write.table(estlambda(file2$SKATO)$estimate,paste0(outputDirectory,Title,'_inflation.factor.csv'),col.names=F,row.names=F,quote=T,sep=',',append=F)
 	write.table(file2,paste0(outputDirectory,Title,'_SKAT.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 
 
@@ -245,6 +264,48 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		}
 		write.table(case.dat,paste0(outputDirectory,Title,'_solved_cases.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 
+		if(grepl('Recessive',outputDirectory))
+		{
+			# make a table of most likely causative gene for each case. 
+			cases<-unique(unlist(strsplit(filt$Carriers,split=';') ))
+			case.dat<-data.frame(matrix(nrow=length(cases),ncol=5))
+			case.dat[,1]<-cases
+			colnames(case.dat)<-c('Case','CausativeGene','Variants','SKAT','RareAlleleCount')
+			for(case in 1:length(cases))
+			{
+				case.genes<-filt$Symbol[grep(cases[case],filt$Carriers)]
+				case.variants<-carriers[carriers$V2==cases[case],]	
+				uniq.genes<-table(case.variants$V4)
+
+				if(nrow(case.variants)==length(uniq.genes)) # this means no case has multiple variants in a single gene, so look just for homs
+				{
+					hom.variants<-case.variants[case.variants$V5==2,]
+					if(nrow(hom.variants)>0)
+					{
+						case.variants<-paste(unlist(hom.variants$V1),collapse=';')
+						gene.ord<-file$Symbol[file$Symbol %in% unlist(hom.variants$V4)]
+						case.dat$CausativeGene[case]<-paste(gene.ord,collapse=';')
+						case.dat$SKAT[case]<-paste(file$SKATO[file$Symbol %in% gene.ord] ,collapse=';')
+						case.dat$Variants[case]<-case.variants
+						case.dat$RareAlleleCount[case]<-paste(unlist(hom.variants$V5),collapse=';')
+					}
+				} else 
+				{
+					cpd.genes<-names(which(uniq.genes>1) )
+					if(length(cpd.genes)>1)cpd.genes<-file$Symbol[file$Symbol %in% cpd.genes][1]
+					cpd.variants<-case.variants[case.variants$V4%in%cpd.genes,]
+					case.variants<-paste(unlist(cpd.variants$V1),collapse=';')
+					case.dat$CausativeGene[case]<-cpd.genes
+					case.dat$Variants[case]<-case.variants
+					case.dat$SKAT[case]<-file$SKATO[file$Symbol %in% cpd.genes][1]
+					case.dat$RareAlleleCount[case]<-paste(unlist(cpd.variants$V5),collapse=';')
+				}
+			}
+			write.table(case.dat,paste0(outputDirectory,Title,'_solved_cases.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
+		}
+
+
+
 		filt$Nb.relevant.papers<-0
 		message('Finding relevant papers...')
 		for(ro in 1:nrow(filt))
@@ -254,7 +315,11 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		}
 		filt$pubmed.disease.term<-disease # record in output what disease we searched pubmed for with gene name
 		filt<-merge(filt,exac.dat,by='Symbol',all.x=T)
+
+		filt<-merge(filt,trunc,by.x='Symbol',by.y='gene_symbol',all.x=T)
 		filt<-filt[order(filt$SKATO),]
+		filt$EXAC.candidate<-FALSE
+		filt$EXAC.candidate[filt$pLI>.9&filt$s_het>0.04]<-TRUE
 		SKATout<-paste0(outputDirectory,Title,'_SKAT_filtered.csv')
 		write.table(filt,SKATout,col.names=T,row.names=F,quote=T,sep=',',append=F)
 		if(nrow(filt)==1)	filt$Candidate<-TRUE
@@ -262,11 +327,15 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		if(nrow(filt)>10)filt<-filt[1:10,]
 		rownames(filt)<-1:nrow(filt)
 
-		message("Making HTML table for top genes")
-		filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",4),'E',rep("d",5),rep("E",6),rep('d',3),rep('E',11),rep("s",7),rep('d',3),rep('s',1),'d'))
-		htmlOut<-paste0(outputDirectory,Title,"_SKAT.html")
-		print(htmlOut)
-		print.xtable(filt.xtable, type="html",file=htmlOut,scalebox=.7)
+		html<-FALSE
+		if(html)
+		{
+			message("Making HTML table for top genes")
+			filt.xtable<-xtable(filt,caption=paste(Title,"SKAT top genes") ,digits=2, display = c(rep("s",4),'E',rep("d",5),rep("E",6),rep('d',3),rep('E',11),rep("s",7),rep('d',3),rep('s',1),'d'))
+			htmlOut<-paste0(outputDirectory,Title,"_SKAT.html")
+			print(htmlOut)
+			print.xtable(filt.xtable, type="html",file=htmlOut,scalebox=.7)
+		}
 
 		tt<-merge(by.snp[,1:10],snps.filt,by='SNP')
 		if(nrow(tt)>0)
@@ -281,7 +350,6 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 			#if(nrow(case.ctrl.carriers)>0)write.table(case.ctrl.carriers,paste0(outputDirectory,Title,'_BiallelicSNPs.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 			#if(nrow(case.ctrl.carriers)==0)write.table('None Found',paste0(outputDirectory,Title,'_BiallelicSNPs.csv'),col.names=T,row.names=F,quote=T,sep=',',append=F)
 		}
-
 
 		RData.file<-paste0(outputDirectory,Title,'_prep.RData')
 		message("Saving workspace to ",RData.file)
