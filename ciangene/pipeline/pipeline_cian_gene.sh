@@ -85,7 +85,7 @@ if [[ "$step1" == "yes" ]]; then
 #$ -S /bin/bash
 #$ -o cluster/out
 #$ -e cluster/error
-#$ -l h_vmem=15G,tmem=15G
+#$ -l h_vmem=20G,tmem=20G
 #$ -pe smp 1
 #$ -N step1_cian
 #$ -l h_rt=24:00:00

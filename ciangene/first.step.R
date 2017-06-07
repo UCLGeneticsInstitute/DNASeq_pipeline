@@ -62,7 +62,7 @@ readDepthDir <- file.path(rootODir,"read_depth")
 if(!file.exists(readDepthDir) ) dir.create(readDepthDir)
 readDepthoFile <- "Depth_Matrix.sp"
 
-full <- file.path(oDir, "allChr_snpStats.sp") ## added '.sp' suffix
+full <- file.path(oDir, "allChr_snpStats.sp")
 annotations.dir<-file.path(oDir, "Annotations") 
 if(!file.exists(annotations.dir) ) dir.create(annotations.dir)
 annotations.out <- paste0(annotations.dir,"/annotations.snpStat")
@@ -77,18 +77,12 @@ for(i in 1:length(files)){
 	message("Now loading file ", files[i])
 	load(files[i])
 	message("Finished loading file ", files[i])
-##      Extract clean variants. 
-
-	robj<-paste0(oDir,'/test_setup.RData')
-		if(i==2)message(paste('Saving workspace image to', robj))
-		if(i==2)message(paste('Finished saving workspace image to', robj))
 
 	pass.snps <- annotations.snpStats$clean.signature[which(annotations.snpStats$FILTER == "PASS")] #
 	matrix.calls.snpStats <- matrix.calls.snpStats[, which( colnames(matrix.calls.snpStats) %in% pass.snps ) ]#
 	annotations.snpStats <- subset(annotations.snpStats, annotations.snpStats$FILTER == "PASS")
 	matrix.depth <-  matrix.depth[which( rownames(matrix.depth) %in% pass.snps) ,]
 	matrix.depth <- apply(matrix.depth, 2, as.numeric)
-	if(i==2)save(list=ls(environment()),file=robj)
 
 	# Make map file 
 	map <- data.frame(matrix(nrow=nrow(annotations.snpStats), ncol = 4) ) 
@@ -152,8 +146,13 @@ for(i in 1:length(files)){
 	snplist$id<-paste0(id[,1],':',id[,2])
 	merged.snp.data<-merge(snplist,vep,by.x='id',by.y='Location')
 
-	merged.snp.data.keep <-data.frame(merged.snp.data$SNP,merged.snp.data$ExonicFunc,merged.snp.data$Existing_variation,merged.snp.data$Gene,merged.snp.data$Consequence,merged.snp.data$SYMBOL,merged.snp.data$ExAC_MAF,merged.snp.data$CADD)
-	colnames(merged.snp.data.keep)<-gsub(colnames(merged.snp.data.keep),pattern='.*\\.',replacement='')
+oData<-paste0(oDir,'/plot.prep.RData')
+save(list=ls(environment()),file=oData)
+
+	cols.to.keep<-c('SNP','ExonicFunc','Existing_variation','Gene','Consequence','SYMBOL','ExAC_MAF','IMPACT')
+	merged.snp.data.keep<-data.frame(merged.snp.data[,colnames(merged.snp.data) %in% cols.to.keep])
+	#merged.snp.data.keep <-data.frame(merged.snp.data$SNP,merged.snp.data$ExonicFunc,merged.snp.data$Existing_variation,merged.snp.data$Gene,merged.snp.data$Consequence,merged.snp.data$SYMBOL,merged.snp.data$ExAC_MAF,merged.snp.data$CADD)
+	#colnames(merged.snp.data.keep)<-gsub(colnames(merged.snp.data.keep),pattern='.*\\.',replacement='')
 
 	merged.snp.data.keep$Func<-FALSE
 	merged.snp.data.keep$LOF<-FALSE

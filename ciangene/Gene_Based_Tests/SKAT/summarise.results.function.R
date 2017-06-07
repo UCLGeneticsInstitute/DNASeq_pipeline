@@ -11,11 +11,11 @@ source('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Gene_Based_Tests/plot
 lof <-  c("frameshift deletion", "frameshift substitution", "frameshift insertion",  "stoploss SNV", "splicing"
 		,"stopgain SNV","exonic;splicing"
 		)
-snps<-read.table("/SAN/vyplab/UCLex/mainset_September2016/cian/Annotations/func.tab",sep='\t',header=T) 
+snps<-read.table("/SAN/vyplab/UCLex/.snapshot/AUTO_SNAPSHOT_TARGET_16/mainset_September2016/cian/Annotations/func.tab",sep='\t',header=T) 
 snps.filt<-snps[snps$ExonicFunc %in% lof,]
 snps.filt<-snps.filt[!duplicated(snps.filt$SNP),]
 
-data<-'/SAN/vyplab/UCLex/mainset_September2016/cian/allChr_snpStats_out'
+data<-'/SAN/vyplab/UCLex/.snapshot/AUTO_SNAPSHOT_TARGET_16/mainset_September2016/cian/allChr_snpStats_out'
 Rscript='/cluster/project8/vyp/vincent/Software/R-3.3.0/bin/Rscript'
 gviz.script='/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/Gene_Based_Tests/SKAT/gviz.R'
 
@@ -38,7 +38,7 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 	if(length(files)!=length(dirs))message( paste('Problem-',dirName,'is missing a few chromosomes...' ) )
 
 	#file.copy(paste0( dirname(files)[1],'/qc/case_pca.plot.pdf'),paste0(outputDirectory,'Case_PCA_plots.pdf')) 
-	case.qc.file<-paste0(outputDirectory,'/qc/cases_removed_because_of_low_read_depth.tab')
+	case.qc.file<-paste0(dirname(files)[1],'/qc/cases_removed_because_of_low_read_depth.tab')
 	message(case.qc.file)
 	if(file.size(case.qc.file)>0)file.copy(case.qc.file,paste0(outputDirectory,'cases_removed_because_of_low_read_depth.tab')) 
 	#file.copy(paste0( dirname(files)[1],'/case.list'),paste0(outputDirectory,'case.list.txt')) 
