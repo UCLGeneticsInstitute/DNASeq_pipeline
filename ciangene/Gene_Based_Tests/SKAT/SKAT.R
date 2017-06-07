@@ -6,6 +6,7 @@
 #  $Rscript $SKAT --case.list $CaseFile --oDir outputDirectory --control.list $ControlFile
 
 ### Changes ####
+# added ability to supply case/control lists as single file. one column per sample in form --SampleID,0-- or --SampleID,1-- where is 1 is case
 # added skat backward eliminaiton Ionita-Laza 2014
 # added adaptive combination of P-values (ADA) method to pinpoint causal variants (Lin, 2016)
 # added option to specify maf controls to be output as file. useful to ensure same control subset used for all analyses. 
@@ -27,7 +28,7 @@
 # Keeping only damaging variants
 ########
 
-latest.change<-'added ability to supply case/control lists as single file. one column per sample in form --SampleID,0-- or --SampleID,1-- where is 1 is case'
+latest.change<-'added phenogenon'
 print('---latest change----')
 message(latest.change)
 print('--------------------')
@@ -417,7 +418,7 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 	## Make the output dataframe
 	cols<-c("Gene",'SKATO','nb.snps','nb.cases','nb.ctrls','nb.alleles.cases','nb.alleles.ctrls','case.maf','ctrl.maf','total.maf','nb.case.homs',
 		'nb.case.hets','nb.ctrl.homs','nb.ctrl.hets','Chr','Start','End','FisherPvalue','OddsRatio','CompoundHetPvalue','minCadd','maxExac','min.depth',
-		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','MinSNPs','MaxCtrlMAF','SNPs','GeneRD','CaseSNPs','SKATbeSNPs'
+		'MeanCallRateCases','MeanCallRateCtrls','MaxMissRate','HWEp','MinSNPs','MaxCtrlMAF','SNPs','GeneRD','CaseSNPs','SKATbeSNPs','phenogenon'
 		)
 	results<-data.frame(matrix(nrow=nb.genes,ncol=length(cols)))
 	colnames(results)<-cols
@@ -809,6 +810,14 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 					} else message('However there are too few SNPs to bother. skipping.')
 				}
 				print(results[gene,])
+
+				## phenogenon
+				p_a<-results$nb.cases[gene]+results$nb.ctrls[gene] #total number of cases+ctrls
+				p_g<-length(which(colSums(final.snp.set) >0) ) # number of cases+ctrls w/ variants
+				p_h<-results$nb.cases[gene] #number of cases
+				p_gh<-length(which(colSums(case.snps) >0) ) #number of cases with variants
+				phenogenon.matrix<-matrix(c(p_a - p_g - p_h + p_gh, p_g - p_gh, p_h - p_gh, p_gh), nrow = 2, ncol = 2)
+				results$phenogenon[gene]<-fisher.test(phenogenon.matrix)$p.value
 
 				if(qcPREP)
 				{
