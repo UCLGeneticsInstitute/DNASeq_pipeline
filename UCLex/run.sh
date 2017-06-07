@@ -6,6 +6,8 @@ release=$2
 
 memoSmall=10
 
+ONE_MB=1000000
+
 # prints to stderr in red
 function error() { >&2 echo -e "\033[31m$*\033[0m"; }
 function stop() { error "$*"; exit 1; }
@@ -42,8 +44,57 @@ numBad=1000
 numBadIndels=1000
 GQ=20
 
+function file_size() {
+stat --printf="%s" $1
+}
 
 output=${mainFolder}/mainset_${release}/mainset_${release}
+
+
+function check_chrom_size(){
+# chrom sizes in hg19
+declare -A sizes
+sizes["chr1"]=249250621
+sizes["chr2"]=243199373
+sizes["chr3"]=198022430
+sizes["chr4"]=191154276
+sizes["chr5"]=180915260
+sizes["chr6"]=171115067
+sizes["chr7"]=159138663
+sizes["chrX"]=155270560
+sizes["chr8"]=146364022
+sizes["chr9"]=141213431
+sizes["chr10"]=135534747
+sizes["chr11"]=135006516
+sizes["chr12"]=133851895
+sizes["chr13"]=115169878
+sizes["chr14"]=107349540
+sizes["chr15"]=102531392
+sizes["chr16"]=90354753
+sizes["chr17"]=81195210
+sizes["chr18"]=78077248
+sizes["chr20"]=63025520
+sizes["chrY"]=59373566
+sizes["chr19"]=59128983
+sizes["chr22"]=51304566
+sizes["chr21"]=48129895
+# get 10M from the end
+chr=$1
+x=`echo *chr${chr}.*vcf.gz.tbi`
+if [ -s $x ]
+then
+  pos=`expr ${sizes["chr${chr}"]} - 10000000`
+  last_pos=`tabix ${x%.tbi} ${chr}:${pos} | awk '{print $2}' | tail -n1`
+  if [[ ${last_pos} == "" ]]
+  then
+      echo ${x%.tbi} may be truncated
+  else
+      echo ${x%.tbi}, last_pos: ${last_pos}, chrom_size: ${sizes["chr${chr}"]}, remaining: `expr ${sizes["chr${chr}"]} - ${last_pos}`
+  fi
+else
+  echo $x does not exist
+fi
+}
 
 if [ ! -s mainset_${release}_gVCF_${chr}.list ]
 then
@@ -61,7 +112,7 @@ echo "Running the genotype module"
 script=${scripts_folder}/subscript_chr${chr}.sh
 f=${output}_chr${chr}.vcf.gz.tbi
 
-if [ ! -s  ${output}_chr${chr}.vcf.gz ]
+if [ ! -s  ${output}_chr${chr}.vcf.gz.tbi ]
 then
     echo GenotypeGVCFs
     $java -Djava.io.tmpdir=/scratch0/ -Xmx${memoSmall}g -jar $GATK -R $fasta -L $chr -L $target -T GenotypeGVCFs \
@@ -71,14 +122,14 @@ then
     --dbsnp ${dbsnp} -V mainset_${release}_gVCF_${chr}.list --out ${output}_chr${chr}.vcf.gz 
 fi
 
-if [ ! -s ${output}_chr${chr}_SNPs.vcf.gz ]
+if [[ `file_size ${output}_chr${chr}_SNPs.vcf.gz` -lt $ONE_MB ]]
 then
     echo extract the SNPs: SelectVariants
     $java  -Djava.io.tmpdir=/scratch0/ -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $chr -T SelectVariants \
 -selectType SNP -V ${output}_chr${chr}.vcf.gz  --out ${output}_chr${chr}_SNPs.vcf.gz
 fi
 
-if [ ! -s ${output}_chr${chr}.vcf.gz --out ${output}_chr${chr}_indels.vcf.gz ]
+if [ ! -s ${output}_chr${chr}_indels.vcf.gz.tbi ]
 then
     echo extract the indels
     $java  -Djava.io.tmpdir=/scratch0/ -Xmx${memoSmall}g -jar ${GATK}  -R $fasta  -L $chr  -T SelectVariants \
@@ -91,7 +142,7 @@ echo VariantRecalibrator
 echo SNP recalibration
 for maxGauLoc in $(seq 3 6 | sort -r)
 do
-    if [[ -s ${output}_chr${chr}_SNPs_filtered.vcf.gz ]]
+    if [[ `file_size ${output}_chr${chr}_SNPs_filtered.vcf.gz` -gt $ONE_MB ]]
     then
         break
     fi
@@ -117,7 +168,7 @@ do
 done
 
 
-if [ ! -s ${output}_chr${chr}_indels_hard_filtered.vcf.gz.tbi ]
+if [[ `file_size ${output}_chr${chr}_indels_hard_filtered.vcf.gz` -lt $ONE_MB ]]
 then
     echo Indel hard filtering
     $java -Djava.io.tmpdir=/scratch0/ -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $chr  -T VariantFiltration \
@@ -126,13 +177,13 @@ then
    -V ${output}_chr${chr}_indels.vcf.gz --out ${output}_chr${chr}_indels_hard_filtered.vcf.gz
 fi
 
-if [ ! -s ${output}_chr${chr}_indels_filtered.vcf.gz ]
+if [[ `file_size ${output}_chr${chr}_indels_filtered.vcf.gz` -lt $ONE_MB ]]
 then
     echo Indel recalibration
     # calculate recal: VariantRecalibrator
     for maxGaussiansIndels in $(seq 3 6 | sort -r)
     do
-        if [[ -s ${output}_chr${chr}_indels_filtered.vcf.gz ]]
+        if [[ `file_size ${output}_chr${chr}_indels_filtered.vcf.gz` -gt $ONE_MB ]]
         then
             break
         fi
@@ -157,7 +208,7 @@ then
 fi
 
 
-if [ ! -s ${output}_chr${chr}_filtered.vcf.gz.tbi ]
+if [[ `file_size ${output}_chr${chr}_filtered.vcf.gz` -lt $ONE_MB ]]
 then
     echo Recal merge SNPs and indels
     $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $chr -T CombineVariants \
@@ -169,7 +220,7 @@ then
 fi
 
 
-if [ ! -s ${output}_chr${chr}_for_annovar.vcf.gz.tbi ]
+if [[ `file_size ${output}_chr${chr}_for_annovar.vcf.gz` -lt $ONE_MB ]]
 then
     echo annovar chr${chr}
     echo creates ${output}_chr${chr}_recal_filtered2.vcf 
@@ -190,7 +241,7 @@ then
 fi
 
 
-if [ ! -s ${output}_VEP/chr${chr}_for_VEP.vcf.gz.tbi ]
+if [[ `file_size ${output}_VEP/chr${chr}_for_VEP.vcf.gz` -lt $ONE_MB ]]
 then
     echo VEP_input
     # split single lines
@@ -203,7 +254,7 @@ fi
 mkdir -p ${output}_VEP
 
 
-if [ ! -s ${output}_VEP/CADD_chr${chr}.vcf.gz.tbi ]
+if [[ `file_size ${output}_VEP/CADD_chr${chr}.vcf.gz` -lt $ONE_MB ]]
 then
     echo  CADD
     # split single lines
@@ -212,9 +263,13 @@ then
     /share/apps/genomics/htslib-1.1/bin/tabix -f -p vcf ${output}_VEP/chr${chr}_for_VEP.vcf.gz
     rm ${output}_VEP/chr${chr}_for_VEP.vcf
     echo  RUN CADD
+    export PERL5LIB=/home/rmhanpo/perl5/lib/perl5:/home/rmhanpo/perl5/lib/perl5:/cluster/project8/vyp/vincent/Software/vcftools_0.1.12a/lib/perl5/site_perl:
+    export PATH=/share/apps/perl/bin/:$PATH
     /share/apps/genomics/CADD_v1.3/bin/score.sh ${output}_VEP/chr${chr}_for_VEP.vcf.gz ${output}_VEP/CADD_chr${chr}.vcf.gz
     /share/apps/genomics/htslib-1.1/bin/tabix -p vcf ${output}_VEP/CADD_chr${chr}.vcf.gz
 fi
+
+exit 0
 
 mkdir -p ${output}_snpStats
 echo convertToR chr${chr}
