@@ -12,7 +12,7 @@ option_list <- list(
  	make_option(c("--Genes"),  help="candidate gene list",type='character',default=NULL),
  	make_option(c("--BF"),  help="candidate gene list",type='character',default=NULL),
  	make_option(c("--novelBF"),  help="candidate gene list",type='character',default=NULL),
- 	make_option(c("--Pattern"),  default='bam.cnv',type='character'),
+ 	make_option(c("--Pattern"),  default='bam_X.cnv',type='character'),
  	make_option(c("--SavePrep"), default=TRUE, help="Do you want to save an image of setup?",type='character'),
  	make_option(c("--TargetChr"),  default=NULL,type='character',help='Are there certain chromosomes of interest?'),
  	make_option(c("--DBOXdir"),  default=NULL,type='character')
@@ -122,7 +122,7 @@ if(SavePrep)
 ##  Plot the most significnat novel multi exon CNVs. 
 novelCNVs<-read.table(list.files(CallsDirectory,pattern='multi_exons_postQC_CNVs_X.tab',recursive=TRUE,full.names=TRUE),header=TRUE)
 novelCNVs<-novelCNVs[with(novelCNVs, order(chromosome,start,end)), ]
-
+novelCNVs<-novelCNVs[novelCNVs$chromosome=='X',]
 
 allCNVsPDF<-paste0(dirname(outPDF),'/AllCNVs.pdf')
 pdf(allCNVsPDF)

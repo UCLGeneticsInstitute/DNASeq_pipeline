@@ -837,6 +837,11 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
 
 		write.table(results,results.out,col.names=T,row.names=F,quote=F,sep=',')
 
+		session.file <- file.path(outputDirectory, '/sessionFile.txt')
+		sink(session.file)
+		sessionInfo()
+		date()
+		sink()
 
 #if(!is.null(opt$SampleGene))
 #{

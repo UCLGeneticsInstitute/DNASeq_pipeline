@@ -38,7 +38,7 @@ message(paste('Getting calls from:',CallsDirectory))
 
 data.directory<-paste0(dirname(outPDF),'/') 
 data.files<-list.files(CallsDirectory,pattern=pattern,recursive=TRUE,full.names=TRUE)
-data.names<-gsub(data.files,pattern=pattern,replacement='bam_X.RData')
+data.names<-gsub(data.files,pattern=pattern,replacement='bam.RData')
 data.names<-gsub(data.names,pattern='multi_exons',replacement='single_exons')
 
 for(file in 1:length(data.files))
@@ -47,7 +47,7 @@ for(file in 1:length(data.files))
 	if(file==1)allCalls<-dat else allCalls<-data.frame(rbind(allCalls,dat)) 
 }
 
-genes<-read.table('/SAN/vyplab/UCLex/support/genes.bed',header=TRUE,sep='\t')
+genes<-read.table('/SAN/vyplab/UCLex/support/all.genes.bed',header=TRUE,sep='\t')
 gr0 = with(genes, GRanges(chromosome, IRanges(start=start, end=end)))
 
 allCalls<-allCalls[order(allCalls$genePos_hg19.tab),]
@@ -120,8 +120,7 @@ if(SavePrep)
 #######################################################################################################################################
 ##  Plot the most significnat novel multi exon CNVs. 
 novelCNVs<-read.csv(list.files(CallsDirectory,pattern='multi_exons_postQC_novel_CNVs.csv',recursive=TRUE,full.names=TRUE))
-novelCNVs<-novelCNVs[order(-novelCNVs$BF), ]
-
+novelCNVs<-novelCNVs[with(novelCNVs, order(chromosome,start,end)), ]
 
 allCNVsPDF<-paste0(dirname(outPDF),'/AllCNVs.pdf')
 pdf(allCNVsPDF)

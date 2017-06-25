@@ -14,6 +14,7 @@ labelQQplot <- function(pval.labels, qqplotOut ,pvals.raw, nb.pvals=5, col='red'
 	if(is.data.frame(genelist))genelist<-genelist[,1]
 	if(!is.null(genelist))
 	{
+		plot.data<-plot.data[!is.na(plot.data$pvals),]
 		plot.vals <- data.frame(plot.data,tra)
 		plot.vals<-data.frame(plot.vals[plot.vals$labels %in% genelist,])
 		plot.vals<-plot.vals[order(plot.vals$pvals),][1:nb.pvals,]
