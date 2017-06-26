@@ -1,17 +1,24 @@
-loopPlot<-function(dat,CallsDirectory)
+loopPlot<-function(dat,CallsDirectory, autosome=TRUE)
 {
+	if(!"GenomicRanges" %in% loadedNamespaces()) library(GenomicRanges)
+	genes<-read.table('/SAN/vyplab/UCLex/support/all.genes.bed',header=TRUE,sep='\t')
+	gr0 = with(genes, GRanges(chromosome, IRanges(start=start, end=end)))
+
 	for(cnv in 1:nrow(dat))
 	{
-		cnv.file<-paste0(CallsDirectory,'/single_exons/',dat$sample[cnv],'.RData')
-		if(!grepl('CNVcalls',cnv.file))cnv.file<-paste0(CallsDirectory,'/CNVcalls/single_exons/',dat$sample[cnv],'.RData')
+		if(autosome[cnv])cnv.file<-paste0(CallsDirectory[cnv],'/single_exons/',dat$sample[cnv],'.RData')
+		if(!autosome[cnv])cnv.file<-paste0(CallsDirectory[cnv],'/single_exons/',dat$sample[cnv],'_X.RData')
+	#	if(!grepl('CNVcalls',cnv.file))cnv.file<-paste0(CallsDirectory[cnv],'/single_exons/',dat$sample[cnv],'.RData')
 		if(file.exists(cnv.file))
 		{
 			load(cnv.file)
 			flank<-1000
 			calls<- sample.mod@CNV.calls
+			calls$id<-gsub(calls$id,pattern='chr',replacement='')
+			name<-gsub(dat$sample[cnv],pattern='_sorted_unique.bam',replacement='')
 			current.cnv<-calls[calls$id %in% dat$id[cnv],]
-			cnv.id<-paste0(dat$sample[cnv],'_',current.cnv$id[1])
-			print(cnv.id)
+			cnv.id<-paste0(name,'_chr',current.cnv$id[1])
+			message(cnv.id)
 
 			chr<-unique(current.cnv$chromosome) 
 			gr1 <- with(current.cnv, GRanges(chromosome, IRanges(start=start, end=end)))
@@ -33,12 +40,12 @@ loopPlot<-function(dat,CallsDirectory)
 			if(cnv==1)cnvs.plotted<-'Dud'
 			if(length(grep(cnv.id,cnvs.plotted))==0) # im plotting once per CNV containing gene per sample so skip CNVs after first one. 
 			{
-				message(paste("CNV file",cnv.file))
+	#			message(paste("CNV file",cnv.file))
 				pl(sample.mod,
 				sequence = chr,
 				xlim = c(gene.start, gene.end),
 				count.threshold = 20,
-				main = paste(dat$sample[cnv],dat$id[cnv]), 
+				main = paste(name,dat$id[cnv]), 
 				cex.lab = 0.8,
 				with.gene = TRUE)
 

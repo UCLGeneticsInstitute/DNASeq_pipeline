@@ -54,61 +54,7 @@ allCalls<-allCalls[order(allCalls$genePos_hg19.tab),]
 allCalls$short.name<-gsub(allCalls$sample,pattern='_sor.*',replacement='')
 
 print(paste('Number of CNVs found across all genes:',nrow(allCalls)))
-
-#######################################################################################################################################
-## function to plot all CNVs listed in data.frame
-loopPlot<-function(dat)
-{
-	for(cnv in 1:nrow(dat))
-	{
-		cnv.file<-paste0(CallsDirectory,'single_exons/',dat$sample[cnv],'.RData')
-		if(file.exists(cnv.file))
-		{
-			load(cnv.file)
-			flank<-1000
-			calls<- sample.mod@CNV.calls
-			current.cnv<-calls[calls$id %in% dat$id[cnv],]
-			cnv.id<-paste0(dat$sample[cnv],'_',current.cnv$id[1])
-			print(cnv.id)
-
-			chr<-unique(current.cnv$chromosome) 
-			gr1 <- with(current.cnv, GRanges(chromosome, IRanges(start=start, end=end)))
-			hits<-data.frame(findOverlaps(gr0, gr1)) 
-			
-			if(nrow(hits)>0) ## If CNV is in gene(s) in bed file then use same Xaxis for each CNV to make plots prettier
-			{
-				affected.genes<-unique(genes[hits$queryHits,]$Name)
-				aff.bed<-genes[genes$Name%in% affected.genes,]
-				gene.start<-min(aff.bed$start)-flank
-				gene.end<-max(aff.bed$end)+flank
-
-			} else
-			{
-				gene.start<-min(current.cnv$start)-flank
-				gene.end<-max(current.cnv$end)+flank
-			}
-
-			if(cnv==1)cnvs.plotted<-'Dud'
-			if(length(grep(cnv.id,cnvs.plotted))==0) # im plotting once per CNV containing gene per sample so skip CNVs after first one. 
-			{
-				message(paste("CNV file",cnv.file))
-				pl(sample.mod,
-				sequence = chr,
-				xlim = c(gene.start, gene.end),
-				count.threshold = 20,
-				main = paste(dat$sample[cnv],dat$id[cnv]), 
-				cex.lab = 0.8,
-				with.gene = TRUE)
-
-				gene.bed<-data.frame(chr,gene.start,gene.end) ## record which gnees ahve CNVs in them. will use BEd for conifer afterwards.
-				gene.bed$id<-paste(unlist(gene.bed),collapse='_')
-				if(length(gene.bed$id)>1) stop('IDs for multiple CNVs not merged properly')
-
-			} else message(cnv.id)
-			if(cnv==1)cnvs.plotted<-cnv.id else cnvs.plotted<-data.frame(rbind(cnvs.plotted,cnv.id))
-		} else message(paste(cnv.file, 'doesnt exist...'))
-	}
-}
+source('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/CNV/ExomeDepth/loopPlot.R')
 
 if(SavePrep)
 {
@@ -122,10 +68,6 @@ if(SavePrep)
 novelCNVs<-read.csv(list.files(CallsDirectory,pattern='multi_exons_postQC_novel_CNVs.csv',recursive=TRUE,full.names=TRUE))
 novelCNVs<-novelCNVs[with(novelCNVs, order(chromosome,start,end)), ]
 
-allCNVsPDF<-paste0(dirname(outPDF),'/AllCNVs.pdf')
-pdf(allCNVsPDF)
-	loopPlot(novelCNVs) 
-dev.off()
 
 gene.CNVs<- data.frame(table(unlist(strsplit(novelCNVs$genePos_hg19.tab,',' ) ) ))
 gene.CNVs<-gene.CNVs[order(-gene.CNVs$Freq),]
@@ -134,44 +76,22 @@ write.table(gene.CNVs,paste0(dirname(outPDF),'/GeneCNVcount.csv'),col.names=T,ro
 if(!is.null(novel.bayes.filter))novelCNVs.sig<-subset(novelCNVs,novelCNVs$BF >= novel.bayes.filter)else novelCNVs.sig<-novelCNVs
 
 novelCNVs.sig<-subset(novelCNVs.sig, novelCNVs.sig$reads.ratio< -1 | novelCNVs.sig$reads.ratio > .58 ) 
+allCNVsPDF<-paste0(dirname(outPDF),'/NovelCNVs.pdf')
+pdf(allCNVsPDF)
+	loopPlot(novelCNVs.sig) 
+dev.off()
 
 write.table(novelCNVs.sig,paste0(dirname(outPDF),'/NovelCNVs.csv'),col.names=T,row.names=F,quote=T,sep=',')
 message(paste(nrow(novelCNVs.sig), 'novel post-QC CNVs found that pass Bayes Filter'))
 
-
-plot.singletons<-FALSE
-if(plot.singletons)
-{
-	cnv.freq<-data.frame(table(novelCNVs.sig$id)) 
-	novelCNVs.sig$unique<-FALSE
-	for(i in 1:nrow(novelCNVs.sig))
-	{
-		hit.row<-grep(as.character(novelCNVs.sig$id[i]) ,as.character(cnv.freq[,1]))
-		if(cnv.freq[hit.row,2]==1) novelCNVs.sig$unique[i]<-TRUE
-	}
-	print( table(novelCNVs.sig$unique))
-	novelCNVs.sig<-subset(novelCNVs.sig,novelCNVs.sig$unique)
-
-	#out.bed<-paste0(data.directory,'NovelGenes.bed') 
-	#if(file.exists(out.bed)) file.remove(out.bed)
-	novelCNVspdf<-paste0(dirname(outPDF),'/NovelCNVs.pdf')
-
-	pdf(novelCNVspdf)
-	loopPlot(novelCNVs.sig)
-	dev.off()
-	message(paste('PDF is:',novelCNVspdf))
-}
-
-
-
 hitCNVspdf<-paste0(dirname(outPDF),'/hitCNVs.pdf')
 cnv.genes<-subset(gene.CNVs,gene.CNVs$Freq>1) # Plot CNVs in genes with more than one CNV
-novelCNVs$interesting<-FALSE
+novelCNVs.sig$interesting<-FALSE
 for(cn in 1:length(cnv.genes)){
-	hit.rows<-grep(cnv.genes[cn,1],novelCNVs$genePos_hg19.tab)
-	novelCNVs$interesting[hit.rows]<-TRUE
+	hit.rows<-grep(cnv.genes[cn,1],novelCNVs.sig$genePos_hg19.tab)
+	novelCNVs.sig$interesting[hit.rows]<-TRUE
 }
-topCNVs<-subset(novelCNVs,novelCNVs$interesting & novelCNVs$Conrad_CNVs_hg19.tab=='none')
+topCNVs<-subset(novelCNVs.sig,novelCNVs.sig$interesting & novelCNVs.sig$Conrad_CNVs_hg19.tab=='none')
 
 topCNVs$CNVid<-paste0(topCNVs$chromosome,'-',topCNVs$sample)
 topCNVs$CNVplot<-1:nrow(topCNVs)
