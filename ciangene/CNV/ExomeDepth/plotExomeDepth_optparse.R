@@ -3,7 +3,7 @@ suppressPackageStartupMessages(library(optparse) )
 suppressPackageStartupMessages(library(GenomicRanges) )
 
 dbup='/cluster/project8/vyp/cian/scripts/bash/dropbox_uploader.sh'
-source('/cluster/project8/vyp/cian/scripts/r/ExomeDepthplot.R')
+source('ExomeDepthplot.R')
 option_list <- list(
 	make_option(c("-v", "--verbose"), action="store_true", default=TRUE,help="Print extra output [default]"),
  	make_option(c("--CallsDirectory"),  help="location of calls from exomedepth",type='character',default=NULL),
