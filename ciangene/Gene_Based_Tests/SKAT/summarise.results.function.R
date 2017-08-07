@@ -226,9 +226,9 @@ summarise<-function(dir,genes=NULL,outputDirectory='Results',plot=TRUE,Title=bas
 		file<-data.frame(cbind(file[,ncol(file)],file[,1:(ncol(file)-1)]))
 		colnames(file)[1]<-'Candidate'
 	}# else{
-	pval<-0.000001
+	pval<-0.0001
 	filt<-subset(file,file$Nb.Carriers>=nb.cases.required & file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8 & file$Nb.case.snps > 2) 
-	if(nrow(filt)==0) filt<-subset(file,file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8& file$Nb.case.snps >= 2) 
+	if(nrow(filt)<=5) filt<-subset(file,file$MeanCallRateCases >0.8 & file$MeanCallRateCtrls > 0.8& file$Nb.case.snps >= 2) 
 	
 	plot.file<-filt 
 	filt$FisherPvalue<-as.numeric(filt$FisherPvalue)

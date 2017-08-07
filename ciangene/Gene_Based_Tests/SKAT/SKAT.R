@@ -6,6 +6,8 @@
 #  $Rscript $SKAT --case.list $CaseFile --oDir outputDirectory --control.list $ControlFile
 
 ### Changes ####
+# exac deprecated. gnomad is the future
+# added phenogenon
 # added ability to supply case/control lists as single file. one column per sample in form --SampleID,0-- or --SampleID,1-- where is 1 is case
 # added skat backward eliminaiton Ionita-Laza 2014
 # added adaptive combination of P-values (ADA) method to pinpoint causal variants (Lin, 2016)
@@ -28,7 +30,7 @@
 # Keeping only damaging variants
 ########
 
-latest.change<-'added phenogenon'
+latest.change<-'exac deprecated. gnomad is the future'
 print('---latest change----')
 message(latest.change)
 print('--------------------')
@@ -240,7 +242,12 @@ doSKAT<-function(case.list=case.list,control.list=control.list,outputDirectory=o
         snp.annotations <- snp.annotations[grep(sprintf('^%s_',chrom),snp.annotations[,'SNP']),]
     }
 
-	filtered.snp.list<-subset(snp.annotations,snp.annotations$CADD>=minCadd & snp.annotations$ExAC_MAF<=maxExac)$SNP
+	gnomad<-read.table('/SAN/vyplab/UCLex/support/uclex.gnomad.vcf',sep='\t')
+	gnomad$MAF<-as.numeric(gsub(gnomad$V8,pattern='.*=',replacement='') )
+	gnomad<-data.frame(SNP=gnomad$V3,gnomadMAF=gnomad$MAF)
+	snp.annotations<-merge(snp.annotations,gnomad,by='SNP',all.x=TRUE)
+
+	filtered.snp.list<-subset(snp.annotations,snp.annotations$CADD>=minCadd & snp.annotations$gnomadMAF<=maxExac)$SNP
 	message(paste(length(filtered.snp.list),'SNPs kept after CADD and Exac filters of',minCadd,'and',maxExac,'respectively.')) 
 
 	snplist.file<-paste0(outputDirectory,'qc/SNPlist')

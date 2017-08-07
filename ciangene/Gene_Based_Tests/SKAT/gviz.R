@@ -20,7 +20,7 @@ gen<-'hg19'
 filt<-read.csv(opt$skat)
 oPDF<-opt$outPDF
 
-snp.file<-gsub(opt$skat,pattern='skat.csv',replacement='SKAT_results_by_SNP.tab')
+snp.file<-list.files(dirname(opt$skat),pattern='by_SNP_cases.csv',full.names=TRUE)
 if(!file.exists(snp.file)) stop('skat snp file doesnt exist')
 
 test.bam<-opt$sampleBam
@@ -34,7 +34,7 @@ if(length(gene.row)==0)stop('gene symbol not found in skat file')
 sample<-opt$Sample
 message('Finished argument check. processing.')
 
-snp<-read.table(snp.file,header=T)
+snp<-read.csv(snp.file)
 colnames(snp)<-c("SNP", "case.snp.hets", "case.snp.homs", "case.mafs.snp",
 		"ctrl.snp.hets", "ctrl.snp.homs", "ctrl.mafs.snp", "ENSEMBL",
 		"Symbol", "SKATO", "nb.snps", "nb.cases", "nb.ctrls", "nb.alleles.cases",

@@ -3,7 +3,7 @@ suppressPackageStartupMessages(library(optparse) )
 suppressPackageStartupMessages(library(GenomicRanges) )
 
 dbup='/cluster/project8/vyp/cian/scripts/bash/dropbox_uploader.sh'
-source('ExomeDepthplot.R')
+source('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/CNV/ExomeDepth/ExomeDepthplot.R')
 option_list <- list(
 	make_option(c("-v", "--verbose"), action="store_true", default=TRUE,help="Print extra output [default]"),
  	make_option(c("--CallsDirectory"),  help="location of calls from exomedepth",type='character',default=NULL),
@@ -19,9 +19,8 @@ option_list <- list(
 
 
 opt <- parse_args(OptionParser(option_list=option_list))
-if ( opt$verbose ) {
- write("Starting Argument checks...\n", stderr())
-}
+
+message("Starting Argument checks...\n") 
 ######################
 CallsDirectory<-opt$CallsDirectory
 if(!file.exists(CallsDirectory))dir.create(CallsDirectory,recursive=TRUE)
@@ -75,7 +74,7 @@ write.table(gene.CNVs,paste0(dirname(outPDF),'/GeneCNVcount.csv'),col.names=T,ro
 
 if(!is.null(novel.bayes.filter))novelCNVs.sig<-subset(novelCNVs,novelCNVs$BF >= novel.bayes.filter)else novelCNVs.sig<-novelCNVs
 
-novelCNVs.sig<-subset(novelCNVs.sig, novelCNVs.sig$reads.ratio< -1 | novelCNVs.sig$reads.ratio > .58 ) 
+#novelCNVs.sig<-subset(novelCNVs.sig, novelCNVs.sig$reads.ratio< -1 | novelCNVs.sig$reads.ratio > .58 ) 
 allCNVsPDF<-paste0(dirname(outPDF),'/NovelCNVs.pdf')
 pdf(allCNVsPDF)
 	loopPlot(novelCNVs.sig) 

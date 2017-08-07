@@ -1,19 +1,24 @@
 loopPlot<-function(dat,CallsDirectory, autosome=TRUE)
 {
-	if(!"GenomicRanges" %in% loadedNamespaces()) library(GenomicRanges)
+	source('/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/CNV/ExomeDepth/ExomeDepthplot.R')
+	message('Loading GenomicRanges and ExomeDepth if not already loaded. ')
+	if(!"GenomicRanges" %in% loadedNamespaces()) suppressPackageStartupMessages(library(GenomicRanges))
+	if(!"ExomeDepth" %in% loadedNamespaces())suppressPackageStartupMessages( library(ExomeDepth))
+
 	genes<-read.table('/SAN/vyplab/UCLex/support/all.genes.bed',header=TRUE,sep='\t')
 	gr0 = with(genes, GRanges(chromosome, IRanges(start=start, end=end)))
 
 	for(cnv in 1:nrow(dat))
 	{
-		if(autosome[cnv])cnv.file<-paste0(CallsDirectory[cnv],'/single_exons/',dat$sample[cnv],'.RData')
-		if(!autosome[cnv])cnv.file<-paste0(CallsDirectory[cnv],'/single_exons/',dat$sample[cnv],'_X.RData')
+		cnv.file<-paste0(CallsDirectory[cnv],'/single_exons/',dat$sample[cnv],'.RData')
+#		if(autosome[cnv])cnv.file<-paste0(CallsDirectory[cnv],'/single_exons/',dat$sample[cnv],'.RData')
+#		if(!autosome[cnv])cnv.file<-paste0(CallsDirectory[cnv],'/single_exons/',dat$sample[cnv],'_X.RData')
 	#	if(!grepl('CNVcalls',cnv.file))cnv.file<-paste0(CallsDirectory[cnv],'/single_exons/',dat$sample[cnv],'.RData')
 		if(file.exists(cnv.file))
 		{
 			load(cnv.file)
 			flank<-1000
-			calls<- sample.mod@CNV.calls
+			calls<-sample.mod@CNV.calls
 			calls$id<-gsub(calls$id,pattern='chr',replacement='')
 			name<-gsub(dat$sample[cnv],pattern='_sorted_unique.bam',replacement='')
 			current.cnv<-calls[calls$id %in% dat$id[cnv],]

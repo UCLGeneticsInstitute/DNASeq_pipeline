@@ -2,7 +2,7 @@ oFolder=$1
 bamList=$2
 bamDir=$3
 
-script="/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/CNV/ExomeDepth/run_CNVs.sh"
+script="/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/CNV/ExomeDepth/run_CNVs2.sh"
 samtools="/share/apps/genomics/samtools-1.3.1/bin/samtools"
 Rscript="/cluster/project8/vyp/vincent/Software/R-3.3.0/bin/Rscript"
 getGenders="/SAN/vyplab/UCLex/scripts/DNASeq_pipeline/ciangene/CNV/ExomeDepth/makeSampleLists.R"
@@ -28,6 +28,6 @@ echo "Predicting genders from read depth"
 $Rscript $getGenders --depthDir ${oFolder}/ChrDepth/ --bamDir $bamDir
 
 # Then do CNV calls
-$script ${oFolder}/autosomes/ ${bamList} TRUE
-$script ${oFolder}/female/ ${oFolder}/ChrDepth/X/Bams_female FALSE
-$script ${oFolder}/male/ ${oFolder}/ChrDepth/X/Bams_male FALSE
+$script ${oFolder}/autosomes/ ${bamList} # TRUE
+$script ${oFolder}/female/ ${oFolder}/ChrDepth/X/Bams_female #FALSE
+$script ${oFolder}/male/ ${oFolder}/ChrDepth/X/Bams_male #FALSE
