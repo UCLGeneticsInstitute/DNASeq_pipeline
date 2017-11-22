@@ -25,6 +25,9 @@ First set the projectID and samples variables, the latter being the samples file
 ```
 qsub $projectID/align/scripts/align.sh
 ```
+Bam files are written to /SAN/vyplab/UCLex_raw.
+
+
 ## Step 1: combine gVCF files
 
 Combine the gVCFs:
