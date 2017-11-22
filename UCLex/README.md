@@ -17,12 +17,13 @@ release=July2016
 
 ## Preliminary step: read alignment of new exomes.
 
-Make a file containing 3 white-space separated columns named 'code', 'f1' and 'f2' which contain the sample names and corresponding paths the 2 fastq files. Then in the same directory create a run.sh script:
+Make a file containing 3 white-space separated columns named 'code', 'f1' and 'f2' which contain the sample names and corresponding paths to the 2 fastq files. Prefix sample names with the project ID e.g. BGI_Nov2017_116samples_IBDAJ. Then in the same directory as the samples file, run:
 ```
-projectID=$YOUR_PROJECT_ID
-samples=$SAMPLE_FASTQ_FILE
-
 bash /SAN/vyplab/UCLex/scripts/DNASeq_pipeline/WGS/WGS_pipeline.sh --mode align --supportFrame $samples --reference 1kg --aligner-tparam 320 --inputFormat STDFQ --projectID $projectID --vmem 1
+```
+First set the projectID and samples variables, the latter being the samples file. Then:
+```
+qsub $projectID/align/scripts/align.sh
 ```
 ## Step 1: combine gVCF files
 
