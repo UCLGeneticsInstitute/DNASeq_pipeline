@@ -14,6 +14,11 @@ You can run the individual steps:
 ```
 release=July2016
 ```
+
+## Preliminary step: alignment of exomes not in previous build
+
+Make file containing 3 columns: sample name, path to fastq file 1, path to fastq file 2.
+
 ## Step 1: combine gVCF files
 
 Combine the gVCFs:
