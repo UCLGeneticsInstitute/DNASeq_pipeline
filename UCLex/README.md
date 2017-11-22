@@ -15,10 +15,15 @@ You can run the individual steps:
 release=July2016
 ```
 
-## Preliminary step: alignment of exomes not in previous build
+## Preliminary step: read alignment of new exomes.
 
-Make file containing 3 columns: sample name, path to fastq file 1, path to fastq file 2.
+Make a file containing 3 white-space separated columns named 'code', 'f1' and 'f2' which contain the sample names and corresponding paths the 2 fastq files. Then in the same directory create a run.sh script:
+```
+projectID=$YOUR_PROJECT_ID
+samples=$SAMPLE_FASTQ_FILE
 
+bash /SAN/vyplab/UCLex/scripts/DNASeq_pipeline/WGS/WGS_pipeline.sh --mode align --supportFrame $samples --reference 1kg --aligner-tparam 320 --inputFormat STDFQ --projectID $projectID --vmem 1
+```
 ## Step 1: combine gVCF files
 
 Combine the gVCFs:
