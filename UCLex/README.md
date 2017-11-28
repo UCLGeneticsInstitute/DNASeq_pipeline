@@ -15,18 +15,24 @@ You can run the individual steps:
 release=July2016
 ```
 
-## Preliminary step: read alignment of new exomes.
+## Preliminary steps: for new exomes, align reads and make gvcfs.
 
-Make a file containing 3 white-space separated columns named 'code', 'f1' and 'f2' which contain the sample names and corresponding paths to the 2 fastq files. Prefix sample names with the project ID e.g. BGI_Nov2017_116samples_IBDAJ. Then in the same directory as the samples file, run:
+Make a file containing 3 white-space separated columns named 'code', 'f1' and 'f2' which contain the sample names and fastq file paths. Prefix sample names with the project ID e.g. BGI_Nov2017_116samples_IBDAJ. Sitting in the same directory, create variables called 'projectID' and 'samples' and set them to the projectID and samples file respectively. Then in the same directory as the samples file, run the following to create the job scripts:
 ```
 bash /SAN/vyplab/UCLex/scripts/DNASeq_pipeline/WGS/WGS_pipeline.sh --mode align --supportFrame $samples --reference 1kg --aligner-tparam 320 --inputFormat STDFQ --projectID $projectID --vmem 1
 ```
-First set the projectID and samples variables, the latter being the samples file. Then:
+and then:
 ```
 qsub $projectID/align/scripts/align.sh
 ```
-Bam files are written to /SAN/vyplab/UCLex_raw.
-
+Bam files are written to /SAN/vyplab/UCLex_raw. If jobs fail, then re-run the bash command to re-create them. Similarly, for making the gvcfs, first create the job scripts:
+```
+bash /SAN/vyplab/UCLex/scripts/DNASeq_pipeline/WGS/WGS_pipeline.sh --mode gvcf --supportFrame $samples --reference 1kg --inputFormat STDFQ --projectID  $projectID --vmem 14
+``` 
+then run them:
+```
+qsub $projectID/gvcf/scripts/gvcf.sh
+```
 
 ## Step 1: combine gVCF files
 
