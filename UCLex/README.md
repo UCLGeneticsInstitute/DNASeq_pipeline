@@ -15,24 +15,24 @@ You can run the individual steps:
 release=July2016
 ```
 
-## Preliminary steps: for new exomes, align reads and make gvcfs.
+## Preliminary steps for new exomes: align reads, make gvcfs, combine gvcfs.
 
-Make a file containing 3 white-space separated columns named 'code', 'f1' and 'f2' which contain the sample names and fastq file paths. Prefix sample names with the project ID e.g. BGI_Nov2017_116samples_IBDAJ. Sitting in the same directory, create variables called 'projectID' and 'samples' and set them to the projectID and samples file respectively. Then in the same directory as the samples file, run the following to create the job scripts:
+First make a file containing 3 white-space separated columns called 'code', 'f1' and 'f2' which contain the sample names and fastq file paths. Prefix sample names with the projectID e.g. BGI_Nov2017_116samples_IBDAJ. Sitting in the same directory, create variables called 'projectID' and 'samples' and set them to the projectID and samples file respectively. Then in the same directory as the samples file, run the following commands to make then submit the alignment job scripts:
 ```
 bash /SAN/vyplab/UCLex/scripts/DNASeq_pipeline/WGS/WGS_pipeline.sh --mode align --supportFrame $samples --reference 1kg --aligner-tparam 320 --inputFormat STDFQ --projectID $projectID --vmem 1
-```
-and then:
-```
 qsub $projectID/align/scripts/align.sh
 ```
-Bam files are written to /SAN/vyplab/UCLex_raw. If jobs fail, then re-run the bash command to re-create them. Similarly, for making the gvcfs, first create the job scripts:
+Bam files are written to /SAN/vyplab/UCLex_raw. If jobs fail, then re-run the bash command to make still outstanding jobs. Next, to make then submit the job scripts for making the gvcfs, run:
 ```
 bash /SAN/vyplab/UCLex/scripts/DNASeq_pipeline/WGS/WGS_pipeline.sh --mode gvcf --supportFrame $samples --reference 1kg --inputFormat STDFQ --projectID  $projectID --vmem 14
-``` 
-then run them:
-```
 qsub $projectID/gvcf/scripts/gvcf.sh
 ```
+The gvcfs are written to $projectID/gvcf/data. Finally, to make then submit the job scripts for combining the gvcf, run:
+```
+bash /SAN/vyplab/UCLex/scripts/DNASeq_pipeline/WGS/WGS_pipeline.sh --mode CombineGVCFs --supportFrame $samples --reference 1kg --inputFormat STDFQ --projectID $projectID --batchName $projectID
+qsub $projectID/CombineGVCFs/scripts/CombineGVCFs.sh
+```
+The combined gvcfs are written to /SAN/vyplab/UCLex/combinedGVCFs.
 
 ## Step 1: combine gVCF files
 
