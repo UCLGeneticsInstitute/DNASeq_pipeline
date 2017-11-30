@@ -36,6 +36,15 @@ The combined gvcfs are written to /SAN/vyplab/UCLex/combinedGVCFs.
 
 ## Step 1: combine gVCF files
 
+For this and subsequent steps, follow $UCLEX_DIR/scripts/build-uclex.sh. Make a new gvcf_list.mainset file in $UCLEX_DIR that contains all batches for the new build i.e. batches in the previous build plus the new ones. Then make the job scripts:
+```
+bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh  --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode genotype
+```
+and submit them:
+```
+qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
+```
+
 Combine the gVCFs:
 ```
 bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --genotype yes --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release}
