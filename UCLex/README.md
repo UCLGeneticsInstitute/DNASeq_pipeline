@@ -32,16 +32,23 @@ The gvcfs are written to $projectID/gvcf/data. Finally, to make and submit the j
 bash /SAN/vyplab/UCLex/scripts/DNASeq_pipeline/WGS/WGS_pipeline.sh --mode CombineGVCFs --supportFrame $samples --reference 1kg --inputFormat STDFQ --projectID $projectID --batchName $projectID
 qsub $projectID/CombineGVCFs/scripts/CombineGVCFs.sh
 ```
-The combined gvcfs are written to /SAN/vyplab/UCLex/combinedGVCFs.
+The combined gvcfs are written to $UCLEX_DIR/combinedGVCFs i.e. /SAN/vyplab/UCLex/combinedGVCFs.
 
 ## Step 1: combine gVCF files
 
-For this and subsequent steps, follow $UCLEX_DIR/scripts/build-uclex.sh. Make a new gvcf_list.mainset file in $UCLEX_DIR that contains all batches for the new build i.e. batches in the previous build plus the new ones. Then make the job scripts:
+First make a new gvcf_list.mainset file in $UCLEX_DIR that contains all batches for the new build i.e. batches in the previous build plus the new ones. Then follow the steps below which are also in $UCLEX_DIR/scripts/build-uclex.sh. Combine the gVCF files:
 ```
 bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh  --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode genotype
+qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
 ```
-and submit them:
+Recalibrate the SNPs:
 ```
+bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode recal
+qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
+```
+Recalibrate the InDels:
+```
+bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode recal_indels
 qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
 ```
 
