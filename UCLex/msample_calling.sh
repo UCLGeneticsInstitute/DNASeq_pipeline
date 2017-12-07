@@ -146,36 +146,59 @@ echo "   -o ${output}_chr${chr}.vcf.gz" >> $script
 }
 
 ##################################################
-function recal_extract() {
+function extract_snps() {
     for chr in `seq 1 22` X
     do
-        #### creates the tmpDir if needed
-        tmpDir=/scratch0/GATK_chr${chr}
-        f1=${output}_chr${chr}_SNPs.vcf.gz
-	f2=${output}_chr${chr}_indels.vcf.gz
+    #### creates the tmpDir if needed
+    tmpDir=/scratch0/extract_SNPs_${chr}
+    f=${output}_chr${chr}_SNPs.vcf.gz
 	rm -f ${scripts_folder}/subscript_chr${chr}.sh
-	if [[ ! -s $f1 ]] || [[ ! -s $f2 ]]
+	if [[ ! -s $f ]]
 	then
 	echo "
-############### extract chr${chr}
+############### extract chr${chr} SNPs
+#### extract the SNPs: SelectVariants
 set +x
 mkdir -p $tmpDir
-####### first SNPs
-#### extract the SNPs: SelectVariants
 $java  -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $chr \
    -T SelectVariants \
    -selectType SNP \
-   -V ${output}_chr${chr}.vcf.gz  --out ${output}_chr${chr}_SNPs.vcf.gz
-####### now indels
-#### extract the indels
+   -V ${output}_chr${chr}.vcf.gz \
+   --out ${output}_chr${chr}_SNPs.vcf.gz
+rm -rf $tmpDir
+" > ${scripts_folder}/subscript_chr${chr}.sh
+    fi
+    done
+}
+
+
+##################################################
+function extract_indels() {
+    for chr in `seq 1 22` X
+    do
+    #### creates the tmpDir if needed
+    tmpDir=/scratch0/extract_indels_${chr}
+	f=${output}_chr${chr}_indels.vcf.gz
+	rm -f ${scripts_folder}/subscript_chr${chr}.sh
+	if [[ ! -s ${f}.tbi ]]
+	then
+	echo "
+############### extract chr${chr} indels
+#### extract the indels: SelectVariants
+set +x
+mkdir -p $tmpDir
 $java  -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK}  -R $fasta  -L $chr \
    -T SelectVariants \
    -selectType INDEL \
    -selectType MIXED \
-   -V ${output}_chr${chr}.vcf.gz --out ${output}_chr${chr}_indels.vcf.gz" > ${scripts_folder}/subscript_chr${chr}.sh
-	fi
+   -V ${output}_chr${chr}.vcf.gz \
+   --out ${output}_chr${chr}_indels.vcf.gz
+rm -rf $tmpDir
+" > ${scripts_folder}/subscript_chr${chr}.sh
+    fi
     done
 }
+
 
 ###################################################
 function recal_snps() {
@@ -229,9 +252,9 @@ for chr in `seq 1 22` X
     do
         #### creates the tmpDir if needed
         tmpDir=/scratch0/GATK_chr${chr}
-	rm -f ${scripts_folder}/subscript_chr${chr}.sh
+        rm -f ${scripts_folder}/subscript_chr${chr}.sh
         f1=${output}_chr${chr}_indels_hard_filtered.vcf.gz
-	f2=${output}_chr${chr}_indels_filtered.vcf.gz
+        f2=${output}_chr${chr}_indels_filtered.vcf.gz
 	if [[ ! -s $f1 || ! -s $f2 ]]
         then
         echo "
@@ -283,7 +306,7 @@ for chr in `seq 1 22` X
         #### creates the tmpDir if needed
         tmpDir=/scratch0/GATK_chr${chr}
         rm -f ${scripts_folder}/subscript_chr${chr}.sh
-	f=${output}_chr${chr}_filtered.vcf.gz
+        f=${output}_chr${chr}_filtered.vcf.gz
         if [[ ! -s $f ]]
         then
         echo "
