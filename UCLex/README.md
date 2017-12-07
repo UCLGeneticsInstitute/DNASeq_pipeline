@@ -36,10 +36,9 @@ The combined gvcfs are written to $UCLEX_DIR/combinedGVCFs i.e. /SAN/vyplab/UCLe
 
 ## Step 1: combine gVCF files
 
-First make a new gvcf_list.mainset file in $UCLEX_DIR that contains all batches for the new build i.e. batches in the previous build plus the new ones. Then follow the steps below which are also in $UCLEX_DIR/scripts/build-uclex.sh. Combine the gVCF files:
+First make a new gvcf_list.mainset file in $UCLEX_DIR that contains all batches for the new build i.e. batches in the previous build plus the new ones. Use ```./scripts/DNASeq_pipeline/UCLex/msample_calling.sh``` under different modes to create job scripts, and then submit them with ```qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh ```. First combine the gVCF files:
 ```
 bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh  --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode genotype
-qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
 ```
 
 ## Step 2: recalibrate the SNPs and InDels
@@ -47,27 +46,22 @@ qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
 Extract the SNPs:
 ```
 bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode extract_snps
-qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
 ```
 Extract the InDels:
 ```
 bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode extract_indels
-qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
 ```
 Recalibrate the SNPs:
 ```
 bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode recal_snps
-qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
 ```
 Recalibrate the InDels:
 ```
 bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode recal_indels
-qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
 ```
 Merge the recalibrated SNPs and InDels:
 ```
 bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode recal_merge
-qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
 ```
 
 
