@@ -41,9 +41,22 @@ First make a new gvcf_list.mainset file in $UCLEX_DIR that contains all batches 
 bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh  --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode genotype
 qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
 ```
+
+## Step 2: recalibrate the SNPs and InDels
+
+Extract the SNPs:
+```
+bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode extract_snps
+qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
+```
+Extract the InDels:
+```
+bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode extract_indels
+qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
+```
 Recalibrate the SNPs:
 ```
-bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode recal
+bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode recal_snps
 qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
 ```
 Recalibrate the InDels:
@@ -51,6 +64,12 @@ Recalibrate the InDels:
 bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode recal_indels
 qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
 ```
+Merge the recalibrated SNPs and InDels:
+```
+bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode recal_merge
+qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh
+```
+
 
 Combine the gVCFs:
 ```
