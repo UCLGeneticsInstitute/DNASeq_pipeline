@@ -9,9 +9,11 @@ mainFolder=/SAN/vyplab/UCLex
 referenceFolder=/cluster/scratch3/vyp-scratch2
 #fasta=${referenceFolder}/reference_datasets/human_reference_sequence/human_g1k_v37.fasta
 fasta=/SAN/vyplab/UKIRDC/reference/human_g1k_v37.fasta
-bundle=${referenceFolder}/reference_datasets/GATK_bundle
+#bundle=${referenceFolder}/reference_datasets/GATK_bundle
+bundle=/SAN/vyplab/UCLex/GATK_bundle/
 #dbsnp=${bundle}/dbsnp_137.b37.vcf
 dbsnp=/SAN/vyplab/UKIRDC/reference/dbsnp_138.b37.vcf.gz
+dbsnp=/SAN/vyplab/UCLex/GATK_bundle/dbsnp_138.b37.vcf.gz
 
 #Rscript=/share/apps/R-3.3.0/bin/Rscript
 #Rbin=/share/apps/R-3.3.0/bin/R 
@@ -224,9 +226,9 @@ fi
 $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $chr \
    -T VariantRecalibrator \
    --input ${output}_chr${chr}_SNPs.vcf.gz --maxGaussians \${maxGauLoc} --mode SNP \
-   -resource:hapmap,VCF,known=false,training=true,truth=true,prior=15.0 ${bundle}/hapmap_3.3.b37.vcf  \
-   -resource:omni,VCF,known=false,training=true,truth=false,prior=12.0 ${bundle}/1000G_omni2.5.b37.vcf \
-   -resource:dbsnp,VCF,known=true,training=false,truth=false,prior=8.0 ${bundle}/dbsnp_137.b37.vcf \
+   -resource:hapmap,VCF,known=false,training=true,truth=true,prior=15.0 ${bundle}/hapmap_3.3.b37.vcf.gz  \
+   -resource:omni,VCF,known=false,training=true,truth=false,prior=12.0 ${bundle}/1000G_omni2.5.b37.vcf.gz \
+   -resource:dbsnp,VCF,known=true,training=false,truth=false,prior=8.0 ${bundle}/dbsnp_138.b37.vcf.gz \
    -an QD -an FS -an ReadPosRankSum -an InbreedingCoeff \
    -tranche 100.0 -tranche 99.9 -tranche 99.8 -tranche 99.6 -tranche 99.5 -tranche 99.4 -tranche 99.3 -tranche 99.0 -tranche 98.0 -tranche 97.0 -tranche 90.0 \
    --minNumBadVariants ${numBad} \
@@ -276,7 +278,7 @@ then
 fi
 $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $chr \
     -T VariantRecalibrator \
-   -resource:mills,known=true,training=true,truth=true,prior=12.0 ${bundle}/Mills_and_1000G_gold_standard.indels.b37.vcf \
+   -resource:mills,known=true,training=true,truth=true,prior=12.0 ${bundle}/Mills_and_1000G_gold_standard.indels.b37.vcf.gz \
    -an QD -an FS -an ReadPosRankSum -an InbreedingCoeff \
    -tranche 100.0 -tranche 99.5  -tranche 99.0 -tranche 97.0 -tranche 96.0 -tranche 95.0 -tranche 94.0 -tranche 93.0 -tranche 92.0 -tranche 91.0 -tranche 90.0 \
    --minNumBadVariants ${numBadIndels} \
@@ -384,7 +386,7 @@ $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $c
 # calculate recal: VariantRecalibrator 
 $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta  -L $chr \
     -T VariantRecalibrator \
-   -resource:mills,known=true,training=true,truth=true,prior=12.0 ${bundle}/Mills_and_1000G_gold_standard.indels.b37.vcf \
+   -resource:mills,known=true,training=true,truth=true,prior=12.0 ${bundle}/Mills_and_1000G_gold_standard.indels.b37.vcf.gz \
    -an QD -an FS -an ReadPosRankSum -an InbreedingCoeff \
    -tranche 100.0 -tranche 99.5  -tranche 99.0 -tranche 97.0 -tranche 96.0 -tranche 95.0 -tranche 94.0 -tranche 93.0 -tranche 92.0 -tranche 91.0 -tranche 90.0 \
    --minNumBadVariants ${numBadIndels} \
@@ -701,9 +703,11 @@ set +x
         chmod u+rx ${script}
     done
     genotype
-    recal_extract
+    extract_snps
     recal_snps
+    extract_indel
     recal_indel
+    recal_merge
     annovar
     convertToR
     h_vmem=20
