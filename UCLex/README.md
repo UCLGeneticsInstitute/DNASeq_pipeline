@@ -55,7 +55,7 @@ Merge the recalibrated SNPs and InDels: mode "recal_merge".</br>
 Run ANNOVAR: mode "annovar".</br>
 Convert to R datasets: mode "convertToR".</br>
 
-### Create giant VCF file
+## Create giant VCF file
 
 This will concatenate all chromosome VCF files and store it in the bgt folder:
 ```
@@ -63,7 +63,7 @@ cd ${UCLEX}
 bash concat.sh
 ```
 
-### BGT
+## BGT
 
 [BGT](https://academic.oup.com/bioinformatics/article/32/4/590/1743991) is a efficient tool for querying variant calls.
 We create the BGT file on the giant VCF:
@@ -72,7 +72,7 @@ cd ${UCLEX}
 bash bgt.sh
 ```
 
-### Split multi-allelelic variants across lines
+# # Split multi-allelelic variants across lines
 
 This is required for CADD and VEP.
 It creates the for_vep.vcf file:
