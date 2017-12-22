@@ -55,7 +55,46 @@ Merge the recalibrated SNPs and InDels: mode "recal_merge".</br>
 Run ANNOVAR: mode "annovar".</br>
 Convert to R datasets: mode "convertToR".</br>
 
-## Step 4: Variant Effect Predictor (VEP)
+### Create giant VCF file
+
+This will concatenate all chromosome VCF files and store it in the bgt folder:
+```
+cd ${UCLEX}
+bash concat.sh
+```
+
+### BGT
+
+[BGT](https://academic.oup.com/bioinformatics/article/32/4/590/1743991) is a efficient tool for querying variant calls.
+We create the BGT file on the giant VCF:
+```
+cd ${UCLEX}
+bash bgt.sh
+```
+
+### Split multi-allelelic variants across lines
+
+This is required for CADD and VEP.
+```
+cd ${UCLEX}
+bash multi2single.sh
+```
+
+### CADD
+
+```
+cd ${UCLEX}
+bash cadd.sh
+```
+
+## Variant Effect Predictor (VEP)
+
+VEP annotation now runs on beck server maintained by @IsmailM.
+Files need to prepared for VEP and then transferred to the server.
+The files are:
+* for_VEP.vcf (created by multi2single.sh)
+* CADD.vcf.gz (created by cadd.sh)
+VEP outputs JSON that can then be processed by the script written by @mframpton.
 
 Make input for VEP: mode "VEP_input".</br>
 Get CADD scores: mode "CADD".</br>
