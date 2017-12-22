@@ -12,7 +12,7 @@ msample_calling.sh
 ```
 You can run the individual steps:
 ```
-release=July2016
+release=November2017
 ```
 
 ## Preliminary steps for new exomes: align reads, make gvcfs, combine gvcfs.
@@ -36,34 +36,34 @@ The combined gvcfs are written to $UCLEX_DIR/combinedGVCFs i.e. /SAN/vyplab/UCLe
 
 ## Step 1: combine gVCF files
 
-First make a new gvcf_list.mainset file in $UCLEX_DIR that contains all batches for the new build i.e. batches in the previous build plus the new ones. Use ```./scripts/DNASeq_pipeline/UCLex/msample_calling.sh``` under different modes to create job scripts, and then submit them with ```qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh ```. First combine the gVCF files:
+First make a new gvcf_list.mainset file in $UCLEX_DIR that contains all batches for the new build i.e. batches in the previous build plus the new ones. Use ```./scripts/DNASeq_pipeline/UCLex/msample_calling.sh``` under different modes to create job scripts:
 ```
-bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh  --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode genotype
+bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh  --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode <MODE>
 ```
+then submit them with ```qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh```. First combine the gVCF files using mode "genotype".
 
 ## Step 2: recalibrate the SNPs and InDels
 
-Extract the SNPs:
-```
-bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode extract_snps
-```
-Extract the InDels:
-```
-bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode extract_indels
-```
-Recalibrate the SNPs:
-```
-bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode recal_snps
-```
-Recalibrate the InDels:
-```
-bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode recal_indels
-```
-Merge the recalibrated SNPs and InDels:
-```
-bash ./scripts/DNASeq_pipeline/UCLex/msample_calling.sh --gVCFlist gvcf_list.mainset_${release} --currentUCLex ${release} --mode recal_merge
-```
+Extract the SNPs: mode "extract_snps".
+Recalibrate the SNPs: mode "recal_snps".
+Extract the InDels: mode "extract_indels".
+Recalibrate the InDels: mode "recal_indels".
+Merge the recalibrated SNPs and InDels: mode "recal_merge".
 
+## Step 3: ANNOVAR
+
+Run ANNOVAR: mode "annovar".
+Convert to R datasets: mode "convertToR".
+
+## Step 4: Variant Effect Predictor (VEP)
+
+Make input for VEP: mode "VEP_input".
+Get CADD scores: mode "CADD".
+Run script to make for_vep.vcf
+Feed for_vep.vcf to VEP and get back json output.
+Run split_json_vep_by_chr.py --uclex_build November2017 to split the json output into per-chromosome csvs.
+
+------
 
 Combine the gVCFs:
 ```
