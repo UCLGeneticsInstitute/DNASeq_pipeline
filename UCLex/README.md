@@ -44,26 +44,25 @@ then submit them with ```qsub $UCLEX_DIR/mainset_${release}/scripts/calling.sh``
 
 ## Step 2: recalibrate the SNPs and InDels
 
-Extract the SNPs: mode "extract_snps".
-Recalibrate the SNPs: mode "recal_snps".
-Extract the InDels: mode "extract_indels".
-Recalibrate the InDels: mode "recal_indels".
-Merge the recalibrated SNPs and InDels: mode "recal_merge".
+Extract the SNPs: mode "extract_snps".</br>
+Recalibrate the SNPs: mode "recal_snps".</br>
+Extract the InDels: mode "extract_indels".</br>
+Recalibrate the InDels: mode "recal_indels".</br>
+Merge the recalibrated SNPs and InDels: mode "recal_merge".</br>
 
 ## Step 3: ANNOVAR
 
-Run ANNOVAR: mode "annovar".
-Convert to R datasets: mode "convertToR".
+Run ANNOVAR: mode "annovar".</br>
+Convert to R datasets: mode "convertToR".</br>
 
 ## Step 4: Variant Effect Predictor (VEP)
 
-Make input for VEP: mode "VEP_input".
-Get CADD scores: mode "CADD".
-Run script to make for_vep.vcf
-Feed for_vep.vcf to VEP and get back json output.
-Run split_json_vep_by_chr.py --uclex_build November2017 to split the json output into per-chromosome csvs.
-
-------
+Make input for VEP: mode "VEP_input".</br>
+Get CADD scores: mode "CADD".</br>
+Run script to make for_vep.vcf.</br>
+Feed for_vep.vcf to VEP and get back json output.</br>
+Run split_json_vep_by_chr.py --uclex_build November2017 to split the json output into per-chromosome csvs.</br>
+<END OF UPDATES.>
 
 Combine the gVCFs:
 ```
