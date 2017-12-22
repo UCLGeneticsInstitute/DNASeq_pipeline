@@ -75,6 +75,7 @@ bash bgt.sh
 ### Split multi-allelelic variants across lines
 
 This is required for CADD and VEP.
+It creates the for_vep.vcf file:
 ```
 cd ${UCLEX}
 bash multi2single.sh
