@@ -62,7 +62,8 @@ Get CADD scores: mode "CADD".</br>
 Run script to make for_vep.vcf.</br>
 Feed for_vep.vcf to VEP and get back json output.</br>
 Run split_json_vep_by_chr.py --uclex_build November2017 to split the json output into per-chromosome csvs.</br>
-<END OF UPDATES.>
+
+## End of November2017 updates
 
 Combine the gVCFs:
 ```
