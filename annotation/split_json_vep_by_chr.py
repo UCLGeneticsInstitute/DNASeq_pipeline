@@ -12,14 +12,18 @@ import gzip
 
 
 def get_csv_row_dict(var_dict, csv_row_keys, csv_json_dict):
-    
+  
     csv_row_dict = OrderedDict([(key,np.NaN) for key in csv_row_keys]) 
-    csv_row_dict["#Uploaded_variation"] = var_dict["id"].replace("-","_")
-    [chr,pos,ref,alt] = var_dict["id"].split("-") 
+    #Make the variant ID from the input field.
+    input_l = var_dict["input"].split("\t")
+    csv_row_dict["#Uploaded_variation"] = "_".join([input_l[idx] for idx in [0,1,3,4]])
+    #log(csv_row_dict["#Uploaded_variation"])
+    [chr,pos,ref,alt] = csv_row_dict["#Uploaded_variation"].split("_")
     [start,end] = sorted([int(x) for x in [var_dict["start"],var_dict["end"]]])
     csv_row_dict["Location"] = "{0}:{1}".format(chr,start) if start == end else "{0}:{1}-{2}".format(chr,start,end)
     allele = var_dict["allele_string"][var_dict["allele_string"].index("/")+1:]
-    csv_row_dict["Allele"] = "NA" if allele == "-" else allele
+    #csv_row_dict["Allele"] = "NA" if allele == "-" else allele
+    csv_row_dict["Allele"] = allele
     csv_row_dict["Feature_type"] = "Transcript"
  
     if "transcript_consequences" in var_dict:
@@ -114,7 +118,7 @@ csv_data_l = []
 line_counter = 0
 pattern = re.compile("([=:])(NaN)", re.IGNORECASE)
 #with open(os.path.join(data_dir,"for_VEP.VEP.head.json")) as infile: #Debugging
-with open(os.path.join(data_dir,"for_VEP.VEP.json")) as infile:
+with open(os.path.join(data_dir,"for_vep_sorted.VEP.json")) as infile:
     for line in infile:
         line_counter += 1
         line = line.strip()
