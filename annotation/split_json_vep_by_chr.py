@@ -11,7 +11,7 @@ from datetime import datetime
 import gzip
 
 
-def get_csv_row_dict(var_dict, csv_row_keys, csv_json_dict):
+def get_csv_row_dict(var_dict, csv_row_keys, csv_json_dict, gnomad_e_l, gnomad_g_l):
   
     csv_row_dict = OrderedDict([(key,np.NaN) for key in csv_row_keys]) 
     #Make the variant ID from the input field.
@@ -34,13 +34,15 @@ def get_csv_row_dict(var_dict, csv_row_keys, csv_json_dict):
         if csv_row_dict["CANONICAL"] == 1: csv_row_dict["CANONICAL"] = "YES"
         if "cdna_start" in trans_csq_l[0]:
             csv_row_dict["cDNA_position"] = "{0}".format(trans_csq_l[0]["cdna_start"]) if trans_csq_l[0]["cdna_start"] == trans_csq_l[0]["cdna_end"] else "{0}-{1}".format(trans_csq_l[0]["cdna_start"],trans_csq_l[0]["cdna_end"])
+	if "protein_start" in trans_csq_l[0]:
+	    csv_row_dict["Protein_position"] = "{0}".format(trans_csq_l[0]["protein_start"]) if trans_csq_l[0]["protein_start"] == trans_csq_l[0]["protein_end"] else "{0}-{1}".format(trans_csq_l[0]["protein_start"],trans_csq_l[0]["protein_end"])
 
     if "custom_annotations" in var_dict:
         if len(var_dict["custom_annotations"]) > 0:
             if "gnomad_genomes" in var_dict["custom_annotations"]:
-                csv_row_dict = get_data_from_sub_dict(var_dict["custom_annotations"]["gnomad_genomes"][0]["fields"], csv_row_dict, csv_json_dict)
-            elif "gnomad_exomes" in var_dict["custom_annotations"]:
-                csv_row_dict = get_data_from_sub_dict(var_dict["custom_annotations"]["gnomad_exomes"][0]["fields"], csv_row_dict, csv_json_dict)
+                csv_row_dict = get_data_from_sub_dict(var_dict["custom_annotations"]["gnomad_genomes"][0]["fields"], csv_row_dict, csv_json_dict, gnomad_g_l)
+            if "gnomad_exomes" in var_dict["custom_annotations"]:
+                csv_row_dict = get_data_from_sub_dict(var_dict["custom_annotations"]["gnomad_exomes"][0]["fields"], csv_row_dict, csv_json_dict, gnomad_e_l)
             if "kaviar" in var_dict["custom_annotations"]:
                 csv_row_dict = get_data_from_sub_dict(var_dict["custom_annotations"]["kaviar"][0]["fields"], csv_row_dict, csv_json_dict)
             if "dbsnp" in var_dict["custom_annotations"]:
@@ -59,13 +61,25 @@ def get_transcript_csq_sort_key(transcript_csq,most_severe_csq):
         return sort_val
 
 
-def get_data_from_sub_dict(sub_dict, csv_row_dict, csv_json_dict):
+def get_data_from_sub_dict_old(sub_dict, csv_row_dict, csv_json_dict):
     for key in csv_row_dict:
         if key in csv_json_dict and csv_json_dict[key] in sub_dict and pd.isnull(csv_row_dict[key]):
             if "[" in str(sub_dict[csv_json_dict[key]]):
 	        csv_row_dict[key] = ",".join(sub_dict[csv_json_dict[key]]) 
 	    else:
                 csv_row_dict[key] = sub_dict[csv_json_dict[key]]        
+    return csv_row_dict
+
+
+def get_data_from_sub_dict(sub_dict, csv_row_dict, csv_json_dict, csv_row_update_key_l=None):
+    for key in csv_row_dict:
+        if csv_row_update_key_l != None and key not in csv_row_update_key_l:
+	    continue
+        if key in csv_json_dict and csv_json_dict[key] in sub_dict and pd.isnull(csv_row_dict[key]):
+            if "[" in str(sub_dict[csv_json_dict[key]]):
+                csv_row_dict[key] = ",".join(sub_dict[csv_json_dict[key]])
+            else:
+                csv_row_dict[key] = sub_dict[csv_json_dict[key]]
     return csv_row_dict
 
 
@@ -87,13 +101,16 @@ args = parser.parse_args()
 data_dir = os.path.join("/SAN/vyplab/UCLex/mainset_{0}".format(args.uclex_build),"mainset_{0}_VEP".format(args.uclex_build))
 
 #Make the columns for the CSV output.
-transcript_l = ["#Uploaded_variation","Location","Allele","Consequence","Gene","Feature","Feature_type","cDNA_position","Existing_variation","IMPACT","STRAND","SYMBOL","SYMBOL_SOURCE","HGNC_ID","BIOTYPE","CANONICAL","HGVSc","EXON"]
+transcript_l = ["#Uploaded_variation","Location","Allele","Consequence","Gene","Feature","Feature_type","cDNA_position","Protein_position","Amino_acids","Codons","Existing_variation","IMPACT","STRAND","SYMBOL","SYMBOL_SOURCE","HGNC_ID","BIOTYPE","CANONICAL","HGVSc","EXON"]
 protein_l = ["CCDS","PROTEIN_ID","SWISSPROT","TREMBL","UNIPARC"]
 pathogenicity_l = ["SIFT","PolyPhen","CAROL","CADD_RAW","CADD"]
 pop_l = ["AFR","AMR","EAS","FIN","NFE","OTH","SAS"]
 exac_l = ["ExAC_MAF"] + ["ExAC_{0}_MAF".format(pop) for pop in pop_l]
-gnomad_l = ["gnomad_{0}_{1}".format(stat_type,pop) for stat_type in ["AC","AN","AF","Hom"] for pop in sorted(pop_l + ["ASJ"]) + ["Male","Female","raw"]]
-csv_row_keys = transcript_l + protein_l + pathogenicity_l + ["Kaviar"] + exac_l + gnomad_l
+#gnomad_l = ["gnomad_{0}_{1}".format(stat_type,pop) for stat_type in ["AC","AN","AF","Hom"] for pop in sorted(pop_l + ["ASJ"]) + ["Male","Female","raw"]]
+gnomad_e_l = ["gnomade_{0}_{1}".format(stat_type,pop) for stat_type in ["AC","AN","AF","Hom"] for pop in sorted(pop_l + ["ASJ"]) + ["Male","Female","raw"]]
+gnomad_g_l = ["gnomadg_{0}_{1}".format(stat_type,pop) for stat_type in ["AC","AN","AF","Hom"] for pop in sorted(pop_l + ["ASJ"]) + ["Male","Female","raw"]]
+#csv_row_keys = transcript_l + protein_l + pathogenicity_l + ["Kaviar"] + exac_l + gnomad_l
+csv_row_keys = transcript_l + protein_l + pathogenicity_l + ["Kaviar"] + exac_l + gnomad_e_l + gnomad_g_l
 
 #Make a dictionary to map from CSV columns to fields in the json.
 transcript_csv_l =  [col for col in transcript_l[transcript_l.index("Gene"):] if col not in ["Feature_type","cDNA_position","Existing_variation"]]
@@ -103,11 +120,15 @@ csv_json_dict = dict(zip(transcript_csv_l,transcript_json_l))
 protein_csv_json_dict = dict(zip(protein_l,[col.lower() for col in protein_l]))
 path_csv_json_dict = dict(zip(pathogenicity_l,[path_col.lower() + "_prediction" if path_col in ["SIFT","PolyPhen"] else path_col.lower() + "_phred" if path_col=="CADD" else path_col.lower() for path_col in pathogenicity_l]))
 exac_csv_json_dict = dict(zip(exac_l,["exac_af" if exac_col.count("_") == 1 else "exac_af_" + exac_col.split("_")[1].lower() for exac_col in exac_l]))
-gnomad_csv_json_dict = dict(zip(gnomad_l,[gnomad_col.replace("gnomad_","") for gnomad_col in gnomad_l]))
+#gnomad_csv_json_dict = dict(zip(gnomad_l,[gnomad_col.replace("gnomad_","") for gnomad_col in gnomad_l]))
+gnomad_e_csv_json_dict = dict(zip(gnomad_e_l,[gnomad_col.replace("gnomade_","") for gnomad_col in gnomad_e_l]))
+gnomad_g_csv_json_dict = dict(zip(gnomad_g_l,[gnomad_col.replace("gnomadg_","") for gnomad_col in gnomad_g_l]))
 csv_json_dict.update(protein_csv_json_dict)
 csv_json_dict.update(path_csv_json_dict)
 csv_json_dict.update(exac_csv_json_dict)
-csv_json_dict.update(gnomad_csv_json_dict)
+#csv_json_dict.update(gnomad_csv_json_dict)
+csv_json_dict.update(gnomad_e_csv_json_dict)
+csv_json_dict.update(gnomad_g_csv_json_dict)
 csv_json_dict["Consequence"] = "consequence_terms"
 csv_json_dict["Kaviar"] = "AF"
 
@@ -128,7 +149,7 @@ with open(os.path.join(data_dir,"for_vep_sorted.VEP.json")) as infile:
 	    d = json.loads(line)
         except:
             print(line)
-        [chr,csv_row_dict] = get_csv_row_dict(d, csv_row_keys, csv_json_dict)
+        [chr,csv_row_dict] = get_csv_row_dict(d, csv_row_keys, csv_json_dict, gnomad_e_l, gnomad_g_l)
         if chr != current_chr:
             csv.write("\n".join(csv_data_l))
             del csv_data_l[:]
@@ -137,6 +158,9 @@ with open(os.path.join(data_dir,"for_vep_sorted.VEP.json")) as infile:
             csv = open_new_csv(current_chr,csv_row_keys)
         csv_row = ",".join(['"NA"' if pd.isnull(x) else '"{0}"'.format(x) for x in list(csv_row_dict.values())])
 	csv_data_l.append(csv_row)
+	#if line_counter > 1000: #Debugging
+		#print("Breaking")
+		#break
 csv.write("\n".join(csv_data_l))
 csv.close()
 
