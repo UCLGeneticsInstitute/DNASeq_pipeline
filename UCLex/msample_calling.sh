@@ -6,11 +6,11 @@ try() { "$@" || stop "cannot $*"; }
 
 mainFolder=/SAN/vyplab/UCLex
 
-referenceFolder=/cluster/scratch3/vyp-scratch2
+#referenceFolder=/cluster/scratch3/vyp-scratch2
 #fasta=${referenceFolder}/reference_datasets/human_reference_sequence/human_g1k_v37.fasta
-fasta=/SAN/vyplab/UKIRDC/reference/human_g1k_v37.fasta
+fasta=${mainFolder}/reference/human_g1k_v37.fasta
 #bundle=${referenceFolder}/reference_datasets/GATK_bundle
-bundle=/SAN/vyplab/UCLex/GATK_bundle/
+bundle=${mainFolder}/GATK_bundle/
 #dbsnp=${bundle}/dbsnp_137.b37.vcf
 dbsnp=/SAN/vyplab/UKIRDC/reference/dbsnp_138.b37.vcf.gz
 dbsnp=/SAN/vyplab/UCLex/GATK_bundle/dbsnp_138.b37.vcf.gz
@@ -21,11 +21,12 @@ Rbin=/cluster/project8/vyp/vincent/Software/R-3.3.0/bin/R
 Rscript=/cluster/project8/vyp/vincent/Software/R-3.3.0/bin/Rscript
 
 #java=/share/apps/jdk1.7.0_45/bin/java
+#java=/share/apps/jdk/jre/bin/java
 java=/share/apps/jdk/jre/bin/java
 tmpDir=/scratch0/vyp
-target=/cluster/project8/vyp/exome_sequencing_multisamples/target_region/data/merged_exome_target_cleaned.bed
+target=${mainFolder}/exome_sequencing_multisamples/target_region/data/merged_exome_target_cleaned.bed
 
-GATK=/cluster/project8/vyp/vincent/Software/GenomeAnalysisTK-3.5-0/GenomeAnalysisTK.jar
+GATK=${mainFolder}/scripts/GenomeAnalysisTK-3.5-0/GenomeAnalysisTK.jar
 
 baseFolder="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 echo $baseFolder
@@ -123,6 +124,7 @@ function genotype() {
 echo "
 ############### genotype chr${chr}
 $java -Djava.io.tmpdir=/scratch0/ -Xmx${memoSmall}g -jar $GATK \\
+   --num_threads 10 -nct 1 \\
    -R $fasta \\
    -T GenotypeGVCFs \\
    -L $chr -L $target --interval_set_rule INTERSECTION --interval_padding 100  \\
@@ -163,6 +165,7 @@ function extract_snps() {
 set +x
 mkdir -p $tmpDir
 $java  -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $chr \
+   --num_threads 10 -nct 1 \\
    -T SelectVariants \
    -selectType SNP \
    -V ${output}_chr${chr}.vcf.gz \
@@ -305,13 +308,13 @@ done " > ${scripts_folder}/subscript_chr${chr}.sh
 function recal_merge() {
 for chr in `seq 1 22` X
     do
-        #### creates the tmpDir if needed
-        tmpDir=/scratch0/GATK_chr${chr}
-        rm -f ${scripts_folder}/subscript_chr${chr}.sh
-        f=${output}_chr${chr}_filtered.vcf.gz
-        if [[ ! -s $f ]]
-        then
-        echo "
+    #### creates the tmpDir if needed
+    tmpDir=/scratch0/GATK_chr${chr}
+    rm -f ${scripts_folder}/subscript_chr${chr}.sh
+    f=${output}_chr${chr}_filtered.vcf.gz
+    if [[ ! -s $f ]]
+    then
+    echo "
 #### Now we merge SNPs and indels
 $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $chr \
    -T CombineVariants --assumeIdenticalSamples \
@@ -320,7 +323,7 @@ $java -Djava.io.tmpdir=${tmpDir} -Xmx${memoSmall}g -jar ${GATK} -R $fasta -L $ch
    -genotypeMergeOptions PRIORITIZE  \
    -priority SNPs,indels \
    --out ${output}_chr${chr}_filtered.vcf.gz" > ${scripts_folder}/subscript_chr${chr}.sh
-	fi
+    fi
     done
 }
 
@@ -462,6 +465,7 @@ function check_recal() {
 function annovar() {
     check_recal
     memo=15
+    mkdir -p ${output}_snpStats
     for chr in `seq 1 22` X
     do
         if [[ ! -s ${output}_snpStats/annotations_chr${chr}.csv  || "$force" == "yes" ]]
@@ -705,11 +709,13 @@ set +x
     genotype
     extract_snps
     recal_snps
-    extract_indel
-    recal_indel
+    extract_indels
+    recal_indels
     recal_merge
     annovar
     convertToR
+    VEP_input
+    CADD
     h_vmem=20
     t_mem=20
 }
