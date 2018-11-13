@@ -639,10 +639,17 @@ main <- function() {
           combined.matrix.depth <- matrix.depth
           first <- FALSE
         } else {
-          combined.annotations <- rbind.data.frame( combined.annotations, annotations)    
-          combined.snpStats <- cbind( combined.snpStats, case.control.snpStats)
-          combined.matrix.depth <- rbind ( combined.matrix.depth, matrix.depth)
-          if (nrow(combined.annotations) != ncol(combined.snpStats)) {stop('Non matching numbers')}
+        message('dim of combined.annotations')
+        print(dim(combined.annotations <- rbind.data.frame( combined.annotations, annotations)))
+        message('dim of combined.snpStats')
+        print(class(combined.snpStats))
+        print(dim(combined.snpStats))
+        print(class(case.control.snpStats))
+        print(dim(case.control.snpStats))
+        print(dim(combined.snpStats <- cbind( combined.snpStats, case.control.snpStats)))
+        message('dim of combined.matrix.depth')
+        print(dim(combined.matrix.depth <- rbind ( combined.matrix.depth, matrix.depth)))
+        if (nrow(combined.annotations) != ncol(combined.snpStats)) {stop('Non matching numbers')}
         }
         gc()
       }
