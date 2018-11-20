@@ -43,7 +43,9 @@ case.control.analysis <- function(choice.cases = NULL, output = 'processed/suppo
 ##################### find the case control labels
       if (first) {
         my.controls <- dimnames(case.control.snpStats)[[1]][ case.control.labels == 0 ]
+        write.csv(my.controls,file=file.path('data','controls.csv'),row.names=FALSE)
         my.cases <- dimnames(case.control.snpStats)[[1]] [ case.control.labels == 1 ]
+        write.csv(my.cases,file=file.path('data','cases.csv'),row.names=FALSE)
         if (!is.null(choice.cases)) my.cases <- subset(my.cases, my.cases %in% choice.cases)
         first <- FALSE
       } 
@@ -265,6 +267,7 @@ process.multiVCF <- function(calls,
                              also.fix.names.in.case.list = TRUE,
                              choice.transcripts = NULL, ##data frame, need columns "EnsemblID" and "Transcript"
                              extra.gene.annotations.file = NULL,
+
                              PCA.pop.structure = '/cluster/project8/vyp/exome_sequencing_multisamples/mainset/mainset_January2014/mainset_January2014_PCA.RData') {
   ######### first thing first, we fix the names if there are names to fix
   if (!is.null(fix.names)) {
@@ -285,6 +288,8 @@ process.multiVCF <- function(calls,
       #if (sum (! my.cases %in% dimnames(calls)[[1]]) > 0) browser()
     }
   }
+
+
   ######################
   all.variants.folder <- paste(oFolder, '/all_variants', sep= '')
   hom.variants.folder <- paste(oFolder, '/homozygous_variants', sep= '')
@@ -294,14 +299,15 @@ process.multiVCF <- function(calls,
   known.genes.folder <- paste(oFolder, '/known_genes', sep= '')
   compound.hets.folder <- paste(oFolder, '/compound_hets', sep= '')
   supportFolder <- paste(oFolder, '/support', sep= '')
-for (folder in c(oFolder, chrX.folder, all.variants.folder, hom.variants.folder, all.rare.variants.folder, known.genes.folder, hom.mapping.folder, compound.hets.folder, supportFolder)) {
+  for (folder in c(oFolder, chrX.folder, all.variants.folder, hom.variants.folder, all.rare.variants.folder, known.genes.folder, hom.mapping.folder, compound.hets.folder, supportFolder)) {
     if (!file.exists(folder)) dir.create(folder) else {
       old.files <- list.files(folder, full.names = TRUE, include.dir = FALSE)
       message('Will remove old files')
       print(old.files)
-      print(file.remove( old.files) )
+      print( unlink( old.files, force=TRUE, recursive=TRUE) )
     }
   }
+
   good.ids <- my.cases %in% dimnames(calls)[[1]]
   correct.ids <- subset(my.cases, good.ids)
   if (sum(good.ids) < dim(calls)[1]) {
@@ -316,6 +322,7 @@ for (folder in c(oFolder, chrX.folder, all.variants.folder, hom.variants.folder,
    } else {
     my.sum <- col.summary(calls)
   }
+
 ######### Update the frequency information in cases
   annotations$non.missing.cases <- my.sum$Calls
   annotations$freq.cases <- my.sum$RAF
@@ -340,18 +347,10 @@ for (folder in c(oFolder, chrX.folder, all.variants.folder, hom.variants.folder,
       in.PCA.table <- subset(correct.ids, correct.ids %in% row.names(pcs))
       message('Output PCA plot in ', output.pdf)
       pdf(output.pdf)
-      plot (x = pcs[,1],
-            y = pcs[,2],
-            xlab = 'PC1',
-            ylab = 'PC2',
-            col = 'grey',
-            pch = '+')
+      plot (x = pcs[,1], y = pcs[,2], xlab = 'PC1', ylab = 'PC2', col = 'grey', pch = '+')
       if (length( in.PCA.table ) > 1) {
         PCA.cases <- pcs[ in.PCA.table, ]
-        points(x = PCA.cases[,1],
-               y = PCA.cases[,2],
-               col = 'red',
-               pch = 20)
+        points(x = PCA.cases[,1], y = PCA.cases[,2], col = 'red', pch = 20)
         write.csv(x = PCA.cases, file = output.tab)  ##now give the location of the cases on the PCA plot
       }
       
@@ -383,7 +382,8 @@ annotations$Samples <- sapply(1:ncol(calls),
                          simplify = TRUE) 
 ############## Now the case control step
   if (case.control) {
-    if (sum(explained.cases) > 0) {  #### If some cases are explained we run this thing twice
+    if (sum(explained.cases) > 0) {
+       #### If some cases are explained we run this thing twice
       res <- case.control.analysis(choice.cases =  subset(correct.ids, !explained.cases), fix.names = fix.names, output = paste(supportFolder, '/case_control_non_explained_cases', sep = ''), known.genes = known.genes, SKAT = case.control.SKAT )
     }
     res1 <- case.control.analysis(choice.cases = correct.ids, fix.names = fix.names, output = paste(supportFolder, '/case_control_all_cases', sep = ''), known.genes = known.genes, SKAT = case.control.SKAT )
@@ -391,18 +391,7 @@ annotations$Samples <- sapply(1:ncol(calls),
 ################# Now start the proper filtering
   annotations$potential.comp.het <- FALSE
   annotations$n.cases.conf.homs <- 0
-  summary.frame <- data.frame(ids = correct.ids,
-                              n.exonic.calls = NA,
-                              percent.homozyg = NA,
-                              frac.het.on.X = NA,
-                              n.somewhat.rare.exonic.calls = NA,
-                              n.rare.exonic.calls = NA,
-                              ngenes.comp.het.lof = NA,
-                              ngenes.comp.het.func = NA,
-                              n.func.rare.calls = NA,
-                              n.func.rare.hom.calls = NA,
-                              n.lof.rare.calls = NA,
-                              n.lof.rare.hom.calls = NA)
+  summary.frame <- data.frame(ids = correct.ids, n.exonic.calls = NA, percent.homozyg = NA, frac.het.on.X = NA, n.somewhat.rare.exonic.calls = NA, n.rare.exonic.calls = NA, ngenes.comp.het.lof = NA, ngenes.comp.het.func = NA, n.func.rare.calls = NA, n.func.rare.hom.calls = NA, n.lof.rare.calls = NA, n.lof.rare.hom.calls = NA)
   for (sample in 1:length(correct.ids)) {
     id <- correct.ids[ sample ]
     message('Sample ', id)
@@ -425,8 +414,7 @@ summary.frame$n.func.rare.calls[ sample ] <- sum(annotations.loc$rare & (annotat
     summary.frame$n.somewhat.rare.exonic.calls[ sample ] <- sum(annotations.loc$Func == 'exonic' & annotations.loc$somewhat.rare, na.rm = TRUE)
     summary.frame$frac.het.on.X[ sample ] <- sum( (annotations.loc$Chr == 'X') & calls.loc == 1, na.rm = TRUE)/ sum(annotations.loc$Chr == 'X' & calls.loc %in% c(1, 2), na.rm = TRUE)
 ######### preferred choice to print the labels
-    my.block <- c('Samples', 'Func', 'ExonicFunc', 'HUGO', 'Description', 'non.ref.calls.cases', 'ncarriers.cases', 'missing.rate.cases', 'freq.controls', 'non.missing.controls', 'non.ref.calls.controls',
-                  'non.missing.external.controls', 'freq.external.controls', 'AAChange', id, 'Depth', 'is.indel', 'QUAL')
+    my.block <- c('Samples', 'Func', 'ExonicFunc', 'HUGO', 'Description', 'non.ref.calls.cases', 'ncarriers.cases', 'missing.rate.cases', 'freq.controls', 'non.missing.controls', 'non.ref.calls.controls', 'non.missing.external.controls', 'freq.external.controls', 'AAChange', id, 'Depth', 'is.indel', 'QUAL')
     my.names2 <-  c(subset(my.block, my.block %in% names(annotations.loc)), subset(names(annotations.loc), ! (names(annotations.loc) %in% c(correct.ids, my.block) ) ))
     my.names2 <- subset(my.names2, ! my.names2 %in% c('Otherinfo', 'Gene.Start..bp.', 'Gene.End..bp.', 'MIM.Gene.Description', 'n.cases.conf.homs', 'HetNames', 'HomNames'))
 ##### output the full list of calls for this sample
@@ -471,37 +459,37 @@ summary.frame$n.func.rare.calls[ sample ] <- sum(annotations.loc$rare & (annotat
         }
         hom.mapping.candidates <- hom.mapping.candidates[, my.names2]
         output.hmap <- paste(hom.mapping.folder, '/', id, '.csv', sep = '')
-        write.csv(x = hom.mapping.candidates[, my.names2], file = output.hmap, row.names = FALSE)
         message('Outputting hom mapping variants in ', output.hmap, ', ncalls: ', nrow(hom.mapping.candidates))
+        write.csv(x = hom.mapping.candidates[, my.names2], file = output.hmap, row.names = FALSE)
         output.regions <- paste(hom.mapping.folder, '/', id, '_regions.csv', sep = '')
-        write.csv(x = regions, file = output.regions, row.names = FALSE)
         message('Outputting hom mapping regions in ', output.regions, ', nregions: ', nrow(regions))      
+        write.csv(x = regions, file = output.regions, row.names = FALSE)
       }
     }
 ##### now the somewhat.rare homs- note that I exclude chrX calls for now in that list
     rare.homs <- subset(annotations.loc, (! Chr %in% c('X', 'Y'))  & somewhat.rare & calls.loc == 2 & (non.syn | splicing | lof) & !remove.bad.transcripts & (depth.loc >= depth.threshold.conf.homs))
     rare.homs <- rare.homs[, my.names2]
     output.homs <- paste(hom.variants.folder, '/', id, '.csv', sep = '')
-    write.csv(x = rare.homs, file = output.homs, row.names = FALSE)
     message('Outputting all rare homozygous functional variants in ', output.homs, ', ncalls: ', nrow(rare.homs))
+    write.csv(x = rare.homs, file = output.homs, row.names = FALSE)
 ##### now the somewhat.rare hets
     rare.hets <- subset(annotations.loc, somewhat.rare & calls.loc >= 1 & (non.syn | splicing | lof) & !remove.bad.transcripts)
     rare.hets <- rare.hets[, my.names2]
     output.hets <- paste(all.rare.variants.folder, '/', id, '.csv', sep = '')
-    write.csv(x = rare.hets, file = output.hets, row.names = FALSE)
     message('Outputting all rare heterozygous functional variants in ', output.hets, ', ncalls: ', nrow(rare.hets))
+    write.csv(x = rare.hets, file = output.hets, row.names = FALSE)
 ######## now the X linked stuff
     chrX <- subset( annotations.loc, Chr == 'X' & somewhat.rare & calls.loc >= 1 & (non.syn | splicing | lof) & !remove.bad.transcripts)
     chrX <- chrX[, my.names2]
     output.X <- paste(chrX.folder, '/', id, '.csv', sep = '')
-    write.csv(x = chrX, file = output.X, row.names = FALSE)
     message('Outputting all rare X linked variants ', output.X, ', ncalls: ', nrow(chrX))
+    write.csv(x = chrX, file = output.X, row.names = FALSE)
 ##### now the variants in known genes, keep the wrong transcripts in this folder for now
     known.genes.calls <- subset(annotations.loc, somewhat.rare & calls.loc >= 1 & (non.syn | splicing | lof) & (Gene %in% known.genes | gsub(pattern = '\\(.*', replacement = '', annotations.loc$HUGO) %in% known.genes | HUGO %in% known.genes))
     known.genes.calls <- known.genes.calls[, my.names2]
     output.known <- paste(known.genes.folder, '/', id, '.csv', sep = '')
-    write.csv(x = known.genes.calls, file = output.known, row.names = FALSE)
     message('Outputting all rare variants in known genes ', output.known, ', ncalls: ', nrow(known.genes.calls))
+    write.csv(x = known.genes.calls, file = output.known, row.names = FALSE)
   }
 ############################################################ preferred choice to print the labels
   my.block <- c('Samples', 'Func', 'ExonicFunc', 'HUGO', 'Description', 'non.missing.cases', 'non.ref.calls.cases', 'ncarriers.cases', 'maf.cases', 'n.cases.conf.homs', 'freq.controls', 'non.missing.controls', 'non.ref.calls.controls', 'non.missing.external.controls', 'freq.external.controls', 'pval.cc.single', 'AAChange', 'is.indel', 'QUAL')
@@ -535,130 +523,123 @@ summary.frame$n.func.rare.calls[ sample ] <- sum(annotations.loc$rare & (annotat
 
 
 ###
-main <- function() {
-    for (chr in  c(as.character(1:22), 'X')) {
+main <- function(my.cases, my.controls, first=TRUE) {
+
+for (chr in  c(as.character(1:22), 'X')) {
+#for (chr in  c(as.character(22), 'X')) {
       message('Chromosome ', chr)
       #input.data <- paste(root, '_by_chr/chr', chr, '_snpStats.RData', sep = '')
       input.data <- paste0(root, '_snpStats/chr', chr, '_snpStats.RData')
       if (!file.exists(input.data)) {
         stop("File ", input.data, " does not exist")
       }
-      if (file.exists(input.data)) {
-        message('Will now load ', input.data)
-        load(input.data)
-        #print(table(as(matrix.calls.snpStats[, '1_897325_G_C'], 'numeric')[,1])); stop()
-        if (first) {
+      message('Will now load ', input.data)
+      load(input.data)
+      #print(table(as(matrix.calls.snpStats[, '1_897325_G_C'], 'numeric')[,1])); stop()
+
+# case control definition
+      if (first) {
           sample.frame <- data.frame(sampleIDs = dimnames(matrix.calls.snpStats)[[1]])
-          sample.frame$case <- 0
-          sample.frame$control <- 0
           sample.frame$external.control <- 0
-          for (case in case.names) {
-              sample.frame$case <- ifelse ( grepl(pattern = case, sample.frame$sampleIDs), 1, sample.frame$case )
-          }
-          for (control in control.names) {
-              sample.frame$control <- ifelse ( grepl(pattern = control, sample.frame$sampleIDs), 1, sample.frame$control )
-          }
-          if (max(sample.frame$case + sample.frame$control ) == 2) stop('A sample is a case and a control at the same time')
+          sample.frame$case <-  as.numeric(sample.frame$sampleIDs %in% my.cases)
+          cat('number of cases:', length(which(sample.frame$case==1)),'\n')
+          sample.frame$control <- as.numeric(sample.frame$sampleIDs %in% my.controls)
+          cat('number of controls:', length(which(sample.frame$control==1)),'\n')
+          if (max(sample.frame$case+sample.frame$control)== 2) stop('A sample is a case and a control at the same time')
+      }
     ################# Now we consider the Prion unit setup
-          if (Prion.setup) {
-            sample.frame$external.control <- ifelse (  sample.frame$case + sample.frame$control == 0, 1, 0)
-          } else {
-            exclude.rows <- which ( sample.frame$control + sample.frame$case == 0 )  ### that's the rows that are NOTHING AT ALL
-            sample.frame.excluded.samples <- sample.frame[ exclude.rows, ]
-            ##remove the rows that are neither from cases or controls
-            case.control.frame <- sample.frame[-exclude.rows,]
-            write.table(x = sample.frame.excluded.samples, file = 'data/samples_not_used.tab', sep = '\t', row.names = FALSE, quote = FALSE)
-            control.rows <- which(sample.frame$control == 1)
-            external.controls.rows <- control.rows[ which( rep(c(0, 0, 0, 1), times = floor(length(control.rows)/4)) == 1) ]
-            sample.frame$external.control[ external.controls.rows ] <- 1
-            sample.frame$control [ external.controls.rows ] <- 0
-          }
+      ### that's the rows that are NOTHING AT ALL
+      exclude.rows <- which( sample.frame$control+sample.frame$case == 0 )  
+      sample.frame.excluded.samples <- sample.frame[ exclude.rows, ]
+      ##remove the rows that are neither from cases or controls
+      case.control.frame <- sample.frame[-exclude.rows,]
+      write.table(x = sample.frame.excluded.samples, file = 'data/samples_not_used.tab', sep = '\t', row.names = FALSE, quote = FALSE)
+      control.rows <- which(sample.frame$control == 1)
+      external.controls.rows <- control.rows[ which( rep(c(0, 0, 0, 1), times = floor(length(control.rows)/4)) == 1) ]
+      sample.frame$external.control[ external.controls.rows ] <- 1
+      sample.frame$control [ external.controls.rows ] <- 0
     ########### Now we work on the external set, need to define it
-          cases <- subset(sample.frame, case == 1, 'sampleIDs', drop = TRUE)
-          controls <- subset(sample.frame, control == 1, 'sampleIDs', drop = TRUE)
-          external.controls <- subset(sample.frame, external.control == 1, 'sampleIDs', drop = TRUE)
-          case.control.labels <- c(rep(1, length(cases)), rep(0, length(controls)))
-        }
+      cases <- subset(sample.frame, case == 1, 'sampleIDs', drop = TRUE)
+      controls <- subset(sample.frame, control == 1, 'sampleIDs', drop = TRUE)
+      external.controls <- subset(sample.frame, external.control == 1, 'sampleIDs', drop = TRUE)
+      case.control.labels <- c(rep(1, length(cases)), rep(0, length(controls)))
     ############# apply missingness threshold
-        ##some quick checks first of all
-        print(table(dimnames(matrix.depth)[[2]] == dimnames(matrix.calls.snpStats)[[1]]))
-        print(table(dimnames(matrix.depth)[[1]] == dimnames(matrix.calls.snpStats)[[2]]))
-        if (missing.depth.threshold > 0) {  ### apply missingness if requested
-          for (i in 1:nrow(matrix.calls.snpStats)) {
+      ##some quick checks first of all
+      print(table(dimnames(matrix.depth)[[2]] == dimnames(matrix.calls.snpStats)[[1]]))
+      print(table(dimnames(matrix.depth)[[1]] == dimnames(matrix.calls.snpStats)[[2]]))
+      if (missing.depth.threshold > 0) {  ### apply missingness if requested
+      for (i in 1:nrow(matrix.calls.snpStats)) {
             message('Fixing sample ', i, ' min depth ', missing.depth.threshold)
             matrix.calls.snpStats[ i, which(as.numeric(matrix.depth[,i]) < missing.depth.threshold) ] <- as.raw(0)
-          }
-        }
-        ######### Now we remove the variants we don't need
-        external.controls.snpStats <- matrix.calls.snpStats[ external.controls, ]
-        case.control.snpStats <- matrix.calls.snpStats[ c(cases, controls), ]
-        matrix.depth <- matrix.depth[ , c(cases, controls)]  ##reduce the depth matrix to the right set of cases and controls
-        case.control.variant.summary <- col.summary( case.control.snpStats )
-        poly.in.case.control <- case.control.variant.summary$RAF > 0 & case.control.variant.summary$Calls > 0
-        case.control.snpStats <- case.control.snpStats[, poly.in.case.control]
-        external.controls.snpStats <- external.controls.snpStats[, poly.in.case.control]
-        annotations <- annotations.snpStats[poly.in.case.control, ]
-        matrix.depth <- matrix.depth[ poly.in.case.control, ]
-    ###########
-        annotations <- annotate.standard.annovar.output(annotations)
-      ################
-        external.summary <- col.summary( external.controls.snpStats )
-        annotations$non.ref.calls.external.controls <- round( external.summary$Calls * external.summary$RAF*2  )
-        annotations$freq.external.controls <- external.summary$RAF
-        annotations$non.missing.external.controls <- external.summary$Calls
-        controls.snpStats <- case.control.snpStats[ controls, ]
-        control.summary <- col.summary( controls.snpStats )
-        annotations$non.ref.calls.controls <- round( control.summary$Calls * control.summary$RAF*2  )
-        annotations$freq.controls <- control.summary$RAF
-        annotations$non.missing.controls <- control.summary$Calls
-        cases.snpStats <- case.control.snpStats[ cases, ]
-        case.summary <- col.summary( cases.snpStats )
-        annotations$non.ref.calls.cases <- round( case.summary$Calls * case.summary$RAF*2  )
-        annotations$freq.cases <- case.summary$RAF
-        annotations$non.missing.cases <- case.summary$Calls
-    ############# Now use the external control data to refine the flags
-        message('Number of rare variants before control filter: ', sum(annotations$rare))
-        annotations$somewhat.rare <- annotations$somewhat.rare &
-        ( (annotations$non.ref.calls.external.controls <= 2) |  (annotations$freq.external.controls <= threshold.somewhat.rare) | is.na(annotations$freq.external.controls) )
-        annotations$rare <- annotations$rare & ( (annotations$non.ref.calls.external.controls <= 1) |  (annotations$freq.external.controls <= threshold.rare) | is.na(annotations$freq.external.controls) )
-        annotations$novel <- annotations$novel  &  (annotations$freq.external.controls == 0 | is.na(annotations$freq.external.controls)) & ( is.na(annotations$freq.controls) | annotations$freq.controls == 0 )
-        message('Number of rare variants after control filter: ', sum(annotations$rare))
-    ##############  Now we need to save the full case control file
-        output.file <- paste('data/case_control_chr', chr, '.RData', sep = '')
-        save(list = c('case.control.labels', 'annotations', 'case.control.snpStats'), file = output.file)
-    ########## restrict the calls to the polymorphic data in cases and only keep info about cases
-        case.summary <- col.summary(case.control.snpStats[  cases, ])
-        poly.in.cases <- case.summary$RAF > 0 & case.summary$Calls > 0
-        annotations <- annotations[ poly.in.cases, ]
-        matrix.depth <- matrix.depth[poly.in.cases, cases]
-        case.control.snpStats <- case.control.snpStats[cases, poly.in.cases ]
-        message('Number of polymorphic variants in cases for chromosome ', chr, ': ', sum(poly.in.cases, na.rm = TRUE) )
-        if (first) {
-          combined.snpStats <- case.control.snpStats
-          combined.annotations <- annotations
-          combined.matrix.depth <- matrix.depth
-          first <- FALSE
-        } else {
-        message('dim of combined.annotations')
-        print(dim(combined.annotations <- rbind.data.frame( combined.annotations, annotations)))
-        message('dim of combined.snpStats')
-        print(class(combined.snpStats))
-        print(dim(combined.snpStats))
-        print(class(case.control.snpStats))
-        print(dim(case.control.snpStats))
-        print(dim(combined.snpStats <- cbind( combined.snpStats, case.control.snpStats)))
-        message('dim of combined.matrix.depth')
-        print(dim(combined.matrix.depth <- rbind ( combined.matrix.depth, matrix.depth)))
-        if (nrow(combined.annotations) != ncol(combined.snpStats)) {stop('Non matching numbers')}
-        }
-        gc()
       }
+      }
+      ######### Now we remove the variants we don't need
+      external.controls.snpStats <- matrix.calls.snpStats[ external.controls, ]
+      case.control.snpStats <- matrix.calls.snpStats[ c(cases, controls), ]
+      matrix.depth <- matrix.depth[ , c(cases, controls)]  ##reduce the depth matrix to the right set of cases and controls
+      case.control.variant.summary <- col.summary( case.control.snpStats )
+      poly.in.case.control <- case.control.variant.summary$RAF > 0 & case.control.variant.summary$Calls > 0
+      case.control.snpStats <- case.control.snpStats[, poly.in.case.control]
+      external.controls.snpStats <- external.controls.snpStats[, poly.in.case.control]
+      annotations <- annotations.snpStats[poly.in.case.control, ]
+      matrix.depth <- matrix.depth[ poly.in.case.control, ]
+    ###########
+      annotations <- annotate.standard.annovar.output(annotations)
+      ################
+      external.summary <- col.summary( external.controls.snpStats )
+      annotations$non.ref.calls.external.controls <- round( external.summary$Calls * external.summary$RAF*2  )
+      annotations$freq.external.controls <- external.summary$RAF
+      annotations$non.missing.external.controls <- external.summary$Calls
+      controls.snpStats <- case.control.snpStats[ controls, ]
+      control.summary <- col.summary( controls.snpStats )
+      annotations$non.ref.calls.controls <- round( control.summary$Calls * control.summary$RAF*2  )
+      annotations$freq.controls <- control.summary$RAF
+      annotations$non.missing.controls <- control.summary$Calls
+      cases.snpStats <- case.control.snpStats[ cases, ]
+      case.summary <- col.summary( cases.snpStats )
+      annotations$non.ref.calls.cases <- round( case.summary$Calls * case.summary$RAF*2  )
+      annotations$freq.cases <- case.summary$RAF
+      annotations$non.missing.cases <- case.summary$Calls
+    ############# Now use the external control data to refine the flags
+      message('Number of rare variants before control filter: ', sum(annotations$rare))
+      annotations$somewhat.rare <- annotations$somewhat.rare & ( (annotations$non.ref.calls.external.controls <= 2) |  (annotations$freq.external.controls <= threshold.somewhat.rare) | is.na(annotations$freq.external.controls) )
+      annotations$rare <- annotations$rare & ( (annotations$non.ref.calls.external.controls <= 1) |  (annotations$freq.external.controls <= threshold.rare) | is.na(annotations$freq.external.controls) )
+     annotations$novel <- annotations$novel  &  (annotations$freq.external.controls == 0 | is.na(annotations$freq.external.controls)) & ( is.na(annotations$freq.controls) | annotations$freq.controls == 0 )
+     message('Number of rare variants after control filter: ', sum(annotations$rare))
+    ##############  Now we need to save the full case control file
+    cat('Writing file:\n')
+    print(output.file <- paste('data/case_control_chr', chr, '.RData', sep = ''))
+    save(list = c('case.control.labels', 'annotations', 'case.control.snpStats'), file = output.file)
+    ########## restrict the calls to the polymorphic data in cases and only keep info about cases
+    case.summary <- col.summary(case.control.snpStats[  cases, ])
+    poly.in.cases <- case.summary$RAF > 0 & case.summary$Calls > 0
+    annotations <- annotations[ poly.in.cases, ]
+    matrix.depth <- matrix.depth[poly.in.cases, cases]
+    case.control.snpStats <- case.control.snpStats[cases, poly.in.cases ]
+    message('Number of polymorphic variants in cases for chromosome ',chr,': ',sum(poly.in.cases,na.rm = TRUE))
+    if (first) {
+      combined.snpStats <- case.control.snpStats
+      combined.annotations <- annotations
+      combined.matrix.depth <- matrix.depth
+      first <- FALSE
+    } else {
+      message('dim of combined.annotations')
+      print(dim(combined.annotations <- rbind.data.frame( combined.annotations, annotations)))
+      message('dim of combined.snpStats')
+      print(class(combined.snpStats))
+      print(dim(combined.snpStats))
+      print(class(case.control.snpStats))
+      print(dim(case.control.snpStats))
+      print(dim(combined.snpStats <- cbind( combined.snpStats, case.control.snpStats)))
+      message('dim of combined.matrix.depth')
+      print(dim(combined.matrix.depth <- rbind ( combined.matrix.depth, matrix.depth)))
+      if (nrow(combined.annotations) != ncol(combined.snpStats)) {stop('Non matching numbers')}
     }
-    message('Now saving the data in data/poly_in_cases_snpStats.RData')
-    save(list = c('combined.matrix.depth', 'combined.snpStats', 'combined.annotations'), file = 'data/poly_in_cases_snpStats.RData')
+        gc()
 }
-
-
+message('Now saving the data in data/poly_in_cases_snpStats.RData')
+save(list = c('combined.matrix.depth', 'combined.snpStats', 'combined.annotations'), file = 'data/poly_in_cases_snpStats.RData')
+}
 
 
 ### MAIN
@@ -689,22 +670,37 @@ root <- opt$root
 
 threshold.somewhat.rare <- 0.005
 threshold.rare <- 0.001 
-case.names <- scan('data/caseKeywords.tab', what = character())
-control.names <- scan('data/controlKeywords.tab', what = character()) 
-first <- TRUE 
 
+# all sample names
 load(paste0(root, '_snpStats/chr22_snpStats.RData'))
 my.names <- rownames(matrix.calls.snpStats)
 
 known.genes <- scan('data/known_genes.tab', what = 'character')
-print(my.cases <- grep(pattern = paste(case.names,collapse='|'), my.names, value = TRUE))
 
-# this creates the data files
-main()
+case.names <- scan('data/caseKeywords.tab', what = character())
+cat('Cases:\n')
+print(length(my.cases <- grep(pattern = paste(case.names,collapse='|'), my.names, value = TRUE, ignore.case=TRUE)))
+if (length(my.cases)==0) stop('Number of cases is zero')
 
+control.names <- scan('data/controlKeywords.tab', what = character()) 
+cat('Controls:\n')
+print(length(my.controls <- grep(pattern = paste(control.names,collapse='|'), my.names, value = TRUE, ignore.case=TRUE)))
+if (length(my.controls)==0) stop('Number of controls is zero')
+
+
+# this creates the data files:
+# data/poly_in_cases_snpStats.RData
+# which contains:
+# - combined.snpStats
+# - combined.matrix.deph
+# - combined.annotations
+main(my.cases=my.cases, my.controls=my.controls, first=TRUE)
+
+# contains:
+# combined.snpStats
 load('data/poly_in_cases_snpStats.RData')
 my.names <- dimnames(combined.snpStats)[[1]]
-print(my.cases <- grep(pattern = paste(case.names,collapse='|'), my.names, value = TRUE))
+#print(my.cases <- grep(pattern = paste(case.names,collapse='|'), my.names, value = TRUE))
 
 res <- process.multiVCF (calls = combined.snpStats,
                          depth = combined.matrix.depth,
