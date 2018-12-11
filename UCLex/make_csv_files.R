@@ -138,10 +138,7 @@ case.control.analysis <- function(choice.cases = NULL, output = 'processed/suppo
           chr.table$cases.n.hom.somewhat.rare.func[ i ] <- sum(case.data.loc == 2, na.rm = TRUE)
           chr.table$controls.n.hom.somewhat.rare.func[ i ] <- sum(control.data.loc == 2, na.rm = TRUE) 
           if ( (proba.mut > 1/1000) && !is.na(proba.mut)) {
-            chr.table$case.control.pval.func[ i ] <- pbinom(q = chr.table$cases.n.somewhat.rare.func[ i ] - 1,
-                                                            size = chr.table$cases.n.somewhat.rare.func[ i ] + chr.table$controls.n.somewhat.rare.func[ i ],
-                                                            prob = proba.mut,
-                                                            lower.tail = FALSE) 
+            chr.table$case.control.pval.func[ i ] <- pbinom(q = chr.table$cases.n.somewhat.rare.func[ i ] - 1, size = chr.table$cases.n.somewhat.rare.func[ i ] + chr.table$controls.n.somewhat.rare.func[ i ], prob = proba.mut, lower.tail = FALSE) 
             chr.table$case.control.pval.biallelic.func[ i ] <- pbinom(q = chr.table$cases.biallelic.n.somewhat.rare.func[ i ] - 1, size = chr.table$cases.biallelic.n.somewhat.rare.func[ i ] + chr.table$controls.biallelic.n.somewhat.rare.func[ i ], prob = proba.mut, lower.tail = FALSE) 
           } else  {chr.table$case.control.pval.func[ i ] <- 1} 
         } 
@@ -287,9 +284,7 @@ process.multiVCF <- function(calls,
       my.cases <- gsub(my.cases, pattern = 'z$', replacement = '')
       #if (sum (! my.cases %in% dimnames(calls)[[1]]) > 0) browser()
     }
-  }
-
-
+  } 
   ######################
   all.variants.folder <- paste(oFolder, '/all_variants', sep= '')
   hom.variants.folder <- paste(oFolder, '/homozygous_variants', sep= '')
@@ -536,7 +531,6 @@ for (chr in  c(as.character(1:22), 'X')) {
       message('Will now load ', input.data)
       load(input.data)
       #print(table(as(matrix.calls.snpStats[, '1_897325_G_C'], 'numeric')[,1])); stop()
-
 # case control definition
       if (first) {
           sample.frame <- data.frame(sampleIDs = dimnames(matrix.calls.snpStats)[[1]])
@@ -658,7 +652,9 @@ getArgs <- function() {
 option_list <- list(
     make_option(c('--minDepth'), default=0, help='min depth'),
     make_option(c('--root'), help='Path to UCLex snp stats dir.'),
-    make_option(c('--Prion.setup'), default=0.05, help='Prion setup')
+    make_option(c('--Prion.setup'), default=0.05, help='Prion setup'),
+    make_option(c('--threshold.somewhat.rare'), default=0.005, help='Threshold somewhat rare.'),
+    make_option(c('--threshold.rare'), default=0.001 , help='Threshold rare.')
 )
 
 option.parser <- OptionParser(option_list=option_list)
@@ -667,9 +663,9 @@ opt <- parse_args(option.parser)
 Prion.setup <- opt$Prion.setup
 missing.depth.threshold <- opt$minDepth
 root <- opt$root
+threshold.somewhat.rare <- opt$threshold.somewhat.rare
+threshold.rare <- opt$threshold.rare
 
-threshold.somewhat.rare <- 0.005
-threshold.rare <- 0.001 
 
 # all sample names
 load(paste0(root, '_snpStats/chr22_snpStats.RData'))
